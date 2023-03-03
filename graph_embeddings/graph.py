@@ -4,11 +4,13 @@ import numpy as np
 
 
 class Graph:
-    def __init__(self, path_to_edges, adj_matrix, feature_attribute_name=None):
+    def __init__(self, path_to_edges, number_of_walks, walk_length):
         self.path_to_edges = path_to_edges
         self.sgraph = sg.StellarGraph()
         self.nxgraph = nx.DiGraph()
-        self.adj_matrix = np.genfromtxt(adj_matrix, dtype='int', delimiter=",")[:, 1:-1]
+        print("loading matrix")
+        self.adj_matrix = np.genfromtxt(adj_matrix, dtype='int', delimiter=",")[1:, 1:]
+        print("Matrix loaded")
         self.feature_attribute_name = feature_attribute_name
         #self.node_index_mapping = {}
 
@@ -42,6 +44,8 @@ class Graph:
                 data[self.feature_attribute_name] = np.array([1]*10)
             elif type == "row":
                 data[self.feature_attribute_name] = self.adj_matrix[int(node_id)]
+            elif type == "degree":
+                data[self.feature_attribute_name] = [self.nxgraph.degree[node_id]]
 
     def instanciate_graph(self):
         self.sgraph = sg.StellarGraph.from_networkx(self.nxgraph, node_features=self.feature_attribute_name)
