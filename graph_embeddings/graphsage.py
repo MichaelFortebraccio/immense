@@ -7,11 +7,12 @@ from sklearn import preprocessing, feature_extraction, model_selection
 from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from stellargraph.mapper import GraphSAGENodeGenerator
 from sklearn.metrics import accuracy_score
-from graph import Graph
-from keras.optimizers import Adam
-from keras.losses import binary_crossentropy
-from keras.metrics import binary_accuracy
+from graph_embeddings.graph import Graph
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import binary_crossentropy
+from tensorflow.keras.metrics import binary_accuracy
 from keras.models import save_model
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 import pickle
 
