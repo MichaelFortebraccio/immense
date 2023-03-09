@@ -1,21 +1,26 @@
 import pandas as pd
 import numpy as np
-from ae import AE
 import pickle
 from sklearn.metrics import classification_report
+from sklearn.model_selection import train_test_split
 import tensorflow as tf
 from os.path import exists
 from keras.models import load_model
 from text_preprocessing import TextPreprocessing
 from word_embedding import WordEmb
+from ae import AE
+from graph_embeddings.node2vec import Node2VecEmbedder
+from decision_tree import *
+from utils import prepare_for_decision_tree
+
 
 seed = 123
 np.random.seed(seed)
 
 
 if __name__ == "__main__":
-    # train W2V on Twitter dataset
-    df_tweets = pd.read_csv('tweet_labaled.csv', sep=',')
+    """# train W2V on Twitter dataset
+    df_tweets = pd.read_csv('tweet_labeled.csv', sep=',')
     tok = TextPreprocessing()
     tweet = tok.token_list(df_tweets['text_cleaned'].tolist())
 
@@ -58,70 +63,43 @@ if __name__ == "__main__":
     model_dang_exist = exists('model/autoencoderdang.h5')
 
     if model_dang_exist:
-        model_dang = load_model('model/autoencoderdang.h5')#load existing model
+        model_dang = load_model('model/autoencoderdang.h5')     # load existing model
     else:
-        AE(input_len=512, X_train=list_dang_tweets, label='dang').train_autoencoder()#train the model
+        print("Training dangerous autoencoder")
+        AE(input_len=512, X_train=list_dang_tweets, label='dang').train_autoencoder()   # train the model
         model_dang = load_model('model/autoencoderdang.h5')
 
     if model_safe_exist:
         model_safe = load_model('model/autoencodersafe.h5')  # load existing model
     else:
+        print("Training safe autoencoder")
         AE(input_len=512, X_train=list_safe_tweets, label='safe').train_autoencoder()  # train the model
         model_safe = load_model('model/autoencodersafe.h5')
     ##########################
+"""
+    df = pd.read_csv("tweet_labeled.csv")[['label', 'id']]
+    emb_relationships = Node2VecEmbedder(path_to_edges="graph_embeddings/stuff/network.edg", number_of_walks=10, walk_length=10,
+                                         embedding_size=128, p=1, q=4, epochs=10, save_path="graph_embeddings/stuff/n2v_128_rel.model")
+    emb_closeness = Node2VecEmbedder(path_to_edges="graph_embeddings/stuff/closeness_network.edg", number_of_walks=10, walk_length=10,
+                                     embedding_size=128, p=1, q=4, epochs=10, save_path="graph_embeddings/stuff/n2v_128_rel.model")
 
-    #test set evaluation
-    print('----W2V Counter dataset----')
-    df_counter = pd.read_csv('textual_data/counter_dang.csv', sep=';', encoding="latin-1")
-    list_counter_split_exist = exists('textual_data/list_counter_split.pickle')
-    if list_counter_split_exist:
-        with open('textual_data/list_counter_split.pickle', 'rb') as handle:
-            X_test = pickle.load(handle)
-    else:
-            print('----Preprocessing Counter dataset----')
-            list_counter = []
-            for s in df_counter['content']:
-                f = tok.preprocessing_text(s)
-                list_counter.append(f)
+    if not emb_relationships.load_model():
+        print("Learning relationships n2v model")
+        emb_relationships.learn_n2v_embeddings()
+    mod_rel = emb_relationships.load_model()
 
-            print(list_counter)
+    if not emb_closeness.load_model():
+        print("Learning closeness relationships n2v model")
+        emb_closeness.learn_n2v_embeddings()
+    mod_clos = emb_closeness.load_model()
 
-            with open('textual_data/list_counter.pickle', 'wb') as handle:
-                pickle.dump(list_counter, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            #list_counter = tok.token_list(list_counter)
-            print('----End Preprocessing Counter dataset----')
-            X_test = w2v_model.text_to_vec(list_counter)
-            with open('textual_data/list_counter_split.pickle', 'wb') as handle:
-                pickle.dump(X_test, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    print('----End W2V Counter dataset----')
+    X_train, X_test, Y_train, Y_test = train_test_split(df['id'].to_list(), df['label'].to_list(), test_size=0.2,
+                                                        train_size=0.8)
+    dt_relationships = train_decision_tree(train_set_ids=X_train, train_set_labels=Y_train, n2v_model=mod_rel)
+    dt_closeness = train_decision_tree(train_set_ids=X_train, train_set_labels=Y_train, n2v_model=mod_clos)
 
 
-    print('Start evaluation')
-    prediction_safe = model_safe.predict(X_test)
-    prediction_dang = model_dang.predict(X_test)
-
-    prediction_loss_safe = tf.keras.losses.mse(prediction_safe, X_test)
-    prediction_loss_dang = tf.keras.losses.mse(prediction_dang, X_test)
-
-    prediction_loss_dang = prediction_loss_dang.numpy().tolist()
-    prediction_loss_safe = prediction_loss_safe.numpy().tolist()
-
-    i = 0
-    y_pred = []
-    y_true = df_counter['label'].tolist()
-    while i<len(prediction_loss_safe):
-        if prediction_loss_safe[i] < prediction_loss_dang[i]:
-            label = 0
-        else:
-            label = 1
-        y_pred.append(label)
-        i = i + 1
-
-    print(classification_report(y_true, y_pred))
-    print('end evaluation')
-
-
+    #test_decision_tree(test_set=X_test, test_set_labels=Y_test, cls=cls_relationships)
 
 
 
