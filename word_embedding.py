@@ -11,8 +11,7 @@ class WordEmb:
         self._word_vec_dict = {}
 
     def load_dict(self):
-        model_dang_exist = exists('model/w2v_text.h5')
-        if model_dang_exist:
+        if exists('model/w2v_text.h5'):
             w2v_model = Word2Vec.load('model/w2v_text.h5')
             vocab = w2v_model.wv.index_to_key
             for word in vocab:
