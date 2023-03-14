@@ -20,6 +20,7 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
 
 
 def convert_ids(df):
+    """Use the matches file for converting the IDs"""
     d = {}
     with open("graph_embeddings/stuff/closeness_matches", 'r') as f:
         for l in f.readlines():
