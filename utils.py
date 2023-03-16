@@ -58,3 +58,4 @@ def create_or_load_tweets_list(path, w2v_model, tokenized_list):
         with open(path, 'wb') as handle:
             pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return tweets_list
+

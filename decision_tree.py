@@ -23,7 +23,6 @@ def test_decision_tree(test_set_ids, test_set_labels, cls: DecisionTreeClassifie
     return predictions, purity
 
 
-
-
 def load_decision_tree(path):
+    print("Loading decision tree")
     return pickle.load(open(path, 'rb'))

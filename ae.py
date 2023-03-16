@@ -145,6 +145,7 @@ class AE:
         This method loads and returns the autoencoder model. If it hasn't been trained, it trains it
         :return:
         """
+        print("Loading {} autoencoder".format(self._label))
         if not exists("model/autoencoder{}.h5".format(self._label)):
             self.train_autoencoder()
         return load_model("model/autoencoder{}.h5".format(self._label))

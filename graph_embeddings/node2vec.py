@@ -46,5 +46,6 @@ class Node2VecEmbedder():
         if not exists(self._model_path):
             print("Learning {} n2v model".format(self._name))
             self.learn_n2v_embeddings()
+        print("Loading {} n2v model".format(self._name))
         return Word2Vec.load(self._model_path)
 
