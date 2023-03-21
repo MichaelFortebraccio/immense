@@ -6,13 +6,14 @@ np.random.seed(seed)
 
 
 class WordEmb:
-    def __init__(self, token_word):
+    def __init__(self, token_word, l):
         self._token_word = token_word
         self._word_vec_dict = {}
+        self.model_path = 'model/w2v_text_{}.h5'.format(l)
 
     def load_dict(self):
-        if exists('model/w2v_text.h5'):
-            w2v_model = Word2Vec.load('model/w2v_text.h5')
+        if exists(self.model_path):
+            w2v_model = Word2Vec.load(self.model_path)
             vocab = w2v_model.wv.index_to_key
             for word in vocab:
                 self._word_vec_dict[word] = w2v_model.wv.get_vector(word)
@@ -25,8 +26,8 @@ class WordEmb:
         w2v_model.build_vocab(self._token_word, min_count=1)
         total_examples = w2v_model.corpus_count
         w2v_model.train(self._token_word, total_examples=total_examples, epochs=10)
-        w2v_model.save('model/w2v_text.h5')
-        print('end w2v training')
+        w2v_model.save(self.model_path)
+
 
     def text_to_vec(self, tweets):
         self.load_dict()

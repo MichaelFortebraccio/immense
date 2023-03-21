@@ -126,19 +126,8 @@ class AE:
         x_train_sigmoid = sigmoid(tf.constant(self._X_train, dtype=tf.float32)).numpy()
         autoencoder.fit(self._X_train, x_train_sigmoid, epochs=100, batch_size=128, validation_split=0.2,
                         callbacks=[early_stopping, lr_reducer])
-        '''
-        loss_fun = tf.keras.losses.MeanSquaredError()
-        func = function_factory(autoencoder, loss_fun, self._X_train, self._X_train)
-
-        # convert initial model parameters to a 1D tf.Tensor
-        init_params = tf.dynamic_stitch(func.idx, autoencoder.trainable_variables)
-
-        # train the model with L-BFGS solver
-        results = tfp.optimizer.lbfgs_minimize(
-            value_and_gradients_function=func, initial_position=init_params, max_iterations=100,tolerance=1e-06,num_correction_pairs=10)
-        func.assign_new_model_parameters(results.position)
-        '''
-        autoencoder.save("model/autoencoder{}.h5".format(self._label))
+        #autoencoder.save("model/autoencoder{}.h5".format(self._label))
+        return autoencoder
 
     def load_autoencoder(self):
         """

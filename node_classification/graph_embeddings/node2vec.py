@@ -40,7 +40,8 @@ class Node2VecEmbedder():
         g.preprocess_transition_probs()
         walks = g.simulate_walks(num_walks=self.number_of_walks, walk_length=self.walk_length, n_ckpts=10, pb_len=25)
         model = Word2Vec(sentences=walks, vector_size=self.embedding_size, min_count=0, sg=1, epochs=self.epochs)
-        model.save(self._model_path)
+        #model.save(self._model_path)
+        return model
 
     def load_model(self):
         if not exists(self._model_path):

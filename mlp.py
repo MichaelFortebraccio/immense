@@ -2,11 +2,11 @@ from keras.layers import Input, Dense
 from keras import Model
 from keras.optimizers import Adam
 from keras.utils import to_categorical
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, precision_recall_fscore_support
 
 
 class MLP:
-    def __init__(self, X_train, y_train, batch_size=128, epochs=200, lr=0.03):
+    def __init__(self, X_train, y_train, batch_size=128, epochs=50, lr=0.03):
         self.X_train = X_train
         if len(y_train.shape) == 1:
             y_train = to_categorical(y_train)
@@ -34,5 +34,11 @@ class MLP:
                 y_p.append(1)
             elif round(p[0]) == 1:
                 y_p.append(0)
-
+        p, r, f1, s = precision_recall_fscore_support(
+            y_true=y_test,
+            y_pred=y_p,
+            labels=None,
+            average=None,
+        )
         print(classification_report(y_true=y_test, y_pred=y_p))
+        return p, r, f1, s

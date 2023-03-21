@@ -22,7 +22,7 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
 def convert_ids(df):
     """Use the matches file for converting the IDs"""
     d = {}
-    with open("graph_embeddings/stuff/closeness_matches", 'r') as f:
+    with open("node_classification/graph_embeddings/stuff/closeness_matches", 'r') as f:
         for l in f.readlines():
             l = l.split("\t")
             d[(l[0])] = str(l[1]).strip()
@@ -50,12 +50,14 @@ def correct_edg_format(fname):
 
 
 def create_or_load_tweets_list(path, w2v_model, tokenized_list):
-    if exists(path):
+    '''if exists(path):
         with open(path, 'rb') as handle:
             tweets_list = pickle.load(handle)
-    else:
-        tweets_list = w2v_model.text_to_vec(tokenized_list)
-        with open(path, 'wb') as handle:
-            pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:'''
+    #Riindentare
+    tweets_list = w2v_model.text_to_vec(tokenized_list)
+    '''with open(path, 'wb') as handle:
+        pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)'''
+
     return tweets_list
 
