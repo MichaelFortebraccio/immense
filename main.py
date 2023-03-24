@@ -1,13 +1,24 @@
 import pandas as pd
 import numpy as np
-
 from os.path import exists
 from sairus import train, test
+import gdown
 seed = 123
 np.random.seed(seed)
 
+#if __name__ == "__main__":
+def main(textual_content_link, social_graph, closeness_graph, word_embedding_size=512, window=5, w2v_epochs=10, node_embedding_size=128, n_of_walks=10, walk_length=10,
+         p=1, q=4, n2v_epochs=100):
+    tweets_path = "dataset/tweet_labeled_full.csv"
+    social_path = "dataset/social_network.edg"
+    closeness_path = "dataset/closeness_network.edg"
+    if not exists(tweets_path):
+        gdown.download(url=textual_content_link, output=tweets_path, quiet=False, fuzzy=True)
+    if not exists(social_path):
+        gdown.download(url=social_graph, output=social_path, quiet=False, fuzzy=True)
+    if not exists(closeness_path):
+        gdown.download(url=closeness_graph, output=closeness_path, quiet=False, fuzzy=True)
 
-if __name__ == "__main__":
     train_path = "dataset/train.csv"
     test_path = "dataset/test.csv"
     df = pd.read_csv('dataset/tweet_labeled_full.csv', sep=',')
@@ -24,8 +35,12 @@ if __name__ == "__main__":
         train_df = pd.read_csv(train_path)
         test_df = pd.read_csv(test_path)
 
-    dang_ae, safe_ae, n2v_rel, n2v_clos, tree_rel, tree_clos, mlp = train(train_df, 0)
-    p, r, f1, s = test(test_df, train_df, dang_ae, safe_ae, tree_rel, tree_clos, n2v_rel, n2v_clos, mlp, 0)
+    dang_ae, safe_ae, w2v_model, n2v_rel, n2v_clos, tree_rel, tree_clos, mlp = train(train_df, word_embedding_size=word_embedding_size, window=window,
+                                                                          w2v_epochs=w2v_epochs, node_embedding_size=node_embedding_size, n_of_walks=n_of_walks,
+                                                                          walk_length=walk_length, p=p, q=q, n2v_epochs=n2v_epochs,
+                                                                          path_to_edges_rel=social_path, path_to_edges_clos=closeness_path)
+    test(test_df=test_df, train_df=train_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_clos=tree_clos, n2v_rel=n2v_rel, n2v_clos=n2v_clos, mlp=mlp)
+
 
 
 

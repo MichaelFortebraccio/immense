@@ -2,7 +2,7 @@ from gensim.models import Word2Vec
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-import pickle5 as pickle
+import pickle
 from os.path import exists
 
 
@@ -50,14 +50,12 @@ def correct_edg_format(fname):
 
 
 def create_or_load_tweets_list(path, w2v_model, tokenized_list):
-    '''if exists(path):
+    if exists(path):
         with open(path, 'rb') as handle:
             tweets_list = pickle.load(handle)
-    else:'''
-    #Riindentare
-    tweets_list = w2v_model.text_to_vec(tokenized_list)
-    '''with open(path, 'wb') as handle:
-        pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)'''
-
+    else:
+        tweets_list = w2v_model.text_to_vec(tokenized_list)
+        with open(path, 'wb') as handle:
+            pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return tweets_list
 

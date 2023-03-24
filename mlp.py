@@ -41,4 +41,3 @@ class MLP:
             average=None,
         )
         print(classification_report(y_true=y_test, y_pred=y_p))
-        return p, r, f1, s

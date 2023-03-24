@@ -1,7 +1,7 @@
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report
 from gensim.models import Word2Vec
-import pickle5 as pickle
+import pickle
 
 
 def train_decision_tree(train_set_ids, save_path, n2v_model:Word2Vec, train_set_labels, name):
@@ -13,7 +13,7 @@ def train_decision_tree(train_set_ids, save_path, n2v_model:Word2Vec, train_set_
     pickle.dump(cls, open(save_path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def test_decision_tree(test_set_ids, test_set_labels, cls: DecisionTreeClassifier, n2v_model: Word2Vec):
+def test_decision_tree(test_set_ids, cls: DecisionTreeClassifier, n2v_model: Word2Vec):
     mod = n2v_model.wv
     test_set = [mod.vectors[mod.key_to_index[i]] for i in test_set_ids]
     predictions = cls.predict(test_set)
