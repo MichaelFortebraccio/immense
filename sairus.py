@@ -14,14 +14,32 @@ from tqdm import tqdm
 from mlp import MLP
 from node_classification.decision_tree import load_decision_tree
 from keras.models import load_model
-
+import celery
+import gdown
 seed = 123
 np.random.seed(seed)
 
 
-def train(dataset_dir, model_dir, train_df, path_to_edges_rel, path_to_edges_clos, word_embedding_size, window, w2v_epochs,
-          rel_node_embedding_size, spatial_node_embedding_size, n_of_walks, walk_length, p, q, n2v_epochs):
-    train_df = train_df.reset_index()
+@celery.task(bind=True)
+def train(tweets_url, social_network_url, spatial_network_url, word_embedding_size, window, w2v_epochs,
+          rel_node_embedding_size, spat_node_embedding_size, n_of_walks_spat, n_of_walks_rel, walk_length_spat,
+          walk_length_rel, p_spat, p_rel, q_spat, q_rel, n2v_epochs_spat, n2v_epochs_rel):
+    job_id = train.task.id
+    dataset_dir = "{}/dataset".format(job_id)
+    model_dir = "{}/model".format(job_id)
+    makedirs(dataset_dir, exist_ok=True)
+    makedirs(model_dir, exist_ok=True)
+    tweets_path = "{}/tweet_labeled.csv".format(dataset_dir)
+    social_path = "{}/social_network.edg".format(dataset_dir)
+    closeness_path = "{}/closeness_network.edg".format(dataset_dir)
+    if not exists(tweets_path):
+        gdown.download(url=tweets_url, output=tweets_path, quiet=False, fuzzy=True)
+    if not exists(social_path):
+        gdown.download(url=social_network_url, output=social_path, quiet=False, fuzzy=True)
+    if not exists(closeness_path):
+        gdown.download(url=spatial_network_url, output=closeness_path, quiet=False, fuzzy=True)
+
+    train_df = pd.read_csv('{}/tweet_labeled_full.csv'.format(dataset_dir), sep=',').reset_index()
     # train W2V on Twitter dataset
     tok = TextPreprocessing()
     tweet = tok.token_list(train_df['text_cleaned'].tolist())
@@ -53,21 +71,21 @@ def train(dataset_dir, model_dir, train_df, path_to_edges_rel, path_to_edges_clo
     rel_n2v_path = "{}/n2v_rel.h5".format(model_dir)
     clos_n2v_path = "{}/n2v_clos.h5".format(model_dir)
 
-    n2v_rel = Node2VecEmbedder(path_to_edges=path_to_edges_rel, weighted=False, directed=True, n_of_walks=n_of_walks,
-                               walk_length=walk_length, embedding_size=rel_node_embedding_size, p=p, q=q, epochs=n2v_epochs,
-                               model_path=rel_n2v_path, name="relationships").learn_n2v_embeddings()  # .load_model()
+    n2v_rel = Node2VecEmbedder(path_to_edges=social_path, weighted=False, directed=True, n_of_walks=n_of_walks_rel,
+                               walk_length=walk_length_rel, embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
+                               epochs=n2v_epochs_rel, model_path=rel_n2v_path, name="relationships").learn_n2v_embeddings()  # .load_model()
     if not exists(rel_tree_path):  # IF THE DECISION TREE HAS NOT BEEN LEARNED, LOAD/TRAIN THE N2V MODEL
         train_set_ids_rel = [i for i in train_df['id'] if str(i) in n2v_rel.wv.key_to_index]
         train_decision_tree(train_set_ids=train_set_ids_rel, save_path=rel_tree_path, n2v_model=n2v_rel,
                             train_set_labels=train_df[train_df['id'].isin(train_set_ids_rel)]['label'],
                             name="relationships")
 
-    n2v_clos = Node2VecEmbedder(path_to_edges=path_to_edges_clos, weighted=True, directed=False, n_of_walks=n_of_walks,
-                                walk_length=walk_length, embedding_size=spatial_node_embedding_size, p=p, q=q, epochs=n2v_epochs,
-                                model_path=clos_n2v_path, name="closeness").learn_n2v_embeddings()   #.load_model()
+    n2v_spat = Node2VecEmbedder(path_to_edges=closeness_path, weighted=True, directed=False, n_of_walks=n_of_walks_spat,
+                                walk_length=walk_length_spat, embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
+                                epochs=n2v_epochs_spat, model_path=clos_n2v_path, name="closeness").learn_n2v_embeddings()   #.load_model()
     if not exists(clos_tree_path):
-        train_set_ids_clos = [i for i in train_df['id'] if str(i) in n2v_clos.wv.key_to_index]
-        train_decision_tree(train_set_ids=train_set_ids_clos, save_path=clos_tree_path, n2v_model=n2v_clos,
+        train_set_ids_clos = [i for i in train_df['id'] if str(i) in n2v_spat.wv.key_to_index]
+        train_decision_tree(train_set_ids=train_set_ids_clos, save_path=clos_tree_path, n2v_model=n2v_spat,
                             train_set_labels=train_df[train_df['id'].isin(train_set_ids_clos)]['label'],
                             name="closeness")
 
@@ -97,8 +115,8 @@ def train(dataset_dir, model_dir, train_df, path_to_edges_rel, path_to_edges_clo
             pr, conf = row['label'], 1.0
         dataset[index, 3] = pr
         dataset[index, 4] = conf
-        if id in n2v_clos.wv.key_to_index:
-            pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_clos, n2v_model=n2v_clos)
+        if id in n2v_spat.wv.key_to_index:
+            pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_clos, n2v_model=n2v_spat)
         else:
             pr, conf = row['label'], 1.0
         dataset[index, 5] = pr
@@ -150,26 +168,10 @@ def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_clos, n2
     return mlp.test(test_set, np.array(test_df['label']))
 
 def classify_users(job_id, user_ids):
-    if not exists("{}/dataset/tweet_labeled.csv".format(job_id)) or not exists("{}/dataset/train.csv".format(job_id)):
-        return "ERROR: No dataset"
-    df = pd.read_csv("{}/dataset/tweet_labeled.csv")
-    if not exists("model"):
-        return "ERROR: no model"
+    if not exists(str(job_id)):
+        return 400
     else:
-        test_array = np.zeros(shape=(1, 7))
         tok = TextPreprocessing()
-        users = pd.DataFrame()
-        null_users = []
-        existing_users = []
-        for user_id in users:
-            if user_id not in df['id'].to_list():
-                null_users.append(user_id)
-            else:
-                existing_users.append(user_id)
-
-        user = df[df.id == existing_users]
-
-        tweet = tok.token_list(user['text_cleaned'].tolist())
         w2v_model = WordEmb("", embedding_size=0, window=0, epochs=0)   # The actual values are not important since we will load the model
         dang_ae = load_model("{}/model/autoencoderdang.h5".format(job_id))
         safe_ae = load_model("{}/model/autoencodersafe.h5".format(job_id))
@@ -178,22 +180,39 @@ def classify_users(job_id, user_ids):
         mlp = load_model("{}/model/mlp.h5".format(job_id))
         tree_rel = load_decision_tree("{}/model/dtree_rel.h5".format(job_id))
         tree_clos = load_decision_tree("{}/model/dtree_clos.h5".format(job_id))
+        out = {}
+        for id in user_ids:
+            if id not in df['id'].tolist():
+                out[id] = "not found"
+            else:
+                pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae, tok=tok,
+                                    safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_clos=n2v_clos, mlp=mlp, tree_rel=tree_rel,
+                                    tree_clos=tree_clos, df=df)
+                if round(pred[0][0]) == 0:
+                    out[id] = "risky"
+                elif round(pred[0][0]) == 1:
+                    out[id] = "safe"
+        return out
 
-        tweets_embs = w2v_model.text_to_vec(tweet)
-        pred_dang = dang_ae.predict(tweets_embs)
-        pred_safe = safe_ae.predict(tweets_embs)
-        tweets_sigmoid = tf.keras.activations.sigmoid(tf.constant(tweets_embs, dtype=tf.float32)).numpy()
-        pred_loss_dang = tf.keras.losses.mse(pred_dang, tweets_sigmoid).numpy()
-        pred_loss_safe = tf.keras.losses.mse(pred_safe, tweets_sigmoid).numpy()
-        labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
-        test_array[0, 0] = pred_loss_dang
-        test_array[0, 1] = pred_loss_safe
-        test_array[0, 2] = np.array(labels)
 
-        # If the instance doesn't have information about relationships or closeness, we will
-        # replace the decision tree prediction with the most frequent label in the training set
-        pred_missing_info = df['label'].value_counts().argmax()
-        conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
+def predict_user(user:pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, n2v_rel, n2v_clos, mlp, tree_rel, tree_clos, df):
+    test_array = np.zeros(shape=(1, 7))
+    tweet = tok.token_list(user['text_cleaned'].tolist())
+    tweets_embs = w2v_model.text_to_vec(tweet)
+    pred_dang = dang_ae.predict(tweets_embs)
+    pred_safe = safe_ae.predict(tweets_embs)
+    tweets_sigmoid = tf.keras.activations.sigmoid(tf.constant(tweets_embs, dtype=tf.float32)).numpy()
+    pred_loss_dang = tf.keras.losses.mse(pred_dang, tweets_sigmoid).numpy()
+    pred_loss_safe = tf.keras.losses.mse(pred_safe, tweets_sigmoid).numpy()
+    label = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
+    test_array[0, 0] = pred_loss_dang
+    test_array[0, 1] = pred_loss_safe
+    test_array[0, 2] = label[0]
+
+    # If the instance doesn't have information about spatial or social relationships, we will replace the decision tree
+    # prediction with the most frequent label in the training set
+    pred_missing_info = df['label'].value_counts().argmax()
+    conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
 
     id = user['id'].values[0]
     if id in n2v_rel.wv.key_to_index:
@@ -210,11 +229,8 @@ def classify_users(job_id, user_ids):
     test_array[0, 6] = conf
 
     pred = mlp.predict(test_array, verbose=0)
-    if round(pred[0][0]) == 0:
-        return 1
-    elif round(pred[0][0]) == 1:
-        return 0
     return pred
+
 
 def cross_validation(dataset_path, n_folds):
     df = pd.read_csv(dataset_path, sep=',')
