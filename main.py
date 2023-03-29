@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from os.path import exists
-from sairus import train, test
+from modelling.sairus import train
 import gdown
 seed = 123
 np.random.seed(seed)
@@ -10,11 +10,11 @@ np.random.seed(seed)
 def main(textual_content_link, social_graph, closeness_graph, word_embedding_size=512, window=5, w2v_epochs=10,
          spat_node_embedding_size=128, rel_node_embedding_size=128, n_of_walks_spat=10, n_of_walks_rel=10,
          walk_length_spat=10, walk_length_rel=10, p_spat=1, p_rel=1, q_spat=4, q_rel=4, n2v_epochs_spat=100, n2v_epochs_rel=100):
-    tweets_path = "dataset/tweet_labeled_full.csv"
+    posts_path = "dataset/posts_labeled.csv"
     social_path = "dataset/social_network.edg"
     closeness_path = "dataset/closeness_network.edg"
-    if not exists(tweets_path):
-        gdown.download(url=textual_content_link, output=tweets_path, quiet=False, fuzzy=True)
+    if not exists(posts_path):
+        gdown.download(url=textual_content_link, output=posts_path, quiet=False, fuzzy=True)
     if not exists(social_path):
         gdown.download(url=social_graph, output=social_path, quiet=False, fuzzy=True)
     if not exists(closeness_path):
@@ -22,7 +22,7 @@ def main(textual_content_link, social_graph, closeness_graph, word_embedding_siz
 
     train_path = "dataset/train.csv"
     test_path = "dataset/test.csv"
-    df = pd.read_csv('dataset/tweet_labeled_full.csv', sep=',')
+    df = pd.read_csv('dataset/posts_labeled.csv', sep=',')
     if not exists(train_path) or not exists(test_path):
         df = df.sample(frac=1, random_state=1).reset_index()    # Shuffle the dataframe
         idx = round(len(df)*0.8)
@@ -42,7 +42,7 @@ def main(textual_content_link, social_graph, closeness_graph, word_embedding_siz
           n_of_walks_spat=n_of_walks_spat, n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat,
           walk_length_rel=walk_length_rel, p_spat=p_spat, p_rel=p_rel, q_spat=q_spat, q_rel=q_rel,
           n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel, path_to_edges_rel=social_path,
-          path_to_edges_clos=closeness_path, model_dir="model", dataset_dir="dataset")
+          path_to_edges_spat=closeness_path, model_dir="models", dataset_dir="dataset")
     # test(test_df=test_df, train_df=train_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_clos=tree_clos, n2v_rel=n2v_rel, n2v_clos=n2v_clos, mlp=mlp)
 
 
@@ -61,7 +61,7 @@ def main(textual_content_link, social_graph, closeness_graph, word_embedding_siz
     list_dang_tweets = tok.token_list(dang_tweets)
     list_safe_tweets = tok.token_list(safe_tweets)
 
-    if not exists('model/w2v_text.h5'):
+    if not exists('models/w2v_text.h5'):
         w2v_model.train_w2v()
 
     # convert text to vector
@@ -73,12 +73,12 @@ def main(textual_content_link, social_graph, closeness_graph, word_embedding_siz
     safe_ae = AE(input_len=512, X_train=list_safe_tweets, label='safe').load_autoencoder()
 
     ################# TRAIN OR LOAD DECISION TREES ####################
-    rel_tree_path = "model/dtree_rel.h5"
-    clos_tree_path = "model/dtree_clos.h5"
+    rel_tree_path = "models/dtree_rel.h5"
+    clos_tree_path = "models/dtree_clos.h5"
     path_to_edges_rel = "graph_embeddings/stuff/network.edg"
     path_to_edges_clos = "graph_embeddings/stuff/closeness_network.edg"
-    rel_n2v_path = "model/n2v_rel.h5"
-    clos_n2v_path = "model/n2v_clos.h5"
+    rel_n2v_path = "models/n2v_rel.h5"
+    clos_n2v_path = "models/n2v_clos.h5"
 
     n2v_rel = Node2VecEmbedder(path_to_edges=path_to_edges_rel, weighted=False, directed=True, n_of_walks=10,
                                walk_length=10, embedding_size=128, p=1, q=4, epochs=100, model_path=rel_n2v_path,

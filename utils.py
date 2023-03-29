@@ -49,13 +49,13 @@ def correct_edg_format(fname):
         f.close()
 
 
-def create_or_load_tweets_list(path, w2v_model, tokenized_list):
+def create_or_load_post_list(path, w2v_model, tokenized_list):
     if exists(path):
         with open(path, 'rb') as handle:
-            tweets_list = pickle.load(handle)
+            post_list = pickle.load(handle)
     else:
-        tweets_list = w2v_model.text_to_vec(tokenized_list)
+        post_list = w2v_model.text_to_vec(tokenized_list)
         with open(path, 'wb') as handle:
-            pickle.dump(tweets_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    return tweets_list
+            pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return post_list
 
