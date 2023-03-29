@@ -3,10 +3,10 @@ from keras import Model
 from keras.optimizers import Adam
 from keras.utils import to_categorical
 from sklearn.metrics import classification_report, precision_recall_fscore_support
-
+from os.path import join
 
 class MLP:
-    def __init__(self, X_train, y_train, batch_size=128, epochs=50, lr=0.03):
+    def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50, lr=0.03):
         self.X_train = X_train
         if len(y_train.shape) == 1:
             y_train = to_categorical(y_train)
@@ -14,6 +14,7 @@ class MLP:
         self.batch_size = batch_size
         self.epochs = epochs
         self.lr = lr
+        self._model_path = join(model_dir, "mlp.h5")
 
     def train(self):
         input_layer = Input(shape=(self.X_train.shape[1],))
@@ -24,7 +25,7 @@ class MLP:
         mod.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
         mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2)
         self.model = mod
-        mod.save("model/mlp.h5")
+        mod.save(self._model_path)
 
     def test(self, X_test, y_test):
         preds = self.model.predict(X_test)
