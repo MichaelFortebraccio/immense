@@ -3,6 +3,8 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
 from os.path import exists
+
+import modelling.mlp
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
 from modelling.ae import AE
@@ -26,12 +28,12 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
 
     w2v_model.train_w2v()
 
-    list_dang_posts = create_or_load_post_list(path='{}/list_dang_posts.pickle'.format(dataset_dir), w2v_model=w2v_model.load_model(),
+    list_dang_posts = create_or_load_post_list(path='{}/list_dang_posts.pickle'.format(dataset_dir), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts.pickle'.format(dataset_dir), w2v_model=w2v_model.load_model(),
+    list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts.pickle'.format(dataset_dir), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
-    return list_dang_posts, list_safe_posts, list_embs
+    return list_dang_posts, list_safe_posts, list_embs, w2v_model
 
 
 def learn_mlp(train_df, list_embs, dang_ae, safe_ae, n2v_rel, n2v_spat, tree_rel, tree_spat, model_dir):
@@ -64,17 +66,18 @@ def learn_mlp(train_df, list_embs, dang_ae, safe_ae, n2v_rel, n2v_spat, tree_rel
 
     mlp = MLP(X_train=dataset, y_train=np.array(train_df['label']), model_dir=model_dir)
     mlp.train()
+    return mlp
 
-def train(train_df, dataset_dir, model_dir, social_path, spatial_path, word_embedding_size, window, w2v_epochs,
+def train(train_df, dataset_dir, model_dir, social_path, spatial_path, word_embedding_size, window, w2v_epochs, node_emb_technique,
           rel_node_embedding_size, spat_node_embedding_size, n_of_walks_spat, n_of_walks_rel, walk_length_spat,
           walk_length_rel, p_spat, p_rel, q_spat, q_rel, n2v_epochs_spat, n2v_epochs_rel):
 
-    list_dang_posts, list_safe_posts, list_embs = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
+    list_dang_posts, list_safe_posts, list_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
-    dang_ae = AE(input_len=word_embedding_size, X_train=list_dang_posts, label='dang', model_dir=model_dir).train_autoencoder() # .load_autoencoder()
-    safe_ae = AE(input_len=word_embedding_size, X_train=list_safe_posts, label='safe', model_dir=model_dir).train_autoencoder()
+    dang_ae = AE(input_len=word_embedding_size, X_train=list_dang_posts, label='dang', model_dir=model_dir).load_autoencoder()  # .train_autoencoder()
+    safe_ae = AE(input_len=word_embedding_size, X_train=list_safe_posts, label='safe', model_dir=model_dir).load_autoencoder()
 
     ################# TRAIN OR LOAD DECISION TREES ####################
     rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
@@ -104,8 +107,8 @@ def train(train_df, dataset_dir, model_dir, social_path, spatial_path, word_embe
     tree_spat = load_decision_tree(spat_tree_path)
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
-    learn_mlp(train_df=train_df, list_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir)
-    # return dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp
+    mlp = learn_mlp(train_df=train_df, list_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir)
+    return dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp
 
 def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
     df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
@@ -126,9 +129,6 @@ def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
             pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae, tok=tok,
                                 safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel,
                                 tree_spat=tree_spat, df=df)
-            print(pred)
-            print(pred[0])
-            print(pred[0][0])
             if round(pred[0][0]) == 0:
                 out[id] = "risky"
             elif round(pred[0][0]) == 1:
@@ -173,8 +173,7 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, n2v_rel, 
 
 ####### THE FOLLOWING FUNCTIONS ARE CURRENTLY NOT USED IN THE API #######
 
-def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2v_rel, n2v_spat, mlp):
-    test_df = test_df.reset_index()
+def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2v_rel, n2v_spat, mlp:modelling.mlp.MLP):
     test_set = np.zeros(shape=(len(test_df), 7))
 
     tok = TextPreprocessing()
@@ -182,7 +181,7 @@ def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2
     test_posts_embs = w2v_model.text_to_vec(posts)
     pred_dang = dang_ae.predict(test_posts_embs)
     pred_safe = safe_ae.predict(test_posts_embs)
-
+    print("Prediction autoencoders")
     test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(test_posts_embs, dtype=tf.float32)).numpy()
     pred_loss_dang = tf.keras.losses.mse(pred_dang, test_posts_sigmoid).numpy()
     pred_loss_safe = tf.keras.losses.mse(pred_safe, test_posts_sigmoid).numpy()
@@ -195,16 +194,15 @@ def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2
     # replace the decision tree prediction with the most frequent label in the training set
     pred_missing_info = train_df['label'].value_counts().argmax()
     conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
-
     for index, row in tqdm(test_df.iterrows()):
         id = row['id']
-        if id in n2v_rel.wv.key_to_index:
+        if str(id) in n2v_rel.wv.key_to_index:
             pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_rel, n2v_model=n2v_rel)
         else:
             pr, conf = pred_missing_info, conf_missing_info
         test_set[index, 3] = pr
         test_set[index, 4] = conf
-        if id in n2v_spat.wv.key_to_index:
+        if str(id) in n2v_spat.wv.key_to_index:
             pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_spat, n2v_model=n2v_spat)
         else:
             pr, conf = pred_missing_info, conf_missing_info

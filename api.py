@@ -149,6 +149,7 @@ predict_parser.add_argument("user_ids", type=int, action='append', help="IDs of 
 
 @api.route("/node_classification/predict", methods=["POST"])
 class Predict(Resource):
+    @api.expect(predict_parser)
     def post(self):
         predict_params = predict_parser.parse_args(request)
         job_id = predict_params['job_id']

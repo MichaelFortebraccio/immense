@@ -46,6 +46,7 @@ class WordEmb:
                 else:
                     list_temp.append(np.zeros(shape=(self.embedding_size)))
             list_temp = np.array(list_temp)
+            #print(list_temp.shape)
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)
         list_tot = np.asarray(list_tot)

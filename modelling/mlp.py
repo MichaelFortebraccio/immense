@@ -2,7 +2,8 @@ from keras.layers import Input, Dense
 from keras import Model
 from keras.optimizers import Adam
 from keras.utils import to_categorical
-from sklearn.metrics import classification_report, precision_recall_fscore_support
+from keras.models import load_model
+from sklearn.metrics import classification_report
 from os.path import join
 
 class MLP:
@@ -29,16 +30,14 @@ class MLP:
 
     def test(self, X_test, y_test):
         preds = self.model.predict(X_test)
+        print(preds)
         y_p = []
         for p in preds:
             if round(p[0]) == 0:
                 y_p.append(1)
             elif round(p[0]) == 1:
                 y_p.append(0)
-        p, r, f1, s = precision_recall_fscore_support(
-            y_true=y_test,
-            y_pred=y_p,
-            labels=None,
-            average=None,
-        )
         print(classification_report(y_true=y_test, y_pred=y_p))
+
+    def load_weights(self):
+        self.model = load_model(self._model_path)
