@@ -4,10 +4,8 @@ from gensim.models import Word2Vec
 import pickle
 
 
-def train_decision_tree(train_set_ids, save_path, n2v_model:Word2Vec, train_set_labels, name):
+def train_decision_tree(train_set, save_path, train_set_labels, name):
     print("Training {} decision tree".format(name))
-    mod = n2v_model.wv
-    train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
     cls = DecisionTreeClassifier(criterion="gini")
     cls.fit(train_set, train_set_labels)
     pickle.dump(cls, open(save_path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)

@@ -75,9 +75,9 @@ def train_task(self, tweets_url, social_network_url, spatial_network_url, word_e
                                                                   model_dir=model_dir, dataset_dir=dataset_dir)
 
     self.update_state(state="PROGRESS", meta={"status": "Learning dangerous autoencoder."})
-    dang_ae = AE(input_len=word_embedding_size, X_train=list_dang_posts, label='dang', model_dir=model_dir).train_autoencoder()
+    dang_ae = AE(input_len=word_embedding_size, X_train=list_dang_posts, label='dang', model_dir=model_dir).train_autoencoder_content()
     self.update_state(state="PROGRESS", meta={"status": "Learning safe autoencoder."})
-    safe_ae = AE(input_len=word_embedding_size, X_train=list_safe_posts, label='safe', model_dir=model_dir).train_autoencoder()
+    safe_ae = AE(input_len=word_embedding_size, X_train=list_safe_posts, label='safe', model_dir=model_dir).train_autoencoder_content()
 
     rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
     spat_tree_path = "{}/dtree_spat.h5".format(model_dir)

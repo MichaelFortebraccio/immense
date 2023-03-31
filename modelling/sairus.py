@@ -3,12 +3,12 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
 from os.path import exists
-
 import modelling.mlp
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
 from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
+from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
 from utils import create_or_load_post_list
 from tqdm import tqdm
@@ -68,7 +68,7 @@ def learn_mlp(train_df, list_embs, dang_ae, safe_ae, n2v_rel, n2v_spat, tree_rel
     mlp.train()
     return mlp
 
-def train(train_df, dataset_dir, model_dir, social_path, spatial_path, word_embedding_size, window, w2v_epochs, node_emb_technique,
+def train(train_df, dataset_dir, model_dir, rel_path, spatial_path, word_embedding_size, window, w2v_epochs, node_emb_technique,
           rel_node_embedding_size, spat_node_embedding_size, n_of_walks_spat, n_of_walks_rel, walk_length_spat,
           walk_length_rel, p_spat, p_rel, q_spat, q_rel, n2v_epochs_spat, n2v_epochs_rel):
 
@@ -82,26 +82,19 @@ def train(train_df, dataset_dir, model_dir, social_path, spatial_path, word_embe
     ################# TRAIN OR LOAD DECISION TREES ####################
     rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
     spat_tree_path = "{}/dtree_spat.h5".format(model_dir)
-    rel_n2v_path = "{}/n2v_rel.h5".format(model_dir)
-    spat_n2v_path = "{}/n2v_spat.h5".format(model_dir)
+    train_set_rel, train_set_labels_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
+                                                                   walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size,
+                                                                   p=p_rel, q=q_rel, n2v_epochs=n2v_epochs_rel, train_df=train_df)
+    train_set_spat, train_set_labels_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
+                                                                   walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size,
+                                                                   p=p_spat, q=q_spat, n2v_epochs=n2v_epochs_spat, train_df=train_df)
 
-    n2v_rel = Node2VecEmbedder(path_to_edges=social_path, weighted=False, directed=True, n_of_walks=n_of_walks_rel,
-                               walk_length=walk_length_rel, embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
-                               epochs=n2v_epochs_rel, model_path=rel_n2v_path).learn_n2v_embeddings()
-    if not exists(rel_tree_path):  # IF THE DECISION TREE HAS NOT BEEN LEARNED, LOAD/TRAIN THE N2V MODEL
-        train_set_ids_rel = [i for i in train_df['id'] if str(i) in n2v_rel.wv.key_to_index]
-        train_decision_tree(train_set_ids=train_set_ids_rel, save_path=rel_tree_path, n2v_model=n2v_rel,
-                            train_set_labels=train_df[train_df['id'].isin(train_set_ids_rel)]['label'],
-                            name="relationships")
+    if not exists(rel_tree_path):
+        train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
 
-    n2v_spat = Node2VecEmbedder(path_to_edges=spatial_path, weighted=True, directed=False, n_of_walks=n_of_walks_spat,
-                                walk_length=walk_length_spat, embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
-                                epochs=n2v_epochs_spat, model_path=spat_n2v_path).learn_n2v_embeddings()
     if not exists(spat_tree_path):
-        train_set_ids_spat = [i for i in train_df['id'] if str(i) in n2v_spat.wv.key_to_index]
-        train_decision_tree(train_set_ids=train_set_ids_spat, save_path=spat_tree_path, n2v_model=n2v_spat,
-                            train_set_labels=train_df[train_df['id'].isin(train_set_ids_spat)]['label'],
-                            name="closeness")
+        train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
+
 
     tree_rel = load_decision_tree(rel_tree_path)
     tree_spat = load_decision_tree(spat_tree_path)
