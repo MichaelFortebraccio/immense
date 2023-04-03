@@ -1,15 +1,13 @@
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
+from modelling.ae import AE
 from sklearn.decomposition import PCA
 import pickle
+from os.path import exists
 
-def pca(adj_matrix, components):
-    pca = PCA(n_components=0.95)
-    pca.fit(adj_matrix)
-    return pca.transform(adj_matrix)
 
 # Transductive
 def dimensionality_reduction(node_emb_technique, model_dir, train_df, node_embedding_size, edge_path=None, n_of_walks=None, walk_length=None, p=None, q=None,
-                             n2v_epochs=None, adj_matrix=None, id_to_idx=None):
+                             n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id_to_idx=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
@@ -24,48 +22,53 @@ def dimensionality_reduction(node_emb_technique, model_dir, train_df, node_embed
         p: n2v's hyperparameter p. Ignored if node_emb_technique != 'node2vec'
         q: n2v's hyperparameter q. Ignored if node_emb_technique != 'node2vec'
         n2v_epochs: for how many epochs the n2v model will be trained. Ignored if node_emb_technique != 'node2vec'
+        weighted: whether the edges are weighted. Ignored if node_emb_technique != 'node2vec'
+        directed: Whether the edges are directed. Ignored if node_emb_technique != 'node2vec'
         adj_matrix: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
-        id_to_idx: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique that is
-         different from node2vec, and the user IDs are not the index of the position of the users into the adjacency matrix,
-         this parameter must be set. Otherwise, it can be left as none
-        the ID is not its index in the adj matrix. Can be
-
+        id_to_idx: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
+        from node2vec, and the user IDs are not the index of the position of the users into the adjacency matrix,
+        this parameter must be set. Otherwise, it can be left to none
     Returns:
-
+        train_set: Array containing the node embeddings, which will be used for training the decision tree
+        train_set_labels: Labels of the training vectors
     """
     if node_emb_technique == "node2vec":
         n2v_path = "{}/n2v_rel.h5".format(model_dir)
-        n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=False, directed=True, n_of_walks=n_of_walks,
+        n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
                                epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings()
         mod = n2v.wv
-        train_set_ids = [i for i in train_df['id'] if str(i) in mod.key_to_index]
+        train_set_ids = [i for i in train_df['id'] if str(i) in mod.key_to_index]      # Instead of using mod.key_to_index, we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
         train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
     elif node_emb_technique == "PCA":
-        if id_to_idx:
+        '''if id_to_idx:
             train_ids = train_df['id'].to_list()
             train_indexes = [id_to_idx[id] for id in train_ids]
             # Ricontrollare
-        '''else:
+        else:
             train_indexes = train_df['id'].to_list()
             train_indexes = [int(idx) for idx in train_indexes]
         if inductive:
             train_mat = adj_matrix[train_indexes][:, train_indexes]
         else:
             train_mat = adj_matrix'''
-        pca = PCA(n_components=node_embedding_size)
-        pca.fit(adj_matrix)
-        with open("{}/pca.pkl".format(model_dir), 'wb') as f:
-            pickle.dump(pca, f)
+        if not exists("{}/pca.pkl".format(model_dir)):
+            pca = PCA(n_components=node_embedding_size)
+            pca.fit(adj_matrix)
+            with open("{}/pca.pkl".format(model_dir), 'wb') as f:
+                pickle.dump(pca, f)
+        else:
+            with open("{}/pca.pkl".format(model_dir), 'rb') as f:
+                pca = pickle.load(f)
         train_set = pca.transform(adj_matrix)
         train_set_labels = train_df['label']
     elif node_emb_technique == "autoencoder":
-        # TODO Implement
-        pass
+        model = AE(X_train=adj_matrix, name="encoder", model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
+        train_set = model.predict(adj_matrix)
+        train_set_labels = train_df['label']
     elif node_emb_technique == "None":
         train_set = adj_matrix
         train_set_labels = train_df['label']
-
     return train_set, train_set_labels
 

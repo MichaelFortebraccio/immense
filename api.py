@@ -107,7 +107,7 @@ def train_task(self, tweets_url, social_network_url, spatial_network_url, word_e
     tree_spat = load_decision_tree(spat_tree_path)
 
     self.update_state(state="PROGRESS", meta={"status": "Learning mlp."})
-    learn_mlp(train_df=train_df, list_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel,
+    learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel,
               n2v_spat=n2v_spat, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir)
 
 @api.route("/node_classification/train", methods=['POST'])

@@ -44,11 +44,11 @@ def main(textual_content_link, social_net_url, spatial_net_url, word_embedding_s
         test_df = pd.read_csv(test_path)
     
     dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_clos, mlp = train(train_df=train_df, dataset_dir=dataset_dir,
-          model_dir=models_dir, social_path=social_path, spatial_path=closeness_path,
-          word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
-          n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
-          spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,
-          p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel)
+                                                                                     model_dir=models_dir, rel_path=social_path, spatial_path=closeness_path,
+                                                                                     word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
+                                                                                     n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
+                                                                                     spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,
+                                                                                     p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel)
 
     test(test_df=test_df, train_df=train_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
          tree_spat=tree_clos, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp)
