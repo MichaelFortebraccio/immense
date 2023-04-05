@@ -27,17 +27,21 @@ def main(textual_content_link, social_net_url, spatial_net_url, word_embedding_s
         gdown.download(url=social_net_url, output=social_path, quiet=False, fuzzy=True)
     if not exists(closeness_path):
         gdown.download(url=spatial_net_url, output=closeness_path, quiet=False, fuzzy=True)
-
     train_path = "{}/train.csv".format(dataset_dir)
     test_path = "{}/test.csv".format(dataset_dir)
     df = pd.read_csv(posts_path, sep=',')
+    cols = ['index', 'label', 'id', 'text_cleaned']
     if not exists(train_path) or not exists(test_path):
-        df = df.sample(frac=1, random_state=1).reset_index()    # Shuffle the dataframe
-        idx = round(len(df)*0.8)
-        train_df = df[:idx]
-        test_df = df[idx:]
+        shuffled_df = df.sample(frac=1, random_state=1).reset_index()    # Shuffle the dataframe
+        shuffled_df = shuffled_df.drop(columns=[col for col in shuffled_df.columns if col not in cols])
+        shuffled_df.to_csv("dataset/shuffled_content.csv")
+        idx = round(len(shuffled_df)*0.8)
+        train_df = shuffled_df[:idx]
+        test_df = shuffled_df[idx:]
         train_df = train_df.reset_index()
         test_df = test_df.reset_index()
+        train_df = train_df.drop(columns=[col for col in train_df.columns if col not in cols])
+        test_df = test_df.drop(columns=[col for col in test_df.columns if col not in cols])
         train_df.to_csv(train_path)
         test_df.to_csv(test_path)
     else:
@@ -45,7 +49,7 @@ def main(textual_content_link, social_net_url, spatial_net_url, word_embedding_s
         test_df = pd.read_csv(test_path)
     
     dang_ae, safe_ae, w2v_model, tree_rel, tree_spat, mlp = train(
-        train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_path, spatial_path=closeness_path,
+        train_df=train_df, full_df=df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_path, spatial_path=closeness_path,
         word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
         n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
         spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,

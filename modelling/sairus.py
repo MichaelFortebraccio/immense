@@ -89,11 +89,40 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     mlp.train()
     return mlp
 
-def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, node_emb_technique:str, rel_node_embedding_size,
+def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, node_emb_technique:str, rel_node_embedding_size,
           spat_node_embedding_size, rel_path=None, spatial_path=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None,
           walk_length_rel=None, p_spat=None, p_rel=None, q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None,
           adj_matrix_spat_path=None, adj_matrix_rel_path=None):
-
+    """
+    Builds and trains the independent modules and then fuses them by training the MLP
+    Args:
+        train_df: Dataframe with the posts used for the MLP training
+        full_df: Dataframe containing the whole set of posts. It is used for training the node embedding models, since
+        the setting is transductive, hence we need to know in advance information about all the nodes
+        dataset_dir: Directory containing the dataset
+        model_dir: Directory where the models will be saved
+        word_embedding_size: size of the word embeddings that will be created
+        window:
+        w2v_epochs:
+        node_emb_technique: technique to adopt for learning node embeddings
+        rel_node_embedding_size: Dimension of the node embeddings that will be created from the relational network
+        spat_node_embedding_size: Dimension of the node embeddings that will be created from the spatial network
+        rel_path: Path to the file stating the social relationships among the users
+        spatial_path: Path to the file stating the spatial relationships among the users
+        n_of_walks_spat: n2v
+        n_of_walks_rel: n2v
+        walk_length_spat: n2v
+        walk_length_rel: n2v
+        p_spat: n2v
+        p_rel: n2v
+        q_spat: n2v
+        q_rel: n2v
+        n2v_epochs_spat: n2v
+        n2v_epochs_rel: n2v
+        adj_matrix_spat_path: pca, none, autoencoder
+        adj_matrix_rel_path: pca, none, autoencoder
+    Returns:
+    """
     list_dang_posts, list_safe_posts, list_content_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
 
@@ -114,17 +143,13 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
             raise Exception("The relational adjacency matrix is not square")
     train_set_rel, train_set_labels_rel, id2idx_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
                                                                                walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
-                                                                               n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix=adj_matrix_rel, lab="rel")
+                                                                               n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel")
     train_set_spat, train_set_labels_spat, id2idx_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
                                                                                   walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
-                                                                                  n2v_epochs=n2v_epochs_spat, train_df=train_df, adj_matrix=adj_matrix_spat, lab="spat")
+                                                                                  n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat")
     print(id2idx_rel)
-    print("SPAT")
-    print(id2idx_spat)
-    print(len(id2idx_rel))
-    print(len(id2idx_spat))
-
     if not exists(rel_tree_path):
+
         train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
 
     if not exists(spat_tree_path):
@@ -163,7 +188,7 @@ def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
                 out[id] = "safe"
     return out
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, n2v_rel, n2v_spat, mlp, tree_rel, tree_spat, df):
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, mlp, tree_rel, tree_spat, df):
     test_array = np.zeros(shape=(1, 7))
     posts = tok.token_list(user['text_cleaned'].tolist())
     posts_embs = w2v_model.text_to_vec(posts)
@@ -183,14 +208,17 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, n2v_rel, 
     conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
 
     id = user['id'].values[0]
-    if str(id) in n2v_rel.wv.key_to_index:
-        pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_rel, n2v_model=n2v_rel)
+
+    if str(id) in id2idx_rel.keys():
+        idx = id2idx_rel[id]
+        pr, conf = test_decision_tree(test_set=np.expand_dims(rel_node_embs[idx], axis=0), cls=tree_rel)
     else:
         pr, conf = pred_missing_info, conf_missing_info
     test_array[0, 3] = pr
     test_array[0, 4] = conf
-    if str(id) in n2v_spat.wv.key_to_index:
-        pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_spat, n2v_model=n2v_spat)
+    if str(id) in id2idx_spat.keys():
+        idx = id2idx_spat[id]
+        pr, conf = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
     else:
         pr, conf = pred_missing_info, conf_missing_info
     test_array[0, 5] = pr
@@ -225,13 +253,13 @@ def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2
     for index, row in tqdm(test_df.iterrows()):
         id = row['id']
         if str(id) in n2v_rel.wv.key_to_index:
-            pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_rel, n2v_model=n2v_rel)
+            pr, conf = test_decision_tree(test_set=[str(id)], cls=tree_rel)
         else:
             pr, conf = pred_missing_info, conf_missing_info
         test_set[index, 3] = pr
         test_set[index, 4] = conf
         if str(id) in n2v_spat.wv.key_to_index:
-            pr, conf = test_decision_tree(test_set_ids=[str(id)], cls=tree_spat, n2v_model=n2v_spat)
+            pr, conf = test_decision_tree(test_set[str(id)], cls=tree_spat)
         else:
             pr, conf = pred_missing_info, conf_missing_info
         test_set[index, 5] = pr
