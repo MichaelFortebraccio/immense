@@ -5,6 +5,13 @@ from sklearn.model_selection import train_test_split
 import pickle
 from os.path import exists
 
+def save_to_pickle(name, c):
+    with open(name, 'wb') as f:
+        pickle.dump(c, f)
+
+def load_from_pickle(name):
+    with open(name, 'rb') as f:
+        return pickle.load(f)
 
 def prepare_for_decision_tree(df, mod: Word2Vec):
     y = []

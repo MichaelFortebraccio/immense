@@ -10,7 +10,6 @@ def train_decision_tree(train_set, save_path, train_set_labels, name):
     cls.fit(train_set, train_set_labels)
     pickle.dump(cls, open(save_path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
-3038, 2401, 2732, 3272
 def test_decision_tree(test_set, cls: DecisionTreeClassifier):
     predictions = cls.predict(test_set)
     leaf_id = cls.apply(test_set)

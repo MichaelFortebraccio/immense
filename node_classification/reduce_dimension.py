@@ -5,8 +5,8 @@ import pickle
 from os.path import exists
 
 # Transductive
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None, walk_length=None,
-                             p=None, q=None, n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id2idx=None):
+def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None,
+                             walk_length=None, p=None, q=None, n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id2idx=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
@@ -42,24 +42,8 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.key_to_index]      # Instead of using mod.key_to_index, we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
         train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
-        id2idx = mod.key_to_index
     else:
-        if not id2idx:
-            print(train_df['id'])
-            id2idx = {row['id']: index for index, row in train_df.iterrows()}
         if node_emb_technique == "pca":
-            '''if id_to_idx:
-                train_ids = train_df['id'].to_list()
-                train_indexes = [id_to_idx[id] for id in train_ids]
-                # Ricontrollare
-            else:
-                train_indexes = train_df['id'].to_list()
-                train_indexes = [int(idx) for idx in train_indexes]
-            if inductive:
-                train_mat = adj_matrix[train_indexes][:, train_indexes]
-            else:
-                train_mat = adj_matrix'''
-            print(adj_matrix.shape)
             if not exists("{}/pca_{}.pkl".format(model_dir, lab)):
                 print("Learning PCA")
                 pca = PCA(n_components=node_embedding_size)
@@ -70,8 +54,8 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
                 with open("{}/pca_{}.pkl".format(model_dir, lab), 'rb') as f:
                     pca = pickle.load(f)
             train_set = pca.transform(adj_matrix)
-            train_set_labels = train_df[train_df.id.isin(id2idx.keys())]['label']
-            print(train_set_labels)
+            train_set_labels = [train_df[train_df['id'] == k]['label'].values[0] for k in id2idx.keys()]
+            print(len(train_set_labels))
         elif node_emb_technique == "autoencoder":
             model = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
             train_set = model.predict(adj_matrix)
@@ -79,5 +63,5 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         elif node_emb_technique == "none":
             train_set = adj_matrix
             train_set_labels = train_df['label']
-    return train_set, train_set_labels, id2idx
+    return train_set, train_set_labels
 

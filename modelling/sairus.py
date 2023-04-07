@@ -10,7 +10,7 @@ from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
-from utils import create_or_load_post_list
+from utils import create_or_load_post_list, load_from_pickle
 from tqdm import tqdm
 from modelling.mlp import MLP
 from keras.models import load_model
@@ -92,7 +92,7 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
 def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, node_emb_technique:str, rel_node_embedding_size,
           spat_node_embedding_size, rel_path=None, spatial_path=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None,
           walk_length_rel=None, p_spat=None, p_rel=None, q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None,
-          adj_matrix_spat_path=None, adj_matrix_rel_path=None):
+          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
     """
     Builds and trains the independent modules and then fuses them by training the MLP
     Args:
@@ -121,6 +121,8 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         n2v_epochs_rel: n2v
         adj_matrix_spat_path: pca, none, autoencoder
         adj_matrix_rel_path: pca, none, autoencoder
+        id2idx_rel_path: Path to the file containing the matching between the node IDs and their index in the relational adj matrix. pca, autoencoder
+        id2idx_spat_path: Path to the file containing the matching between the node IDs and their index in the spatial adj matrix. pca, autoencoder
     Returns:
     """
     list_dang_posts, list_safe_posts, list_content_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
@@ -141,26 +143,33 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
             raise Exception("The spatial adjacency matrix is not square")
         if not is_square(adj_matrix_rel):
             raise Exception("The relational adjacency matrix is not square")
-    train_set_rel, train_set_labels_rel, id2idx_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
-                                                                               walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
-                                                                               n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel")
-    train_set_spat, train_set_labels_spat, id2idx_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
-                                                                                  walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
-                                                                                  n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat")
-    print(id2idx_rel)
-    if not exists(rel_tree_path):
 
+    id2idx_rel = None
+    id2idx_spat = None
+    if id2idx_rel_path:
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
+    if id2idx_spat_path:
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
+    train_set_rel, train_set_labels_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
+                                                                   walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel", id2idx=id2idx_rel)
+    '''train_set_spat, train_set_labels_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
+                                                                     walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
+                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat", id2idx=id2idx_spat)
+    '''
+    if not exists(rel_tree_path):
         train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
 
-    if not exists(spat_tree_path):
+    '''if not exists(spat_tree_path):
         train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
-
+    '''
     tree_rel = load_decision_tree(rel_tree_path)
     tree_spat = load_decision_tree(spat_tree_path)
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
-    mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
+    '''mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     spat_node_embs=train_set_spat, rel_node_embs=train_set_rel, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
+    '''
     return dang_ae, safe_ae, w2v_model, tree_rel, tree_spat, mlp
 
 def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
