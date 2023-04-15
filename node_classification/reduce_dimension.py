@@ -55,7 +55,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
                     pca = pickle.load(f)
             train_set = pca.transform(adj_matrix)
             train_set_labels = [train_df[train_df['id'] == k]['label'].values[0] for k in id2idx.keys()]
-            print(len(train_set_labels))
+            print(len(train_set_labels))    ############### STOP
         elif node_emb_technique == "autoencoder":
             model = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
             train_set = model.predict(adj_matrix)

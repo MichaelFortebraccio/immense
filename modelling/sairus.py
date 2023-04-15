@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
@@ -92,7 +94,8 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
 def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, node_emb_technique:str, rel_node_embedding_size,
           spat_node_embedding_size, rel_path=None, spatial_path=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None,
           walk_length_rel=None, p_spat=None, p_rel=None, q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None,
-          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
+          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None, spat_autoenc_epochs=None, rel_autoenc_epochs=None):
+    #TODO Separare la procedura di node embedding per spazio e tempo, l'utente ne può scegliere due diverse
     """
     Builds and trains the independent modules and then fuses them by training the MLP
     Args:
@@ -132,6 +135,11 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     ################# TRAIN OR LOAD DECISION TREES ####################
+    model_dir = "{}/{}".format(model_dir, node_emb_technique)
+    try:
+        os.makedirs(model_dir, exist_ok=False)
+    except OSError:
+        pass
     rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
     spat_tree_path = "{}/dtree_spat.h5".format(model_dir)
     if node_emb_technique.lower() in ['node2vec', 'pca', 'none']:
@@ -153,23 +161,23 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     train_set_rel, train_set_labels_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
                                                                    walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
                                                                    n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel", id2idx=id2idx_rel)
-    '''train_set_spat, train_set_labels_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
+
+    train_set_spat, train_set_labels_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
                                                                      walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
                                                                      n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat", id2idx=id2idx_spat)
-    '''
     if not exists(rel_tree_path):
         train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
 
-    '''if not exists(spat_tree_path):
-        train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
-    '''
+    if not exists(spat_tree_path):
+        train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spat")
+
     tree_rel = load_decision_tree(rel_tree_path)
     tree_spat = load_decision_tree(spat_tree_path)
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
-    '''mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
-                    spat_node_embs=train_set_spat, rel_node_embs=train_set_rel, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
-    '''
+    mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
+                    rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
+
     return dang_ae, safe_ae, w2v_model, tree_rel, tree_spat, mlp
 
 def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
@@ -238,7 +246,8 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, mlp, tree
 
 ####### THE FOLLOWING FUNCTIONS ARE CURRENTLY NOT USED IN THE API #######
 
-def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2v_rel, n2v_spat, mlp:modelling.mlp.MLP):
+def test(node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, id2idx_rel, id2idx_spat,
+         mlp: modelling.mlp.MLP, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, rel_adj_matrix=None, spat_adj_matrix=None):
     test_set = np.zeros(shape=(len(test_df), 7))
 
     tok = TextPreprocessing()
@@ -261,18 +270,32 @@ def test(test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, n2
     conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     for index, row in tqdm(test_df.iterrows()):
         id = row['id']
-        if str(id) in n2v_rel.wv.key_to_index:
-            pr, conf = test_decision_tree(test_set=[str(id)], cls=tree_rel)
+        if str(id) in id2idx_rel.keys():
+            idx = id2idx_rel[id]
+            if node_emb_technique == "node2vec":
+                # if str(id) in n2v_rel.wv.key_to_index:
+                mod = n2v_rel.wv
+                test_set = np.expand_dims(mod.vectors[mod.key_to_index[idx]], axis=0)
+            elif node_emb_technique == "pca":
+                test_set = np.expand_dims(pca_rel.transform(rel_adj_matrix[idx]), axis=0)
+            pr_rel, conf_rel = test_decision_tree(test_set=test_set, cls=tree_rel)
         else:
-            pr, conf = pred_missing_info, conf_missing_info
-        test_set[index, 3] = pr
-        test_set[index, 4] = conf
-        if str(id) in n2v_spat.wv.key_to_index:
-            pr, conf = test_decision_tree(test_set[str(id)], cls=tree_spat)
+            pr_rel, conf_rel = pred_missing_info, conf_missing_info
+        if str(id) in id2idx_spat.keys():
+            idx = id2idx_spat[id]
+            if node_emb_technique == "node2vec":
+                mod = n2v_spat.wv
+                test_set = np.expand_dims(mod.vectors[mod.key_to_index[idx]], axis=0)
+            elif node_emb_technique == "pca":
+                test_set = np.expand_dims(pca_spat.transform(spat_adj_matrix[idx]), axis=0)
         else:
-            pr, conf = pred_missing_info, conf_missing_info
-        test_set[index, 5] = pr
-        test_set[index, 6] = conf
+            pr_spat, conf_spat = pred_missing_info, conf_missing_info
+
+        test_set[index, 3] = pr_rel
+        test_set[index, 4] = conf_rel
+        test_set[index, 5] = pr_spat
+        test_set[index, 6] = conf_spat
+
 
     return mlp.test(test_set, np.array(test_df['label']))
 
