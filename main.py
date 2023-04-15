@@ -8,10 +8,10 @@ seed = 123
 np.random.seed(seed)
 
 
-def main(textual_content_link, social_net_url, spatial_net_url, word_embedding_size=512, window=5, w2v_epochs=10,
+def main(textual_content_link, technique="node2vec", social_net_url=None, spatial_net_url=None, rel_adj_mat_path=None, spat_adj_mat=None,
+         id2idx_rel_path=None, id2idx_spat_path=None, word_embedding_size=512, window=5, w2v_epochs=10,
          spat_node_embedding_size=128, rel_node_embedding_size=128, n_of_walks_spat=10, n_of_walks_rel=10,
-         walk_length_spat=10, walk_length_rel=10, p_spat=1, p_rel=1, q_spat=4, q_rel=4, n2v_epochs_spat=100, n2v_epochs_rel=100, technique="node2vec",
-         rel_adj_mat_path=None, spat_adj_mat=None):
+         walk_length_spat=10, walk_length_rel=10, p_spat=1, p_rel=1, q_spat=4, q_rel=4, n2v_epochs_spat=100, n2v_epochs_rel=100):
     dataset_dir = "dataset"
     models_dir = "models"
     if not exists(dataset_dir):
@@ -53,18 +53,21 @@ def main(textual_content_link, social_net_url, spatial_net_url, word_embedding_s
         word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
         n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
         spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,
-        p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel,
-        node_emb_technique=technique, adj_matrix_spat_path=spat_adj_mat, adj_matrix_rel_path=rel_adj_mat_path)
+        p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel,node_emb_technique=technique,
+        adj_matrix_spat_path=spat_adj_mat, adj_matrix_rel_path=rel_adj_mat_path, id2idx_rel_path=id2idx_rel_path, id2idx_spat_path=id2idx_spat_path)
 
     test(test_df=test_df, train_df=train_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
          tree_spat=tree_spat, mlp=mlp)
 
 
 if __name__ == "__main__":
-    main("textual_content_link", social_net_url="https://drive.google.com/file/d/1MhSo9tMDkfnlvZXPKgxv-HBLP4fSwvmN/view?usp=sharing",
+    main(textual_content_link="textual_content_link",
+         social_net_url="https://drive.google.com/file/d/1MhSo9tMDkfnlvZXPKgxv-HBLP4fSwvmN/view?usp=sharing",
          spatial_net_url="https://drive.google.com/file/d/1fVipJMfIoqVqnImc9l79tLqzTWlhhXCq/view?usp=sharing", word_embedding_size=512, window=5, w2v_epochs=1,
-         spat_node_embedding_size=128, rel_node_embedding_size=128, n_of_walks_spat=10, n_of_walks_rel=10,
-         walk_length_spat=10, walk_length_rel=10, p_spat=1, p_rel=1, q_spat=4, q_rel=4, n2v_epochs_spat=100, n2v_epochs_rel=100,
-         technique="pca", spat_adj_mat="node_classification/graph_embeddings/stuff/spat_adj_net.csv",
-         rel_adj_mat_path="node_classification/graph_embeddings/stuff/adj_net.csv")
+         spat_node_embedding_size=128, rel_node_embedding_size=128, n_of_walks_spat=10, n_of_walks_rel=10, walk_length_spat=10, walk_length_rel=10, p_spat=1,
+         p_rel=1, q_spat=4, q_rel=4, n2v_epochs_spat=100, n2v_epochs_rel=100, technique="pca",
+         spat_adj_mat="node_classification/graph_embeddings/stuff/spat_adj_net.csv",
+         rel_adj_mat_path="node_classification/graph_embeddings/stuff/adj_net.csv",
+         id2idx_rel_path="node_classification/graph_embeddings/stuff/id2idx_rel.pkl",
+         id2idx_spat_path="node_classification/graph_embeddings/stuff/id2idx_spat.pkl")
 
