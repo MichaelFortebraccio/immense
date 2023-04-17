@@ -65,4 +65,3 @@ def create_or_load_post_list(path, w2v_model, tokenized_list):
         with open(path, 'wb') as handle:
             pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return post_list
-

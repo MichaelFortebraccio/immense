@@ -6,7 +6,8 @@ from os.path import exists
 
 # Transductive
 def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None,
-                             walk_length=None, p=None, q=None, n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id2idx=None):
+                             walk_length=None, p=None, q=None, n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id2idx=None,
+                             epochs=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
@@ -28,6 +29,8 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         id2idx: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
         from node2vec, and the user IDs are not the index of the position of the users into the adjacency matrix,
         this parameter must be set. Otherwise, it can be left to none
+        epochs: Epochs for training the autoencoder, if it is chosen as embedding technique. If another technique is
+        chosen, this parameter can be ignored
     Returns:
         train_set: Array containing the node embeddings, which will be used for training the decision tree
         train_set_labels: Labels of the training vectors
@@ -54,14 +57,12 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
                 with open("{}/pca_{}.pkl".format(model_dir, lab), 'rb') as f:
                     pca = pickle.load(f)
             train_set = pca.transform(adj_matrix)
-            train_set_labels = [train_df[train_df['id'] == k]['label'].values[0] for k in id2idx.keys()]
-            print(len(train_set_labels))    ############### STOP
         elif node_emb_technique == "autoencoder":
-            model = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
+            model = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=epochs, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
             train_set = model.predict(adj_matrix)
-            train_set_labels = train_df['label']
         elif node_emb_technique == "none":
             train_set = adj_matrix
-            train_set_labels = train_df['label']
+        train_set_labels = [train_df[train_df['id'] == k]['label'].values[0] for k in id2idx.keys()]
+        print(len(train_set_labels))    ############### STOP
+        print(train_set.shape)
     return train_set, train_set_labels
-

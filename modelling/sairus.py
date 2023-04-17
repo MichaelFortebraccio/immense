@@ -91,11 +91,12 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     mlp.train()
     return mlp
 
-def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, node_emb_technique:str, rel_node_embedding_size,
-          spat_node_embedding_size, rel_path=None, spatial_path=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None,
-          walk_length_rel=None, p_spat=None, p_rel=None, q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None,
-          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None, spat_autoenc_epochs=None, rel_autoenc_epochs=None):
-    #TODO Separare la procedura di node embedding per spazio e tempo, l'utente ne può scegliere due diverse
+
+def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, rel_node_emb_technique:str,
+          spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, rel_path=None, spatial_path=None,
+          n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, p_spat=None, p_rel=None,
+          q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_autoenc_epochs=None, rel_autoenc_epochs=None,
+          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
     """
     Builds and trains the independent modules and then fuses them by training the MLP
     Args:
@@ -107,7 +108,8 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         word_embedding_size: size of the word embeddings that will be created
         window:
         w2v_epochs:
-        node_emb_technique: technique to adopt for learning node embeddings
+        rel_node_emb_technique: technique to adopt for learning relational node embeddings
+        spat_node_emb_technique: technique to adopt for learning spatial node embeddings
         rel_node_embedding_size: Dimension of the node embeddings that will be created from the relational network
         spat_node_embedding_size: Dimension of the node embeddings that will be created from the spatial network
         rel_path: Path to the file stating the social relationships among the users
@@ -122,6 +124,8 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         q_rel: n2v
         n2v_epochs_spat: n2v
         n2v_epochs_rel: n2v
+        rel_autoenc_epochs: autoencoder
+        spat_autoenc_epochs: autoencoder
         adj_matrix_spat_path: pca, none, autoencoder
         adj_matrix_rel_path: pca, none, autoencoder
         id2idx_rel_path: Path to the file containing the matching between the node IDs and their index in the relational adj matrix. pca, autoencoder
@@ -135,36 +139,44 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     ################# TRAIN OR LOAD DECISION TREES ####################
-    model_dir = "{}/{}".format(model_dir, node_emb_technique)
+    model_dir_rel = "{}/node_embeddings/rel/{}".format(model_dir, rel_node_emb_technique)
+    model_dir_spat = "{}/node_embeddings/spat/{}".format(model_dir, spat_node_emb_technique)
     try:
-        os.makedirs(model_dir, exist_ok=False)
+        os.makedirs(model_dir_rel, exist_ok=False)
+        os.makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
-    spat_tree_path = "{}/dtree_spat.h5".format(model_dir)
-    if node_emb_technique.lower() in ['node2vec', 'pca', 'none']:
-        if not adj_matrix_spat_path or not adj_matrix_rel_path:
-            raise Exception("The selected node embedding technique needs you to specify the path to spatial and relational adjacency matrices")
-        adj_matrix_spat = np.genfromtxt(adj_matrix_spat_path, delimiter=",")
+    rel_tree_path = "{}/dtree.h5".format(model_dir_rel)
+    spat_tree_path = "{}/dtree.h5".format(model_dir_spat)
+    if rel_node_emb_technique.lower() in ['pca', 'none', 'autoencoder']:
+        if not adj_matrix_rel_path:
+            raise Exception("The selected node embedding technique needs you to specify the path to the relational adjacency matrix")
         adj_matrix_rel = np.genfromtxt(adj_matrix_rel_path, delimiter=",")
-        if not is_square(adj_matrix_spat):
-            raise Exception("The spatial adjacency matrix is not square")
         if not is_square(adj_matrix_rel):
             raise Exception("The relational adjacency matrix is not square")
+    if spat_node_emb_technique.lower() in ['node2vec', 'pca', 'none', 'autoencoder']:
+        if not adj_matrix_spat_path:
+            raise Exception("The selected node embedding technique needs you to specify the path to the spatial adjacency matrix")
+        adj_matrix_spat = np.genfromtxt(adj_matrix_spat_path, delimiter=",")
+        if not is_square(adj_matrix_spat):
+            raise Exception("The spatial adjacency matrix is not square")
 
     id2idx_rel = None
     id2idx_spat = None
-    if id2idx_rel_path:
+    if rel_node_emb_technique in ['none', 'pca', 'autoencoder']:
         id2idx_rel = load_from_pickle(id2idx_rel_path)
-    if id2idx_spat_path:
+    if spat_node_emb_technique in ['none', 'pca', 'autoencoder']:
         id2idx_spat = load_from_pickle(id2idx_spat_path)
-    train_set_rel, train_set_labels_rel = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=rel_path, n_of_walks=n_of_walks_rel,
-                                                                   walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
-                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel", id2idx=id2idx_rel)
 
-    train_set_spat, train_set_labels_spat = dimensionality_reduction(node_emb_technique, model_dir=model_dir, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
+    train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path, n_of_walks=n_of_walks_rel,
+                                                                   walk_length=walk_length_rel, node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel, lab="rel",
+                                                                   id2idx=id2idx_rel, epochs=rel_autoenc_epochs)
+
+    train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path, n_of_walks=n_of_walks_spat,
                                                                      walk_length=walk_length_spat, node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
-                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat", id2idx=id2idx_spat)
+                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, lab="spat",
+                                                                     id2idx=id2idx_spat, epochs=spat_autoenc_epochs)
     if not exists(rel_tree_path):
         train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
 
@@ -244,18 +256,36 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, mlp, tree
     pred = mlp.predict(test_array, verbose=0)
     return pred
 
+def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae=None):
+    """
+    Depending on the node embedding technique adopted, provide the processed array that will then be used by the decision tree
+    """
+    if node_emb_technique == "node2vec":
+        # if str(id) in n2v_rel.wv.key_to_index:
+        mod = n2v.wv
+        test_set = mod.vectors[mod.key_to_index[idx]]
+    elif node_emb_technique == "pca":
+        test_set = pca.transform(adj_matrix[idx])
+    elif node_emb_technique == "autoencoder":
+        test_set = ae.predict(adj_matrix[idx])
+    else:
+        test_set = adj_matrix[idx]
+    return np.expand_dims(test_set, axis=0)
+
 ####### THE FOLLOWING FUNCTIONS ARE CURRENTLY NOT USED IN THE API #######
 
-def test(node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, id2idx_rel, id2idx_spat,
-         mlp: modelling.mlp.MLP, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, rel_adj_matrix=None, spat_adj_matrix=None):
+def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: modelling.mlp.MLP, id2idx_rel_path=None,
+         id2idx_spat_path=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, rel_adj_matrix=None, spat_adj_matrix=None):
     test_set = np.zeros(shape=(len(test_df), 7))
-
+    if rel_node_emb_technique in ['none', 'pca', 'autoencoder']:
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
+    if spat_node_emb_technique in ['none', 'pca', 'autoencoder']:
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
     tok = TextPreprocessing()
     posts = tok.token_list(test_df['text_cleaned'].tolist())
     test_posts_embs = w2v_model.text_to_vec(posts)
     pred_dang = dang_ae.predict(test_posts_embs)
     pred_safe = safe_ae.predict(test_posts_embs)
-    print("Prediction autoencoders")
     test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(test_posts_embs, dtype=tf.float32)).numpy()
     pred_loss_dang = tf.keras.losses.mse(pred_dang, test_posts_sigmoid).numpy()
     pred_loss_safe = tf.keras.losses.mse(pred_safe, test_posts_sigmoid).numpy()
@@ -272,22 +302,14 @@ def test(node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tre
         id = row['id']
         if str(id) in id2idx_rel.keys():
             idx = id2idx_rel[id]
-            if node_emb_technique == "node2vec":
-                # if str(id) in n2v_rel.wv.key_to_index:
-                mod = n2v_rel.wv
-                test_set = np.expand_dims(mod.vectors[mod.key_to_index[idx]], axis=0)
-            elif node_emb_technique == "pca":
-                test_set = np.expand_dims(pca_rel.transform(rel_adj_matrix[idx]), axis=0)
+            test_set = get_testset(rel_node_emb_technique, idx, adj_matrix=rel_adj_matrix, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
             pr_rel, conf_rel = test_decision_tree(test_set=test_set, cls=tree_rel)
         else:
             pr_rel, conf_rel = pred_missing_info, conf_missing_info
         if str(id) in id2idx_spat.keys():
             idx = id2idx_spat[id]
-            if node_emb_technique == "node2vec":
-                mod = n2v_spat.wv
-                test_set = np.expand_dims(mod.vectors[mod.key_to_index[idx]], axis=0)
-            elif node_emb_technique == "pca":
-                test_set = np.expand_dims(pca_spat.transform(spat_adj_matrix[idx]), axis=0)
+            test_set = get_testset(spat_node_emb_technique, idx, adj_matrix=spat_adj_matrix, n2v=n2v_spat, pca=pca_spat, ae=ae_rel)
+            pr_spat, conf_spat = test_decision_tree(test_set=test_set, cls=tree_spat)
         else:
             pr_spat, conf_spat = pred_missing_info, conf_missing_info
 
@@ -295,7 +317,6 @@ def test(node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tre
         test_set[index, 4] = conf_rel
         test_set[index, 5] = pr_spat
         test_set[index, 6] = conf_spat
-
 
     return mlp.test(test_set, np.array(test_df['label']))
 
@@ -314,6 +335,5 @@ def cross_validation(dataset_path, n_folds):
                            tree_rel=tree_rel, tree_spat=tree_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp,
                            w2v_model=w2v_model)
         l.append((p, r, f1, s))
-
 
 

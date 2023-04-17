@@ -22,6 +22,9 @@ class AE:
         self.lr = lr
 
     def train_autoencoder_content(self):
+        """
+        Method that builds and trains the autoencoder that processes the textual content
+        """
         if exists(self._model_dir):
             return self.load_autoencoder()
         else:
@@ -50,7 +53,7 @@ class AE:
 
     def train_autoencoder_node(self, embedding_size):
         """
-        Method that trains the autoencoder used for generating the node embeddings.Differently from the content
+        Method that trains the autoencoder used for generating the node embeddings. Differently from the content
         autoencoder, here we train the model and then discard the decoder
         Args:
             embedding_size: Desired embedding dimension
@@ -60,17 +63,18 @@ class AE:
         else:
             print("Training node autoencoder")
             input_len = self._input_len
+            f = 3       # Factor that regulates the architecture. Eg if f=2, the dimension of the layers will be gradually halved until the bottleneck reaches the desired dimension
             encoder_layers_dimensions = [self._input_len]   # Store the dimensions of the encoder layers, so we already know what will be the dimensions of the decoder layers
             input_features = Input(shape=(input_len,))
             encoded = input_features
-            input_len = int(input_len/2)
+            input_len = int(input_len/f)
             while input_len > embedding_size:
                 encoder_layers_dimensions.append(input_len)
                 encoded = Dense(units=input_len, activation='sigmoid')(encoded)
-                input_len = int(input_len/2)
+                input_len = int(input_len/f)
             encoded = Dense(units=embedding_size, activation='sigmoid')(encoded)
             decoded = Dense(units=input_len, activation='sigmoid')(encoded)
-            input_len *= 2
+            input_len *= f
             encoder_layers_dimensions = encoder_layers_dimensions[::-1]     # Reverse the list
             for d in encoder_layers_dimensions:
                 decoded = Dense(units=d, activation='sigmoid')(decoded)
@@ -81,7 +85,8 @@ class AE:
             autoencoder.compile(optimizer=opt, loss='mse', metrics=['mse'])
             autoencoder.fit(self._X_train, self._X_train, epochs=self.epochs, batch_size=self.batch_size,
                             validation_split=0.2, callbacks=[early_stopping, lr_reducer])
-            encoder = Model(input_len, encoded)
+            encoder = Model(input_features, encoded)
+            encoder.summary()
             encoder.save(self._model_dir)
             return encoder
 
