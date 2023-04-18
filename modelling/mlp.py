@@ -9,6 +9,9 @@ from os.path import join
 class MLP:
     def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50, lr=0.03):
         self.X_train = X_train
+        """for e in X_train:
+            print(e)
+        print("----------------------------------")"""
         if len(y_train.shape) == 1:
             y_train = to_categorical(y_train)
         self.y_train = y_train
@@ -22,15 +25,14 @@ class MLP:
         x = Dense(units=3, activation='sigmoid')(input_layer)
         output = Dense(units=2, activation='softmax')(x)
         mod = Model(input_layer, output)
-        opt = Adam(lr=self.lr)
+        opt = Adam(learning_rate=self.lr)
         mod.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
-        mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2)
+        mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2, verbose=0)
         self.model = mod
         mod.save(self._model_path)
 
     def test(self, X_test, y_test):
         preds = self.model.predict(X_test)
-        print(preds)
         y_p = []
         for p in preds:
             if round(p[0]) == 0:
