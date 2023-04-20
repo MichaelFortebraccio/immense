@@ -6,7 +6,7 @@ from os.path import exists
 
 # Transductive
 def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None,
-                             walk_length=None, p=None, q=None, n2v_epochs=None, weighted=None, directed=None, adj_matrix=None, id2idx=None,
+                             walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix=None, id2idx=None,
                              epochs=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
@@ -38,13 +38,22 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
     node_emb_technique = node_emb_technique.lower()
     if node_emb_technique == "node2vec":
         n2v_path = "{}/n2v_{}.h5".format(model_dir, lab)
+        weighted = False
+        directed = True
+        if lab == "spat":
+            weighted = True
+            directed = False
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
-                               epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings()
+                               epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings(l=lab)
         mod = n2v.wv
-        train_set_ids = [i for i in train_df['id'] if str(i) in mod.key_to_index]      # Instead of using mod.key_to_index, we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
+        train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]      # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
+        #train_set = mod.vectors
+        m = []
         train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
+        if lab == "spat":
+            print("d")
     else:
         if node_emb_technique == "pca":
             if not exists("{}/pca_{}.pkl".format(model_dir, lab)):

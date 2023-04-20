@@ -58,6 +58,7 @@ class AE:
         Args:
             embedding_size: Desired embedding dimension
         """
+        print(self._X_train.shape)
         if exists(self._model_dir):
             return self.load_autoencoder()
         else:
@@ -86,7 +87,6 @@ class AE:
             autoencoder.fit(self._X_train, self._X_train, epochs=self.epochs, batch_size=self.batch_size,
                             validation_split=0.2, callbacks=[early_stopping, lr_reducer])
             encoder = Model(input_features, encoded)
-            encoder.summary()
             encoder.save(self._model_dir)
             return encoder
 

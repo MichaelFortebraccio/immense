@@ -1,6 +1,6 @@
 import os.path
 from gensim.models import Word2Vec
-from pecanpy import node2vec
+from pecanpy import pecanpy as node2vec
 from os.path import exists
 
 
@@ -29,7 +29,7 @@ class Node2VecEmbedder():
         self.epochs = epochs
         self._model_path = model_path
 
-    def learn_n2v_embeddings(self, workers=0):
+    def learn_n2v_embeddings(self, workers=0, l=None):
         """
         Args:
             workers: How many threads to use. Set this to 0 for using all the available threads
@@ -38,7 +38,7 @@ class Node2VecEmbedder():
             g = node2vec.SparseOTF(p=self.p, q=self.q, workers=workers, verbose=True)
             g.read_edg(self.path_to_edges, weighted=self.weighted, directed=self.directed)
             g.preprocess_transition_probs()
-            walks = g.simulate_walks(num_walks=self.number_of_walks, walk_length=self.walk_length, n_ckpts=10, pb_len=25)
+            walks = g.simulate_walks(num_walks=self.number_of_walks, walk_length=self.walk_length)
             model = Word2Vec(sentences=walks, vector_size=self.embedding_size, min_count=0, sg=1, epochs=self.epochs)
             model.save(self._model_path)
         else:

@@ -1,15 +1,12 @@
 import os
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
-from os.path import exists
 import modelling.mlp
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
 from modelling.ae import AE
-from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
 from utils import create_or_load_post_list, load_from_pickle
@@ -20,6 +17,9 @@ from keras.models import load_model
 np.random.seed(123)
 
 def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset_dir):
+    """
+    Train the Word2Vc model that will be used for learning the embeddings of the content
+    """
     tok = TextPreprocessing()
     posts_content = tok.token_list(train_df['text_cleaned'].tolist())
     w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
@@ -71,14 +71,19 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         id = row['id']
         if id in id2idx_rel.keys():
             idx = id2idx_rel[id]
-            pr, conf = test_decision_tree(test_set=np.expand_dims(rel_node_embs[idx], axis=0), cls=tree_rel)
+            dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
+            #print("TRAIN: {}".format(dtree_input.shape))
+            pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
         else:
             pr, conf = row['label'], 1.0
         dataset[index, 3] = pr
         dataset[index, 4] = conf
         if id in id2idx_spat.keys():
             idx = id2idx_spat[id]
-            pr, conf = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
+            try:
+                pr, conf = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
+            except IndexError:
+                print("error")
         else:
             pr, conf = row['label'], 1.0
         dataset[index, 5] = pr
@@ -95,7 +100,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
           q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None,
           adj_matrix_spat=None, adj_matrix_rel=None, id2idx_rel=None, id2idx_spat=None):
     """
-    Builds and trains the independent modules and then fuses them by training the MLP
+    Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and then fuses them with the MLP
     Args:
         train_df: Dataframe with the posts used for the MLP training
         full_df: Dataframe containing the whole set of posts. It is used for training the node embedding models, since
@@ -165,14 +170,16 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
     if rel_node_emb_technique == "node2vec":
         mod = Word2Vec.load("{}/n2v_rel.h5".format(model_dir_rel))
-        id2idx_rel = mod.wv.key_to_index
+        d = mod.wv.key_to_index
+        id2idx_rel = {int(k): d[k] for k in d.keys()}
     if spat_node_emb_technique == "node2vec":
         mod = Word2Vec.load("{}/n2v_spat.h5".format(model_dir_spat))
-        id2idx_spat = mod.wv.key_to_index
+        d = mod.wv.key_to_index
+        id2idx_spat = {int(k): d[k] for k in d.keys()}
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
 
-    return dang_ae, safe_ae, w2v_model, tree_rel, tree_spat, mlp
+    return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
 
 def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
     df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
@@ -199,9 +206,11 @@ def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
                 out[id] = "safe"
     return out
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, mlp, tree_rel, tree_spat, df):
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
+                 id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
     test_array = np.zeros(shape=(1, 7))
-    posts = tok.token_list(user['text_cleaned'].tolist())
+    posts = user['text_cleaned']
+    #posts = tok.token_list(user['text_cleaned'].tolist())
     posts_embs = w2v_model.text_to_vec(posts)
     pred_dang = dang_ae.predict(posts_embs)
     pred_safe = safe_ae.predict(posts_embs)
@@ -222,18 +231,20 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, mlp, tree
 
     if str(id) in id2idx_rel.keys():
         idx = id2idx_rel[id]
-        pr, conf = test_decision_tree(test_set=np.expand_dims(rel_node_embs[idx], axis=0), cls=tree_rel)
+        dtree_input = get_testset(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
+        pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
     else:
-        pr, conf = pred_missing_info, conf_missing_info
-    test_array[0, 3] = pr
-    test_array[0, 4] = conf
+        pr_rel, conf_rel = pred_missing_info, conf_missing_info
+    test_array[0, 3] = pr_rel
+    test_array[0, 4] = conf_rel
     if str(id) in id2idx_spat.keys():
         idx = id2idx_spat[id]
-        pr, conf = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
+        dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
+        pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
     else:
-        pr, conf = pred_missing_info, conf_missing_info
-    test_array[0, 5] = pr
-    test_array[0, 6] = conf
+        pr_spat, conf_spat = pred_missing_info, conf_missing_info
+    test_array[0, 5] = pr_spat
+    test_array[0, 6] = conf_spat
 
     pred = mlp.predict(test_array, verbose=0)
     return pred
@@ -260,7 +271,6 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
         test_set = np.expand_dims(adj_matrix[idx], axis=0)
     return test_set
 
-####### THE FOLLOWING FUNCTIONS ARE CURRENTLY NOT USED IN THE API #######
 
 def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: modelling.mlp.MLP, id2idx_rel=None,
          id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
@@ -302,10 +312,9 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
         test_set[index, 4] = conf_rel
         test_set[index, 5] = pr_spat
         test_set[index, 6] = conf_spat
-
     return mlp.test(test_set, np.array(test_df['label']))
 
-
+####### THIS FUNCTION IS CURRENTLY NOT USED IN THE API #######
 def cross_validation(dataset_path, n_folds):
     df = pd.read_csv(dataset_path, sep=',')
     X = df
