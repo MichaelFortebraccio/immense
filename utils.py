@@ -5,6 +5,13 @@ from sklearn.model_selection import train_test_split
 import pickle
 from os.path import exists
 
+def save_to_pickle(name, c):
+    with open(name, 'wb') as f:
+        pickle.dump(c, f)
+
+def load_from_pickle(name):
+    with open(name, 'rb') as f:
+        return pickle.load(f)
 
 def prepare_for_decision_tree(df, mod: Word2Vec):
     y = []
@@ -59,3 +66,6 @@ def create_or_load_post_list(path, w2v_model, tokenized_list):
             pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return post_list
 
+
+def is_square(m):
+    return m.shape[0] == m.shape[1]
