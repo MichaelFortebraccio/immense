@@ -1,6 +1,5 @@
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report
-from gensim.models import Word2Vec
 import pickle
 
 

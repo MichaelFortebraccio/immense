@@ -9,7 +9,8 @@ from modelling.word_embedding import WordEmb
 from modelling.ae import AE
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
-from utils import create_or_load_post_list, load_from_pickle
+from utils import create_or_load_post_list, save_to_pickle, load_from_pickle
+from gensim.models import Word2Vec
 from tqdm import tqdm
 from modelling.mlp import MLP
 from keras.models import load_model
@@ -22,17 +23,18 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     """
     tok = TextPreprocessing()
     posts_content = tok.token_list(train_df['text_cleaned'].tolist())
-    w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
-
+    if not os.path.exists("{}/w2v_{}.pkl".format(model_dir, embedding_size)):
+        w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
+        w2v_model.train_w2v()
+        save_to_pickle("{}/w2v_{}.pkl".format(model_dir, embedding_size), w2v_model)
+    else:
+        w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(model_dir, embedding_size))
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
     safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
-
-    w2v_model.train_w2v()
-
-    list_dang_posts = create_or_load_post_list(path='{}/list_dang_posts.pickle'.format(dataset_dir), w2v_model=w2v_model,
+    list_dang_posts = create_or_load_post_list(path='{}/list_dang_posts_{}.pickle'.format(dataset_dir, embedding_size), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts.pickle'.format(dataset_dir), w2v_model=w2v_model,
+    list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts_{}.pickle'.format(dataset_dir, embedding_size), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
     return list_dang_posts, list_safe_posts, list_embs, w2v_model
@@ -72,7 +74,6 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         if id in id2idx_rel.keys():
             idx = id2idx_rel[id]
             dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
-            #print("TRAIN: {}".format(dtree_input.shape))
             pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
         else:
             pr, conf = row['label'], 1.0
@@ -137,6 +138,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     list_dang_posts, list_safe_posts, list_content_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
 
+
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
     dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
@@ -178,8 +180,9 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         id2idx_spat = {int(k): d[k] for k in d.keys()}
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
+    save_to_pickle("{}/mlp.pkl".format(model_dir), mlp)
 
-    return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
+    # return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
 
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):

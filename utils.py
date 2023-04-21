@@ -18,7 +18,6 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
     for k in mod.wv.key_to_index.keys():
         try:
             y.append(df.loc[df['id']==int(k)]['label'].item())
-            #print(df.loc[df['id'] == int(k)]['label'].item())
         except ValueError:
             print(k)
             continue
