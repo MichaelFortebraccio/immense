@@ -181,37 +181,11 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
 
     return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
 
-def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
-    df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
-    tok = TextPreprocessing()
-    w2v_model = WordEmb("", embedding_size=0, window=0, epochs=0, model_dir=model_dir)   # The actual values are not important since we will load the model. Only the model dir is important
-    dang_ae = load_model("{}/autoencoderdang.h5".format(model_dir))
-    safe_ae = load_model("{}/autoencodersafe.h5".format(model_dir))
-    n2v_rel = Word2Vec.load("{}/n2v_rel.h5".format(model_dir))
-    n2v_spat = Word2Vec.load("{}/n2v_spat.h5".format(model_dir))
-    mlp = load_model("{}/mlp.h5".format(model_dir))
-    tree_rel = load_decision_tree("{}/dtree_rel.h5".format(model_dir))
-    tree_spat = load_decision_tree("{}/dtree_spat.h5".format(model_dir))
-    out = {}
-    for id in user_ids:
-        if id not in df['id'].tolist():
-            out[id] = "not found"
-        else:
-            pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae, tok=tok,
-                                safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel,
-                                tree_spat=tree_spat, df=df)
-            if round(pred[0][0]) == 0:
-                out[id] = "risky"
-            elif round(pred[0][0]) == 1:
-                out[id] = "safe"
-    return out
-
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
     test_array = np.zeros(shape=(1, 7))
-    posts = user['text_cleaned']
-    #posts = tok.token_list(user['text_cleaned'].tolist())
-    posts_embs = w2v_model.text_to_vec(posts)
+    posts = user['text_cleaned'].split(" ")
+    posts_embs = w2v_model.text_to_vec([posts])
     pred_dang = dang_ae.predict(posts_embs)
     pred_safe = safe_ae.predict(posts_embs)
     posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(posts_embs, dtype=tf.float32)).numpy()
@@ -227,7 +201,7 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, df, tree_
     pred_missing_info = df['label'].value_counts().argmax()
     conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
 
-    id = user['id'].values[0]
+    id = user['id']
 
     if str(id) in id2idx_rel.keys():
         idx = id2idx_rel[id]
@@ -246,8 +220,11 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, tok, safe_ae, df, tree_
     test_array[0, 5] = pr_spat
     test_array[0, 6] = conf_spat
 
-    pred = mlp.predict(test_array, verbose=0)
-    return pred
+    pred = mlp.model.predict(test_array, verbose=0)
+    if round(pred[0][0]) == 0:
+        return 1
+    elif round(pred[0][0]) == 1:
+        return 0
 
 def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae=None):
     """
@@ -314,7 +291,31 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
         test_set[index, 6] = conf_spat
     return mlp.test(test_set, np.array(test_df['label']))
 
-####### THIS FUNCTION IS CURRENTLY NOT USED IN THE API #######
+####### THESE FUNCTIONS ARE CURRENTLY NOT USED #######
+def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
+    df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
+    tok = TextPreprocessing()
+    w2v_model = WordEmb("", embedding_size=0, window=0, epochs=0, model_dir=model_dir)   # The actual values are not important since we will load the model. Only the model dir is important
+    dang_ae = load_model("{}/autoencoderdang.h5".format(model_dir))
+    safe_ae = load_model("{}/autoencodersafe.h5".format(model_dir))
+    n2v_rel = Word2Vec.load("{}/n2v_rel.h5".format(model_dir))
+    n2v_spat = Word2Vec.load("{}/n2v_spat.h5".format(model_dir))
+    mlp = load_model("{}/mlp.h5".format(model_dir))
+    tree_rel = load_decision_tree("{}/dtree_rel.h5".format(model_dir))
+    tree_spat = load_decision_tree("{}/dtree_spat.h5".format(model_dir))
+    out = {}
+    for id in user_ids:
+        if id not in df['id'].tolist():
+            out[id] = "not found"
+        else:
+            pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae,
+                                safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel,
+                                tree_spat=tree_spat, df=df)
+            if round(pred[0][0]) == 0:
+                out[id] = "safe"
+            elif round(pred[0][0]) == 1:
+                out[id] = "risky"
+    return out
 def cross_validation(dataset_path, n_folds):
     df = pd.read_csv(dataset_path, sep=',')
     X = df

@@ -7,8 +7,7 @@ import gdown
 from gensim.models import Word2Vec
 from keras.models import load_model
 import pickle
-
-from modelling.text_preprocessing import TextPreprocessing
+import argparse
 from node_classification.decision_tree import load_decision_tree
 from utils import is_square, load_from_pickle
 seed = 123
@@ -112,14 +111,45 @@ def main(textual_content_link, rel_technique="node2vec", spat_technique="node2ve
     """test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
          spat_node_emb_technique=spat_technique, rel_node_emb_technique=rel_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, ae_spat=ae_spat,
          adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)"""
-    print("Pred: {}".format((predict_user(test_df.iloc[3], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=test_df, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique="none",
-                 spat_node_emb_technique="pca", id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, ae_spat=ae_spat, tok = TextPreprocessing(),
-                 adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat))))
-
+    pred = predict_user(test_df.iloc[3], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=test_df, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp,
+                        rel_node_emb_technique="none", spat_node_emb_technique="pca", id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, ae_spat=ae_spat, ae_rel=ae_rel,
+                        adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+    print("The user is: {}".format("risky" if pred == 1 else "safe"))
 
 
 if __name__ == "__main__":
-    main(textual_content_link="textual_content_link",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("textual_content_link", type=str, required=True, help="Link to the file containing the posts")
+    parser.add_argument("social_net_url", type=str, required=False, help="Link to the file containing the edges in the social network. Can be ignored if you don't want to use node2vec")
+    parser.add_argument("spatial_net_url", type=str, required=False, help="Link to the file containing the edges in the spatial network. Can be ignored if you don't want to use node2vec")
+    parser.add_argument("word_embedding_size", type=int, default=512, required=True, help="Dimension of the word embeddings")
+    parser.add_argument("window", type=int, default=5, required=True, help="Dimension of the window for learning word embeddings")
+    parser.add_argument("w2v_epochs", type=int, default=50, required=True, help="For how many epochs to train the w2v model")
+    parser.add_argument("spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique to adopt for learning spatial node embeddings")
+    parser.add_argument("rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique to adopt for learning relational node embeddings")
+    parser.add_argument("spat_node_embedding_size", type=int, default=128, required=True, help="Dimension of the spatial node embeddings")
+    parser.add_argument("rel_node_embedding_size", type=int, default=128, required=True, help="Dimension of the relational node embeddings")
+    parser.add_argument("spat_adj_mat_path", type=str, required=False, help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you want to use n2v for learning spatial node embeddings")
+    parser.add_argument("rel_adj_mat_path", type=str, required=False, help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you want to use n2v for learning relational node embeddings")
+    parser.add_argument("id2idx_spat_path", type=str, required=False, help="Link to the .pkl file with the matchings between node IDs and their index in the spatial adj matrix. Ignore this parameter if you want to use n2v for learning spatial node embeddings")
+    parser.add_argument("id2idx_rel_path", type=str, required=False, help="Link to the .pkl file with the matchings between node IDs and their index in the relational adj matrix. Ignore this parameter if you want to use n2v for learning relational node embeddings")
+    parser.add_argument("n_of_walks_spat", type=int, default=10, required=False, help="Number of walks for learning spatial embeddings (node2vec)")
+    parser.add_argument("n_of_walks_rel", type=int, default=10, required=False, help="Number of walks for learning relational embeddings (node2vec)")
+    parser.add_argument("walk_length_spat", type=int, default=10, required=True, help="Length of walks for learning spatial embeddings (node2vec)")
+    parser.add_argument("walk_length_rel", type=int, default=10, required=True, help="Length of walks for learning relational embeddings (node2vec)")
+    parser.add_argument("p_spat", type=int, default=1, required=False, help="Node2vec hyperparameter p for the spatial embeddings")
+    parser.add_argument("p_rel", type=int, default=4, required=False, help="Node2vec hyperparameter p for the relational embeddings")
+    parser.add_argument("q_spat", type=int, default=1, required=False, help="Node2vec hyperparameter q for the spatial embeddings")
+    parser.add_argument("q_rel", type=int, default=4, required=False, help="Node2vec hyperparameter q for the relational embeddings")
+    parser.add_argument("n2v_epochs_spat", type=int, default=100, required=False, help="Epochs for training the n2v model that will learn spatial embeddings")
+    parser.add_argument("n2v_epochs_rel", type=int, default=100, required=False, help="Epochs for training the n2v model that will learn relational embeddings")
+    parser.add_argument("rel_ae_epochs", type=int, default=50, required=True, help="Epochs for training the autoencoder that will learn relational embeddings")
+    parser.add_argument("spat_ae_epochs", type=int, default=50, required=True, help="Epochs for training the autoencoder that will learn spatial embeddings")
+
+    args = parser.parse_args()
+    main(args)
+
+    main(="textual_content_link",
          social_net_url="https://drive.google.com/file/d/1MhSo9tMDkfnlvZXPKgxv-HBLP4fSwvmN/view?usp=sharing",
          spatial_net_url="https://drive.google.com/file/d/1fVipJMfIoqVqnImc9l79tLqzTWlhhXCq/view?usp=sharing", word_embedding_size=512, window=5, w2v_epochs=1,
          spat_node_embedding_size=128, rel_node_embedding_size=128, n_of_walks_spat=10, n_of_walks_rel=10, walk_length_spat=10, walk_length_rel=10, p_spat=1,
