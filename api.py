@@ -1,9 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
-
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
-from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from modelling.sairus import classify_users, train_w2v_model, learn_mlp
 import gdown
 from os.path import exists
@@ -11,11 +9,17 @@ from os import makedirs
 import pandas as pd
 from celery import Celery
 
+from node_classification.reduce_dimension import dimensionality_reduction
+
 # sudo service redis-server stop
 
 CONTENT_FILENAME = "content_labeled.csv"
-SOCIAL_NET_FILENAME = "social_network.edg"
-SPATIAL_NET_FILENAME = "spatial_network.edg"
+REL_EDGES_FILENAME = "social_network.edg"
+SPAT_EDGES_FILENAME = "spatial_network.edg"
+ID2IDX_REL_FILENAME = "id2idx_rel.pkl"
+ID2IDX_SPAT_FILENAME = "id2idx_spat.pkl"
+REL_ADJ_MAT_FILENAME = "rel_adj_net.csv"
+SPAT_ADJ_MAT_FILENAME = "spat_adj_net.csv"
 MODEL_DIR = "{}/models"
 DATASET_DIR = "{}/dataset"
 
@@ -48,24 +52,57 @@ train_parser.add_argument('n2v_epochs_spat', type=int, default=100, required=Tru
 train_parser.add_argument('n2v_epochs_rel', type=int, default=100, required=True, help="No. epochs for training the relational n2v embedding method")
 
 @celery.task(bind=True)
-def train_task(self, tweets_url, social_network_url, spatial_network_url, word_embedding_size, window, w2v_epochs,
-               p_spat, p_rel, spat_node_embedding_size, rel_node_embedding_size, n_of_walks_spat, n_of_walks_rel,
-               walk_length_spat, walk_length_rel, q_spat, q_rel, n2v_epochs_spat, n2v_epochs_rel):
+def train_task(self, tweets_url, word_embedding_size, window, w2v_epochs, rel_node_emb_technique:str, spat_node_emb_technique:str,
+               rel_node_embedding_size, spat_node_embedding_size, social_network_url=None, spatial_network_url=None, p_spat=None, p_rel=None,
+               q_spat=None, q_rel=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, n2v_epochs_spat=None,
+               n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None, adj_matrix_spat_url=None, adj_matrix_rel_url=None, id2idx_rel_url=None, id2idx_spat_url=None):
     job_id = self.request.id
     dataset_dir = DATASET_DIR.format(job_id)
     model_dir = MODEL_DIR.format(job_id)
     makedirs(dataset_dir, exist_ok=True)
     makedirs(model_dir, exist_ok=True)
     content_path = "{}/{}".format(dataset_dir, CONTENT_FILENAME)
-    social_path = "{}/{}".format(dataset_dir, SOCIAL_NET_FILENAME)
-    spatial_path = "{}/{}".format(dataset_dir, SPATIAL_NET_FILENAME)
-    self.update_state(state="PROGRESS", meta={"status": "Downloading dataset."})
+
+    ############### DOWNLOAD FILES ###############
+    self.update_state(state="PROGRESS", meta={"status": "Downloading dataset..."})
     if not exists(content_path):
         gdown.download(url=tweets_url, output=content_path, quiet=False, fuzzy=True)
-    if not exists(social_path):
-        gdown.download(url=social_network_url, output=social_path, quiet=False, fuzzy=True)
-    if not exists(spatial_path):
-        gdown.download(url=spatial_network_url, output=spatial_path, quiet=False, fuzzy=True)
+
+    rel_edges_path = None
+    spat_edges_path = None
+    rel_adj_mat_path = None
+    spat_adj_mat_path = None
+    id2idx_rel_path = None
+    id2idx_spat_path = None
+
+    if rel_node_emb_technique == "node2vec":
+        rel_edges_path = "{}/{}".format(dataset_dir, REL_EDGES_FILENAME)
+        if not social_network_url:
+            raise Exception("You need to provide a URL to the relational edge list")
+        gdown.download(url=social_network_url, output=rel_edges_path, quiet=False, fuzzy=True)
+    elif rel_node_emb_technique in ["pca", "autoencoder", "none"]:
+        rel_adj_mat_path = "{}/{}".format(dataset_dir, REL_ADJ_MAT_FILENAME)
+        id2idx_rel_path = "{}/{}".format(dataset_dir, ID2IDX_REL_FILENAME)
+        if not adj_matrix_rel_url:
+            raise Exception("You need to provide the URL to the relational adjacency matrix")
+        if not id2idx_rel_url:
+            raise Exception("You need to provide the URL to the relational id2idx file")
+        gdown.download(url=adj_matrix_rel_url, output=rel_adj_mat_path, quiet=False, fuzzy=True)
+        gdown.download(url=id2idx_rel_url, output=id2idx_rel_path, quiet=False, fuzzy=True)
+    if spat_node_emb_technique == "node2vec":
+        spat_edges_path = "{}/{}".format(dataset_dir, SPAT_EDGES_FILENAME)
+        if not spatial_network_url:
+            raise Exception("You need to provide a URL to the spatial network edge list")
+        gdown.download(url=spatial_network_url, output=spat_edges_path, quiet=False, fuzzy=True)
+    elif spat_node_emb_technique in ["pca", "autoencoder", "none"]:
+        spat_adj_mat_path = "{}/{}".format(dataset_dir, SPAT_ADJ_MAT_FILENAME)
+        id2idx_spat_path = "{}/{}".format(dataset_dir, ID2IDX_SPAT_FILENAME)
+        if not adj_matrix_spat_url:
+            raise Exception("You need to provide the URL to the spatial adjacency matrix")
+        if not id2idx_spat_url:
+            raise Exception("You need to provide the URL to the spatial id2idx file")
+        gdown.download(url=adj_matrix_spat_url, output=spat_adj_mat_path, quiet=False, fuzzy=True)
+        gdown.download(url=id2idx_spat_url, output=id2idx_spat_path, quiet=False, fuzzy=True)
     self.update_state(state="PROGRESS", meta={"status": "Dataset successfully downloaded."})
 
     train_df = pd.read_csv(content_path, sep=',').reset_index()
@@ -73,42 +110,42 @@ def train_task(self, tweets_url, social_network_url, spatial_network_url, word_e
     self.update_state(state="PROGRESS", meta={"status": "Learning w2v model."})
     list_dang_posts, list_safe_posts, list_embs = train_w2v_model(train_df, embedding_size=word_embedding_size, window=window, epochs=w2v_epochs,
                                                                   model_dir=model_dir, dataset_dir=dataset_dir)
-
     self.update_state(state="PROGRESS", meta={"status": "Learning dangerous autoencoder."})
-    dang_ae = AE(input_len=word_embedding_size, X_train=list_dang_posts, label='dang', model_dir=model_dir).train_autoencoder_content()
+    dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     self.update_state(state="PROGRESS", meta={"status": "Learning safe autoencoder."})
-    safe_ae = AE(input_len=word_embedding_size, X_train=list_safe_posts, label='safe', model_dir=model_dir).train_autoencoder_content()
+    safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
 
-    rel_tree_path = "{}/dtree_rel.h5".format(model_dir)
-    spat_tree_path = "{}/dtree_spat.h5".format(model_dir)
-    rel_n2v_path = "{}/n2v_rel.h5".format(model_dir)
-    spat_n2v_path = "{}/n2v_spat.h5".format(model_dir)
+    model_dir_rel = "{}/node_embeddings/rel/{}".format(model_dir, rel_node_emb_technique)
+    model_dir_spat = "{}/node_embeddings/spat/{}".format(model_dir, spat_node_emb_technique)
+    try:
+        makedirs(model_dir_rel, exist_ok=False)
+        makedirs(model_dir_spat, exist_ok=False)
+    except OSError:
+        pass
+    rel_tree_path = "{}/dtree.h5".format(model_dir_rel)
+    spat_tree_path = "{}/dtree.h5".format(model_dir_spat)
 
-    self.update_state(state="PROGRESS", meta={"status": "Learning relational n2v model."})
-    n2v_rel = Node2VecEmbedder(path_to_edges=social_path, weighted=False, directed=True, n_of_walks=n_of_walks_rel,
-                                   walk_length=walk_length_rel, embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel,
-                                   epochs=n2v_epochs_rel, model_path=rel_n2v_path).learn_n2v_embeddings()
-    if not exists(rel_tree_path):  # IF THE DECISION TREE HAS NOT BEEN LEARNED, LOAD/TRAIN THE N2V MODEL
-        train_set_ids_rel = [i for i in train_df['id'] if str(i) in n2v_rel.wv.key_to_index]
-        self.update_state(state="PROGRESS", meta={"status": "Learning relational decision tree."})
-        train_decision_tree(train_set_ids=train_set_ids_rel, save_path=rel_tree_path, n2v_model=n2v_rel,
-                            train_set_labels=train_df[train_df['id'].isin(train_set_ids_rel)]['label'], name="relational")
+    ############### LEARN NODE EMBEDDINGS ###############
+    self.update_state(state="PROGRESS", meta={"status": "Learning relational embeddings."})
+    train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_edges_path,
+                                                                   n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
+                                                                   node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=rel_adj_mat_path)
 
-    self.update_state(state="PROGRESS", meta={"status": "Learning spatial n2v model."})
-    n2v_spat = Node2VecEmbedder(path_to_edges=spatial_path, weighted=True, directed=False, n_of_walks=n_of_walks_spat,
-                                walk_length=walk_length_spat, embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat,
-                                epochs=n2v_epochs_spat, model_path=spat_n2v_path).learn_n2v_embeddings()
-    if not exists(spat_tree_path):
-        train_set_ids_spat = [i for i in train_df['id'] if str(i) in n2v_spat.wv.key_to_index]
-        self.update_state(state="PROGRESS", meta={"status": "Learning spatial decision tree."})
-        train_decision_tree(train_set_ids=train_set_ids_spat, save_path=spat_tree_path, n2v_model=n2v_spat,
-                            train_set_labels=train_df[train_df['id'].isin(train_set_ids_spat)]['label'], name="spatial")
+    train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spat_edges_path,
+                                                                     n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
+                                                                     node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat, lab="spat",
+                                                                     n2v_epochs=n2v_epochs_spat, train_df=train_df, adj_matrix_path=spat_adj_mat_path, id2idx_path=id2idx_spat_path)
+
+    ############### LEARN DECISION TREES ###############
+    self.update_state(state="PROGRESS", meta={"status": "Learning decision trees..."})
+    train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="relational")
+    train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
     tree_rel = load_decision_tree(rel_tree_path)
     tree_spat = load_decision_tree(spat_tree_path)
 
-    self.update_state(state="PROGRESS", meta={"status": "Learning mlp."})
-    learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel,
-              n2v_spat=n2v_spat, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir)
+    self.update_state(state="PROGRESS", meta={"status": "Learning mlp..."})
+    learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir)
 
 @api.route("/node_classification/train", methods=['POST'])
 class Train(Resource):

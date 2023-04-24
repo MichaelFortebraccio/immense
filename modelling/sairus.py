@@ -40,7 +40,7 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     return list_dang_posts, list_safe_posts, list_embs, w2v_model
 
 
-def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir):
+def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs, id2idx_spat_path: dict, id2idx_rel_path: dict, model_dir):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -52,11 +52,14 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         tree_spat: Spatial decision tree
         spat_node_embs: Spatial node embeddings
         rel_node_embs: Relational node embeddings
-        id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
-        id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
+        id2idx_spat_path: Path to the dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
+        id2idx_rel_path: Path to the dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
         model_dir:
-    Returns:
+    Returns: The learned MLP
     """
+    id2idx_rel = load_from_pickle(id2idx_rel_path)
+    id2idx_spat = load_from_pickle(id2idx_spat_path)
+
     dataset = np.zeros((len(train_df), 7))
     prediction_dang = dang_ae.predict(content_embs)
     prediction_safe = safe_ae.predict(content_embs)
@@ -99,7 +102,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
           spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, rel_path=None, spatial_path=None,
           n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, p_spat=None, p_rel=None,
           q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None,
-          adj_matrix_spat=None, adj_matrix_rel=None, id2idx_rel=None, id2idx_spat=None):
+          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and then fuses them with the MLP
     Args:
@@ -155,13 +158,13 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
 
     train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path,
                                                                    n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
-                                                                   node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx=id2idx_rel,
-                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel)
+                                                                   node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix_path=adj_matrix_rel_path)
 
     train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path,
                                                                      n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
                                                                      node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat, lab="spat",
-                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, id2idx=id2idx_spat)
+                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix_path=adj_matrix_spat_path, id2idx_path=id2idx_spat_path)
 
     train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
     train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spat")
