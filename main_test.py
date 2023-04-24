@@ -14,6 +14,8 @@ def main_test(args):
     models_dir = args.models_dir
     adj_mat_rel_path = args.rel_adj_mat_path
     adj_mat_spat_path = args.spat_adj_mat_path
+    id2idx_spat_path = args.id2idx_spat_path
+    id2idx_rel_path = args.id2idx_rel_path
     we_size = args.word_embedding_size
 
     train_df = pd.read_csv("{}/train.csv".format(dataset_dir))
@@ -39,25 +41,55 @@ def main_test(args):
         adj_mat_rel = None
     elif rel_technique == "autoencoder":
         ae_rel = load_model("{}/encoder_rel.h5".format(mod_dir_rel))
+        if not adj_mat_rel_path:
+            raise Exception("You need to provide the path to the relational adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
         adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
     elif rel_technique == "pca":
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
         pca_rel = load_from_pickle("{}/pca_rel.pkl".format(mod_dir_rel))
+        if not adj_mat_rel_path:
+            raise Exception("You need to provide the path to the relational adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
+        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
     elif rel_technique == "none":
+        if not adj_mat_rel_path:
+            raise Exception("You need to provide the path to the relational adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
         adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=',')
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
 
     if spat_technique == "node2vec":
         n2v_spat = Word2Vec.load("{}/n2v_spat.h5".format(mod_dir_spat))
         adj_mat_spat = None
         id2idx_spat = n2v_spat.wv.key_to_index
     elif spat_technique == "autoencoder":
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
         ae_spat = load_model("{}/encoder_spat.h5".format(mod_dir_spat))
-    elif spat_technique == "pca":
+        if not adj_mat_spat_path:
+            raise Exception("You need to provide the path to the spatial adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
         adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
+    elif spat_technique == "pca":
         pca_spat = load_from_pickle("{}/pca_spat.pkl".format(mod_dir_spat))
+        if not adj_mat_spat_path:
+            raise Exception("You need to provide the path to the spatial adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
+        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
     elif spat_technique == "none":
+        if not adj_mat_spat_path:
+            raise Exception("You need to provide the path to the spatial adjacency matrix")
+        if not id2idx_rel_path:
+            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
         adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=',')
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
 
     w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(models_dir, we_size))
     if args.user_id:
@@ -78,9 +110,11 @@ if __name__ == "__main__":
     parser.add_argument("--rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning relational node embeddings")
     parser.add_argument("--dataset_dir", type=str, default="", required=True, help="Directory containing the train and test set")
     parser.add_argument("--models_dir", type=str, default="", required=True, help="Directory where the models are saved")
-    parser.add_argument("--spat_adj_mat_path", type=str, required=False, default="", help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you used n2v for learning spatial node embeddings")
-    parser.add_argument("--rel_adj_mat_path", type=str, required=False, default="", help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you used n2v for learning relational node embeddings")
+    parser.add_argument("--spat_adj_mat_path", type=str, required=False, help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you used n2v for learning spatial node embeddings")
+    parser.add_argument("--rel_adj_mat_path", type=str, required=False, help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you used n2v for learning relational node embeddings")
     parser.add_argument("--word_embedding_size", type=int, required=True, default=128, help="Dimension of the word embeddings learned during the training process")
+    parser.add_argument("--id2idx_spat_path", type=str, required=False, help="Link to the .pkl file with the matchings between node IDs and their index in the spatial adj matrix. Ignore this parameter if you used n2v for spatial node embeddings")
+    parser.add_argument("--id2idx_rel_path", type=str, required=False, help="Link to the .pkl file with the matchings between node IDs and their index in the relational adj matrix. Ignore this parameter if you used n2v for relational node embeddings")
     parser.add_argument("--user_id", type=int, required=False, help="ID of the user that you want to predict. If you set this field, only the prediction for the user will be returned."
                                                                     "Ignore this field if you want to measure the performance of the system on the test set")
 
