@@ -2,14 +2,11 @@ import pandas as pd
 import numpy as np
 from os.path import exists
 from os import makedirs
-from modelling.sairus import train, test, predict_user
+from modelling.sairus import train
 import gdown
-from gensim.models import Word2Vec
-from keras.models import load_model
-import pickle
 import argparse
-from node_classification.decision_tree import load_decision_tree
 from utils import is_square, load_from_pickle
+
 seed = 123
 np.random.seed(seed)
 
@@ -67,7 +64,6 @@ def main_train(args):
         test_df.to_csv(test_path)
     else:
         train_df = pd.read_csv(train_path)
-        test_df = pd.read_csv(test_path)
 
     adj_mat_rel = None
     id2idx_rel = None
@@ -95,14 +91,6 @@ def main_train(args):
           p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel, rel_node_emb_technique=rel_technique,
           spat_node_emb_technique=spat_technique, adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, id2idx_rel=id2idx_rel,
           id2idx_spat=id2idx_spat, rel_ae_epochs=rel_autoenc_epochs, spat_ae_epochs=spat_autoenc_epochs)
-
-
-    """
-    pred = predict_user(test_df.iloc[3], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=test_df, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp,
-                        rel_node_emb_technique="none", spat_node_emb_technique="pca", id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, ae_spat=ae_spat, ae_rel=ae_rel,
-                        adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
-    print("The user is: {}".format("risky" if pred == 1 else "safe"))
-    """
 
 
 if __name__ == "__main__":

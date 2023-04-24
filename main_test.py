@@ -1,6 +1,5 @@
 import argparse
-
-from modelling.sairus import test
+from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from gensim.models import Word2Vec
@@ -61,10 +60,16 @@ def main_test(args):
         adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=',')
 
     w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(models_dir, we_size))
-
-    test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
-         spat_node_emb_technique=spat_technique, rel_node_emb_technique=rel_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, ae_spat=ae_spat,
-         adj_matrix_spat=adj_mat_spat, adj_matrix_rel=adj_mat_rel, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+    if args.user_id:
+        pred = predict_user(user=test_df.loc[test_df.id==args.user_id], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
+                            tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel,
+                            id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
+                            adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
+        print("The user is: {}".format("risky" if pred == 1 else "safe"))
+    else:
+        test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
+             ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
 
 
 if __name__ == "__main__":
@@ -76,6 +81,8 @@ if __name__ == "__main__":
     parser.add_argument("--spat_adj_mat_path", type=str, required=False, default="", help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you used n2v for learning spatial node embeddings")
     parser.add_argument("--rel_adj_mat_path", type=str, required=False, default="", help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you used n2v for learning relational node embeddings")
     parser.add_argument("--word_embedding_size", type=int, required=True, default=128, help="Dimension of the word embeddings learned during the training process")
+    parser.add_argument("--user_id", type=int, required=False, help="ID of the user that you want to predict. If you set this field, only the prediction for the user will be returned."
+                                                                    "Ignore this field if you want to measure the performance of the system on the test set")
 
     args = parser.parse_args()
     main_test(args)

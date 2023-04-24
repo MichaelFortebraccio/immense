@@ -4,3 +4,6 @@ python main_train.py --textual_content_path dataset/posts_labeled.csv --social_n
 
 # Test the previously learned model
 python main_test.py --spat_technique node2vec --rel_technique node2vec --models_dir models --dataset_dir dataset --word_embedding_size 256
+
+# Use the previously learned model for getting the predictio for the user with id== 56
+python main_test.py --spat_technique node2vec --rel_technique node2vec --models_dir models --dataset_dir dataset --word_embedding_size 256 --user_id 56
