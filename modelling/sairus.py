@@ -37,10 +37,10 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts_{}.pickle'.format(dataset_dir, embedding_size), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
-    return list_dang_posts, list_safe_posts, list_embs, w2v_model
+    return list_dang_posts, list_safe_posts, list_embs
 
 
-def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs, id2idx_spat_path: dict, id2idx_rel_path: dict, model_dir):
+def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -52,14 +52,11 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         tree_spat: Spatial decision tree
         spat_node_embs: Spatial node embeddings
         rel_node_embs: Relational node embeddings
-        id2idx_spat_path: Path to the dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
-        id2idx_rel_path: Path to the dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
+        id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
+        id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
         model_dir:
     Returns: The learned MLP
     """
-    id2idx_rel = load_from_pickle(id2idx_rel_path)
-    id2idx_spat = load_from_pickle(id2idx_spat_path)
-
     dataset = np.zeros((len(train_df), 7))
     prediction_dang = dang_ae.predict(content_embs)
     prediction_safe = safe_ae.predict(content_embs)
@@ -138,7 +135,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         id2idx_spat: matching between the node IDs and their index in the spatial adj matrix. pca, autoencoder
     Returns:
     """
-    list_dang_posts, list_safe_posts, list_content_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
+    list_dang_posts, list_safe_posts, list_content_embs = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
 
 
@@ -177,15 +174,18 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         mod = Word2Vec.load("{}/n2v_rel.h5".format(model_dir_rel))
         d = mod.wv.key_to_index
         id2idx_rel = {int(k): d[k] for k in d.keys()}
+    else:
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
     if spat_node_emb_technique == "node2vec":
         mod = Word2Vec.load("{}/n2v_spat.h5".format(model_dir_spat))
         d = mod.wv.key_to_index
         id2idx_spat = {int(k): d[k] for k in d.keys()}
+    else:
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
     save_to_pickle("{}/mlp.pkl".format(model_dir), mlp)
 
-    # return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
 
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
@@ -300,7 +300,6 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
 ####### THESE FUNCTIONS ARE CURRENTLY NOT USED #######
 def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
     df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
-    tok = TextPreprocessing()
     w2v_model = WordEmb("", embedding_size=0, window=0, epochs=0, model_dir=model_dir)   # The actual values are not important since we will load the model. Only the model dir is important
     dang_ae = load_model("{}/autoencoderdang.h5".format(model_dir))
     safe_ae = load_model("{}/autoencodersafe.h5".format(model_dir))
