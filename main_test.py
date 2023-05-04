@@ -93,7 +93,9 @@ def main_test(args):
 
     w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(models_dir, we_size))
     if args.user_id:
-        pred = predict_user(user=test_df.loc[test_df.id==args.user_id], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
+        df = train_df.append(test_df)
+        user = df.loc[df.id==args.user_id]
+        pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
                             tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel,
                             id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
