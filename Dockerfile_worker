@@ -1,0 +1,13 @@
+FROM python:3.8.16-bullseye
+RUN apt-get install ca-certificates
+RUN update-ca-certificates
+COPY requirements.txt requirements.txt
+RUN pip install --upgrade pip
+RUN pip3 install -r requirements.txt
+WORKDIR /worker
+COPY tasks.py .
+COPY worker/modelling .
+COPY utils.py .
+COPY ./node_classification .
+RUN ls
+RUN celery -A tasks.celery worker --loglevel info

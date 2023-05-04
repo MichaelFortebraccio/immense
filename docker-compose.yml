@@ -1,21 +1,19 @@
 version: "3.8"
 
 services:
+    redis:
+        image: "redis:alpine"
+        expose:
+            - 6379
     api:
         container_name: api
         build:
             context: .
             dockerfile: Dockerfile
-        restart: always
+        restart: unless-stopped
         ports:
             -   5000:5000
         volumes:
             - "./jobs/:/jobs"
         depends_on:
-            - redis
-
-    redis:
-        container_name: redis
-        image: "redis:alpine"
-        expose:
-            -   6379
+            -   redis

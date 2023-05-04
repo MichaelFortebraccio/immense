@@ -6,7 +6,7 @@ WORKDIR /counter_sairus
 RUN mkdir "jobs"
 COPY . /counter_sairus
 EXPOSE 5000
-RUN celery -A api worker --loglevel=info
+RUN celery -A api worker --loglevel=info --pool solo
 ENTRYPOINT ["python", "api.py"]
 
 
