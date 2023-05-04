@@ -10,7 +10,6 @@ from os.path import exists, join
 from os import makedirs
 import pandas as pd
 from celery import Celery
-
 from node_classification.reduce_dimension import dimensionality_reduction
 
 # celery -A api.celery worker --loglevel=info
@@ -22,17 +21,15 @@ ID2IDX_REL_FILENAME = "id2idx_rel.pkl"
 ID2IDX_SPAT_FILENAME = "id2idx_spat.pkl"
 REL_ADJ_MAT_FILENAME = "rel_adj_net.csv"
 SPAT_ADJ_MAT_FILENAME = "spat_adj_net.csv"
-MODEL_DIR = "{}/models"
-DATASET_DIR = "{}/dataset"  # .format('8931a2b4-7c25-4c52-a092-269f368d160e')
+MODEL_DIR = "jobs/{}/models"
+DATASET_DIR = "jobs/{}/dataset"
 WORD_EMB_SIZE = 0
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
-app = Flask(__name__)
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
-celery = Celery('api', broker=app.config['CELERY_BROKER_URL'])
-celery.conf.update(app.config)
-api.init_app(app)
+application = Flask(__name__)
+celery = Celery('worker', broker='redis://dcdc:6379/0', backend='redis://dcdc:6379/0')
+#celery.conf.update(app.config)
+api.init_app(application)
 
 train_parser = reqparse.RequestParser()
 train_parser.add_argument('rel_ne_tec', type=str, required=True, default="node2vec", choices=("none", "autoencoder", "node2vec", "pca"),
@@ -243,16 +240,16 @@ class Predict(Resource):
         predict_params = predict_parser.parse_args(request)
         job_id = predict_params['job_id']
         user_ids = predict_params['user_ids']
-        with open(join(job_id, "techniques.txt"), 'r') as f:
+        with open(join("jobs", job_id, "techniques.txt"), 'r') as f:
             tec = [l.strip() for l in f.readlines()]
         rel_technique = tec[0]
         spat_technique = tec[1]
         task = train_task.AsyncResult(job_id)
-        if not exists(job_id) or task.state == "FAILURE":
+        if not exists(join("jobs", job_id)) or task.state == "FAILURE":
             abort(400, "ERROR: the learning job id is not valid or not existent")
         elif task.state == 'PROGRESS' or task.state == 'STARTED':
             abort(204, "The training task has not completed yet. Try later. You can use the 'task_status' endpoint to check for the task state")
-        elif task.state == 'SUCCESS' or (task.state == 'PENDING' and exists(job_id)):
+        elif task.state == 'SUCCESS' or (task.state == 'PENDING' and exists(join("jobs", job_id))):
             pred = classify_users(
                 job_id, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME,
                 SPAT_ADJ_MAT_FILENAME, rel_technique=rel_technique, spat_technique=spat_technique)
@@ -279,4 +276,4 @@ class TaskStatus(Resource):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    application.run(host='0.0.0.0', port=5000, debug=True)

@@ -333,21 +333,3 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
         test_set[index, 6] = conf_spat
     return mlp.test(test_set, np.array(test_df['label']))
 
-
-
-def cross_validation(dataset_path, n_folds):
-    df = pd.read_csv(dataset_path, sep=',')
-    X = df
-    y = df['label']
-
-    st = StratifiedKFold(n_splits=n_folds)
-    folds = st.split(X=X, y=y)
-    l = []
-    for k, (train_idx, test_idx) in enumerate(folds):
-        dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp = train(df.iloc[train_idx], k)
-        p, r, f1, s = test(test_df=df.iloc[test_idx], train_df=df.iloc[train_idx], dang_ae=dang_ae, safe_ae=safe_ae,
-                           tree_rel=tree_rel, tree_spat=tree_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp,
-                           w2v_model=w2v_model)
-        l.append((p, r, f1, s))
-
-
