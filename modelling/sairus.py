@@ -191,8 +191,6 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
     test_array = np.zeros(shape=(1, 7))
-    print("aaa")
-    print(user['text_cleaned'])
     posts = user['text_cleaned'].values[0].split(" ")
     posts_embs = w2v_model.text_to_vec([posts])
     pred_dang = dang_ae.predict(posts_embs)

@@ -1,5 +1,0 @@
-# Train a version of sairus, using node2vec as spatial node embedding technique, and PCA as relational node embedding technique
-python main_train.py --textual_content_path dataset/posts_labeled.csv --spatial_net_url node_classification/graph_embeddings/stuff/spatial_network.edg --word_embedding_size 256 --w2v_epochs 3 --spat_technique node2vec --rel_technique pca --spat_node_embedding_size 128 --rel_node_embedding_size 64 --rel_adj_mat_path node_classification/graph_embeddings/stuff/rel_adj_net.csv
-
-#Test the model
-python main_test.py --spat_technique node2vec --rel_technique pca --models_dir models --dataset_dir dataset --word_embedding_size 256 --rel_adj_mat_path node_classification/graph_embeddings/stuff/rel_adj_net.csv --id2idx_rel_path node_classification/graph_embeddings/stuff/id2idx_rel.pkl

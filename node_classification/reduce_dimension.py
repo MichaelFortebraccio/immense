@@ -51,6 +51,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         mod = n2v.wv
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]      # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
+        #train_set = mod.vectors
         train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
