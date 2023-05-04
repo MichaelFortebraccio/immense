@@ -2,8 +2,9 @@ import argparse
 from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
+from os.path import join
 from gensim.models import Word2Vec
-from utils import load_from_pickle
+from utils import load_from_pickle, get_ne_models
 import numpy as np
 import pandas as pd
 
@@ -18,80 +19,22 @@ def main_test(args):
     id2idx_rel_path = args.id2idx_rel_path
     we_size = args.word_embedding_size
 
-    train_df = pd.read_csv("{}/train.csv".format(dataset_dir))
-    test_df = pd.read_csv("{}/test.csv".format(dataset_dir))
-    dang_ae = load_model("{}/autoencoderdang_{}.h5".format(models_dir, we_size))
-    safe_ae = load_model("{}/autoencodersafe_{}.h5".format(models_dir, we_size))
-    mlp = load_from_pickle("{}/mlp.pkl".format(models_dir))
+    train_df = pd.read_csv(join(dataset_dir, "train.csv"))
+    test_df = pd.read_csv(join(dataset_dir, "test.csv"))
+    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(we_size)))
+    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(we_size)))
+    mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
 
-    mod_dir_rel = "{}/node_embeddings/rel/{}".format(models_dir, rel_technique)
-    mod_dir_spat = "{}/node_embeddings/spat/{}".format(models_dir, spat_technique)
-    tree_rel = load_decision_tree("{}/dtree.h5".format(mod_dir_rel))
-    tree_spat = load_decision_tree("{}/dtree.h5".format(mod_dir_spat))
+    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
+    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
+    tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
+    tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
-    n2v_spat = None
-    n2v_rel = None
-    pca_spat = None
-    pca_rel = None
-    ae_spat = None
-    ae_rel = None
-    if rel_technique == "node2vec":
-        n2v_rel = Word2Vec.load("{}/n2v_rel.h5".format(mod_dir_rel))
-        id2idx_rel = n2v_rel.wv.key_to_index
-        adj_mat_rel = None
-    elif rel_technique == "autoencoder":
-        ae_rel = load_model("{}/encoder_rel.h5".format(mod_dir_rel))
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-    elif rel_technique == "pca":
-        pca_rel = load_from_pickle("{}/pca_rel.pkl".format(mod_dir_rel))
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-    elif rel_technique == "none":
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=',')
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
+    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
+        models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
+        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
 
-    if spat_technique == "node2vec":
-        n2v_spat = Word2Vec.load("{}/n2v_spat.h5".format(mod_dir_spat))
-        adj_mat_spat = None
-        id2idx_spat = n2v_spat.wv.key_to_index
-    elif spat_technique == "autoencoder":
-        ae_spat = load_model("{}/encoder_spat.h5".format(mod_dir_spat))
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-    elif spat_technique == "pca":
-        pca_spat = load_from_pickle("{}/pca_spat.pkl".format(mod_dir_spat))
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-    elif spat_technique == "none":
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=',')
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-
-    w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(models_dir, we_size))
+    w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
     if args.user_id:
         df = train_df.append(test_df)
         user = df.loc[df.id==args.user_id]

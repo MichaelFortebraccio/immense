@@ -26,7 +26,7 @@ class MLP:
         mod.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
         mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2, verbose=0)
         self.model = mod
-        #mod.save(self._model_path)
+
 
     def test(self, X_test, y_test):
         preds = self.model.predict(X_test)

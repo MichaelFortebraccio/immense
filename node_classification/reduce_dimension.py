@@ -1,12 +1,14 @@
+import numpy as np
+import pickle
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from modelling.ae import AE
 from sklearn.decomposition import PCA
-import pickle
+from utils import is_square, load_from_pickle
 from os.path import exists
 
 # Transductive
 def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None,
-                             walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix=None, id2idx=None,
+                             walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None, id2idx_path=None,
                              epochs=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
@@ -51,6 +53,10 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
         train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
     else:
+        adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
+        if not is_square(adj_matrix):
+            raise Exception("The {} adjacency matrix is not square".format(lab))
+        id2idx = load_from_pickle(id2idx_path)
         if node_emb_technique == "pca":
             if not exists("{}/pca_{}.pkl".format(model_dir, lab)):
                 print("Learning PCA")

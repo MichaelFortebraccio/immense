@@ -1,4 +1,5 @@
-import os
+from os.path import join, exists
+from os import makedirs
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
@@ -9,7 +10,7 @@ from modelling.word_embedding import WordEmb
 from modelling.ae import AE
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
-from utils import create_or_load_post_list, save_to_pickle, load_from_pickle
+from utils import create_or_load_post_list, save_to_pickle, load_from_pickle, get_ne_models
 from gensim.models import Word2Vec
 from tqdm import tqdm
 from modelling.mlp import MLP
@@ -23,21 +24,21 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     """
     tok = TextPreprocessing()
     posts_content = tok.token_list(train_df['text_cleaned'].tolist())
-    if not os.path.exists("{}/w2v_{}.pkl".format(model_dir, embedding_size)):
+    if not exists(join(model_dir, "w2v.pkl")):
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
         w2v_model.train_w2v()
-        save_to_pickle("{}/w2v_{}.pkl".format(model_dir, embedding_size), w2v_model)
+        save_to_pickle(join(model_dir, "w2v.pkl"), w2v_model)
     else:
-        w2v_model = load_from_pickle("{}/w2v_{}.pkl".format(model_dir, embedding_size))
+        w2v_model = load_from_pickle(join(model_dir, "w2v.pkl"))
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
     safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
-    list_dang_posts = create_or_load_post_list(path='{}/list_dang_posts_{}.pickle'.format(dataset_dir, embedding_size), w2v_model=w2v_model,
+    list_dang_posts = create_or_load_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_or_load_post_list(path='{}/list_safe_posts_{}.pickle'.format(dataset_dir, embedding_size), w2v_model=w2v_model,
+    list_safe_posts = create_or_load_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
-    return list_dang_posts, list_safe_posts, list_embs, w2v_model
+    return list_dang_posts, list_safe_posts, list_embs
 
 
 def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir):
@@ -55,7 +56,7 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
         id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
         model_dir:
-    Returns:
+    Returns: The learned MLP
     """
     dataset = np.zeros((len(train_df), 7))
     prediction_dang = dang_ae.predict(content_embs)
@@ -99,7 +100,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
           spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, rel_path=None, spatial_path=None,
           n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, p_spat=None, p_rel=None,
           q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None,
-          adj_matrix_spat=None, adj_matrix_rel=None, id2idx_rel=None, id2idx_spat=None):
+          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and then fuses them with the MLP
     Args:
@@ -129,13 +130,13 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
         n2v_epochs_rel: n2v
         rel_ae_epochs: autoencoder
         spat_ae_epochs: autoencoder
-        adj_matrix_spat: pca, none, autoencoder
-        adj_matrix_rel: pca, none, autoencoder
-        id2idx_rel: matching between the node IDs and their index in the relational adj matrix. pca, autoencoder
-        id2idx_spat: matching between the node IDs and their index in the spatial adj matrix. pca, autoencoder
+        adj_matrix_spat_path: Path to the spatial adj matrix (pca, none, autoencoder)
+        adj_matrix_rel_path: Path to the relational adj matrix (pca, none, autoencoder)
+        id2idx_rel_path: Path to the file matching between the node IDs and their index in the relational adj matrix (pca, autoencoder)
+        id2idx_spat_path: Path to the file matching between the node IDs and their index in the spatial adj matrix (pca, autoencoder)
     Returns:
     """
-    list_dang_posts, list_safe_posts, list_content_embs, w2v_model = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
+    list_dang_posts, list_safe_posts, list_content_embs = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
 
 
@@ -143,25 +144,25 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     ################# TRAIN OR LOAD DECISION TREES ####################
-    model_dir_rel = "{}/node_embeddings/rel/{}".format(model_dir, rel_node_emb_technique)
-    model_dir_spat = "{}/node_embeddings/spat/{}".format(model_dir, spat_node_emb_technique)
+    model_dir_rel = join(model_dir, "node_embeddings", "rel", rel_node_emb_technique)
+    model_dir_spat = join(model_dir, "node_embeddings", "spat", spat_node_emb_technique)
     try:
-        os.makedirs(model_dir_rel, exist_ok=False)
-        os.makedirs(model_dir_spat, exist_ok=False)
+        makedirs(model_dir_rel, exist_ok=False)
+        makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = "{}/dtree.h5".format(model_dir_rel)
-    spat_tree_path = "{}/dtree.h5".format(model_dir_spat)
+    rel_tree_path = join(model_dir_rel, "dtree.h5")
+    spat_tree_path = join(model_dir_spat, "dtree.h5")
 
     train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path,
                                                                    n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
-                                                                   node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx=id2idx_rel,
-                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix=adj_matrix_rel)
+                                                                   node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=full_df, adj_matrix_path=adj_matrix_rel_path)
 
     train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path,
                                                                      n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
                                                                      node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat, lab="spat",
-                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix=adj_matrix_spat, id2idx=id2idx_spat)
+                                                                     n2v_epochs=n2v_epochs_spat, train_df=full_df, adj_matrix_path=adj_matrix_spat_path, id2idx_path=id2idx_spat_path)
 
     train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
     train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spat")
@@ -171,18 +172,21 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
     if rel_node_emb_technique == "node2vec":
-        mod = Word2Vec.load("{}/n2v_rel.h5".format(model_dir_rel))
+        mod = Word2Vec.load(join(model_dir_rel, "n2v_rel.h5"))
         d = mod.wv.key_to_index
         id2idx_rel = {int(k): d[k] for k in d.keys()}
+    else:
+        id2idx_rel = load_from_pickle(id2idx_rel_path)
     if spat_node_emb_technique == "node2vec":
-        mod = Word2Vec.load("{}/n2v_spat.h5".format(model_dir_spat))
+        mod = Word2Vec.load(join(model_dir_spat, "n2v_spat.h5"))
         d = mod.wv.key_to_index
         id2idx_spat = {int(k): d[k] for k in d.keys()}
+    else:
+        id2idx_spat = load_from_pickle(id2idx_spat_path)
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
-    save_to_pickle("{}/mlp.pkl".format(model_dir), mlp)
+    save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
-    # return dang_ae, safe_ae, w2v_model, mlp, model_dir_rel, model_dir_spat
 
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
@@ -206,24 +210,26 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, 
     pred_missing_info = df['label'].value_counts().argmax()
     conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
 
-    id = user['id']
-
-    if str(id) in id2idx_rel.keys():
+    id = user['id'].values[0]
+    if id in id2idx_rel.keys():
         idx = id2idx_rel[id]
         dtree_input = get_testset(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
         pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
     else:
+        print("missing")
         pr_rel, conf_rel = pred_missing_info, conf_missing_info
     test_array[0, 3] = pr_rel
     test_array[0, 4] = conf_rel
-    if str(id) in id2idx_spat.keys():
+    if id in id2idx_spat.keys():
         idx = id2idx_spat[id]
         dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
         pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
     else:
+        print("missing")
         pr_spat, conf_spat = pred_missing_info, conf_missing_info
     test_array[0, 5] = pr_spat
     test_array[0, 6] = conf_spat
+    print(test_array)
 
     pred = mlp.model.predict(test_array, verbose=0)
     if round(pred[0][0]) == 0:
@@ -236,7 +242,6 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
     Depending on the node embedding technique adopted, provide the processed array that will then be used by the decision tree
     """
     if node_emb_technique == "node2vec":
-        # if str(id) in n2v_rel.wv.key_to_index:
         mod = n2v.wv
         test_set = mod.vectors[mod.key_to_index[idx]]
         test_set = np.expand_dims(test_set, axis=0)
@@ -244,7 +249,6 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
         row = adj_matrix[idx]
         row = np.expand_dims(row, axis=0)
         test_set = pca.transform(row)
-        #test_set = np.expand_dims(test_set, axis=0)
     elif node_emb_technique == "autoencoder":
         row = adj_matrix[idx]
         row = np.expand_dims(row, axis=0)
@@ -253,7 +257,42 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
         test_set = np.expand_dims(adj_matrix[idx], axis=0)
     return test_set
 
+def classify_users(job_id, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME,
+                   REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME, rel_technique, spat_technique):
+    dataset_dir = join(job_id, "dataset")
+    models_dir = join(job_id, "models")
+    adj_mat_rel_path = join(dataset_dir, REL_ADJ_MAT_FILENAME)
+    adj_mat_spat_path = join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
+    id2idx_rel_path = join(dataset_dir, ID2IDX_REL_FILENAME)
+    id2idx_spat_path = join(dataset_dir, ID2IDX_SPAT_FILENAME)
 
+    df = pd.read_csv(join(dataset_dir, CONTENT_FILENAME))
+    w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
+    dang_ae = load_model(join(models_dir, "autoencoderdang.h5"))
+    safe_ae = load_model(join(models_dir, "autoencodersafe.h5"))
+    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
+    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
+    tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
+    tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
+
+    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
+        models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
+        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
+
+    mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
+    out = {}
+    for id in user_ids:
+        if id not in df['id'].tolist():
+            out[id] = "not found"
+        else:
+            pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel,
+                                n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel, tree_spat=tree_spat, df=df, rel_node_emb_technique=rel_technique,
+                                spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, pca_rel=pca_rel,
+                                pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat, adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
+            out[id] = pred
+    return out
+
+####### THESE FUNCTIONS ARE NOT USED IN THE API #######
 def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: modelling.mlp.MLP, id2idx_rel=None,
          id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
     test_set = np.zeros(shape=(len(test_df), 7))
@@ -296,31 +335,8 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
         test_set[index, 6] = conf_spat
     return mlp.test(test_set, np.array(test_df['label']))
 
-####### THESE FUNCTIONS ARE CURRENTLY NOT USED #######
-def classify_users(job_id, user_ids, CONTENT_FILENAME, model_dir):
-    df = pd.read_csv("{}/dataset/{}".format(job_id, CONTENT_FILENAME))
-    tok = TextPreprocessing()
-    w2v_model = WordEmb("", embedding_size=0, window=0, epochs=0, model_dir=model_dir)   # The actual values are not important since we will load the model. Only the model dir is important
-    dang_ae = load_model("{}/autoencoderdang.h5".format(model_dir))
-    safe_ae = load_model("{}/autoencodersafe.h5".format(model_dir))
-    n2v_rel = Word2Vec.load("{}/n2v_rel.h5".format(model_dir))
-    n2v_spat = Word2Vec.load("{}/n2v_spat.h5".format(model_dir))
-    mlp = load_model("{}/mlp.h5".format(model_dir))
-    tree_rel = load_decision_tree("{}/dtree_rel.h5".format(model_dir))
-    tree_spat = load_decision_tree("{}/dtree_spat.h5".format(model_dir))
-    out = {}
-    for id in user_ids:
-        if id not in df['id'].tolist():
-            out[id] = "not found"
-        else:
-            pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae,
-                                safe_ae=safe_ae, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel,
-                                tree_spat=tree_spat, df=df)
-            if round(pred[0][0]) == 0:
-                out[id] = "safe"
-            elif round(pred[0][0]) == 1:
-                out[id] = "risky"
-    return out
+
+
 def cross_validation(dataset_path, n_folds):
     df = pd.read_csv(dataset_path, sep=',')
     X = df
