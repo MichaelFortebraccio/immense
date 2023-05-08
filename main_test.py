@@ -3,9 +3,7 @@ from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from os.path import join
-from gensim.models import Word2Vec
 from utils import load_from_pickle, get_ne_models
-import numpy as np
 import pandas as pd
 
 def main_test(args):
@@ -36,7 +34,9 @@ def main_test(args):
 
     w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
     if args.user_id:
-        pred = predict_user(user=test_df.loc[test_df.id==args.user_id], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
+        df = train_df.append(test_df)
+        user = df.loc[df.id==args.user_id]
+        pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
                             tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel,
                             id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)

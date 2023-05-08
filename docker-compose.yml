@@ -1,0 +1,22 @@
+version: "2.12"
+
+services:
+    worker:
+        container_name: celery
+        environment:
+            - BROKER_URI=redis://redis
+            - BACKEND_URI=redis://redis
+        build:
+            context: .
+            dockerfile: Dockerfile_worker
+        depends_on:
+            -   rabbitmq
+    rabbitmq:
+        image: rabbitmq:latest
+        hostname: rabbit
+        environment:
+            - RABBITMQ_DEFAULT_USER=admin
+            - RABBITMQ_DEFAULT_PASS=mypass
+        ports:
+            - 5672:5672
+
