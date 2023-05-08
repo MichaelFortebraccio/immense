@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
-from worker.modelling.sairus import classify_users
-from worker.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+from modelling.sairus import classify_users
+from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
 from os import makedirs
 

@@ -8,4 +8,4 @@
 ! ./requirements.txt
 ! ./requirements_worker.txt
 ! ./utils.py
-! ./tasks.py
+! ./task_manager

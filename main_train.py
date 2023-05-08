@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from os.path import exists
 from os import makedirs
-from worker.modelling.sairus import train
+from modelling.sairus import train
 import gdown
 import argparse
 

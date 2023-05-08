@@ -1,5 +1,4 @@
 #sys.path.append('../')
-from celery import Celery
 from os import makedirs
 from os.path import join, exists
 import gdown
@@ -10,8 +9,8 @@ from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
 from utils import load_from_pickle, save_to_pickle
+from task_manager.worker import celery
 
-celery = Celery('worker', broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
 
 CONTENT_FILENAME = "content_labeled.csv"
 REL_EDGES_FILENAME = "social_network.edg"

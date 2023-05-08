@@ -1,6 +1,6 @@
 import requests
 
-response = requests.post("http://172.18.0.3:5000/node_classification/train",
+response = requests.post("http://172.29.10.104:5000/node_classification/train",
                          json={"content_url": 'https://drive.google.com/file/d/1o3kD4jg71IWv5RH9pxrYKMXw-J3CeDPP/view?usp=sharing',
                                "spat_ne_tec": 'pca', "rel_ne_tec": 'none', "kr": 128, "ks": 128,
                                "social_net_url": 'https://drive.google.com/file/d/1MhSo9tMDkfnlvZXPKgxv-HBLP4fSwvmN/view?usp=sharing',

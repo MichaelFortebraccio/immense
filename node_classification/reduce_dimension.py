@@ -1,7 +1,7 @@
 import numpy as np
 import pickle
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from worker.modelling.ae import AE
+from modelling.ae import AE
 from sklearn.decomposition import PCA
 from utils import is_square, load_from_pickle
 from os.path import exists

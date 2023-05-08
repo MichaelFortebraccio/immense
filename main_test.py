@@ -1,5 +1,5 @@
 import argparse
-from worker.modelling.sairus import test, predict_user
+from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from os.path import join

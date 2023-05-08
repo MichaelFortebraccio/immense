@@ -3,11 +3,10 @@ from os import makedirs
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from text_preprocessing import TextPreprocessing
-from word_embedding import WordEmb
-from ae import AE
-from mlp import MLP
-## AGGIUSTARE IMPORT
+from modelling.text_preprocessing import TextPreprocessing
+from modelling.word_embedding import WordEmb
+from modelling.ae import AE
+from modelling.mlp import MLP
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
 from utils import create_or_load_post_list, save_to_pickle, load_from_pickle, get_ne_models
@@ -187,7 +186,7 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: worker.modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
     test_array = np.zeros(shape=(1, 7))
     posts = user['text_cleaned'].values[0].split(" ")
@@ -289,7 +288,7 @@ def classify_users(job_path, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID
     return out
 
 ####### THESE FUNCTIONS ARE NOT USED IN THE API #######
-def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: worker.modelling.mlp.MLP, id2idx_rel=None,
+def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: MLP, id2idx_rel=None,
          id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
     test_set = np.zeros(shape=(len(test_df), 7))
 

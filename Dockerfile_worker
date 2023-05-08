@@ -2,12 +2,9 @@ FROM python:3.8.16-bullseye
 RUN apt-get install ca-certificates
 RUN update-ca-certificates
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip
-RUN pip3 install -r requirements.txt
-WORKDIR /worker
-COPY tasks.py .
-COPY worker/modelling .
-COPY utils.py .
-COPY ./node_classification .
-RUN ls
-RUN celery -A tasks.celery worker --loglevel info
+RUN pip install --upgrade pip && pip install -r requirements.txt
+COPY . .
+WORKDIR /task_manager
+# RUN wget -O /usr/local/bin/wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh && chmod +x /usr/local/bin/wait-for-it.sh
+CMD ["celery", "-A", "worker.celery", "worker", "--loglevel", "info", "--uid", "nobody"]
+
