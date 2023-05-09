@@ -10,13 +10,8 @@ services:
             context: .
             dockerfile: Dockerfile_worker
         depends_on:
-            -   rabbitmq
-    rabbitmq:
-        image: rabbitmq:latest
-        hostname: rabbit
-        environment:
-            - RABBITMQ_DEFAULT_USER=admin
-            - RABBITMQ_DEFAULT_PASS=mypass
+            - redis
+    redis:
+        image: "redis:latest"
         ports:
-            - 5672:5672
-
+            - 6379
