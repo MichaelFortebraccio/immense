@@ -31,7 +31,7 @@ def main_test(args):
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
         models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
         id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
-
+    print("Loading w2w")
     w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
     if args.user_id:
         df = train_df.append(test_df)
