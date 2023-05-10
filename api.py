@@ -1,15 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
-from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+from task_manager.tasks import train_task, predict_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
 from os import makedirs
 
-# celery -A api.celery worker --loglevel=info
-
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
 application = Flask(__name__)
-#celery.conf.update(app.config)
 api.init_app(application)
 
 train_parser = reqparse.RequestParser()
@@ -81,10 +78,6 @@ class Train(Resource):
                                             spat_node_embedding_size, social_network_url, spatial_network_url, n_of_walks_rel, n_of_walks_spat, walk_length_rel,
                                             walk_length_spat, p_rel, p_spat, q_rel, q_spat, n2v_epochs_rel, n2v_epochs_spat, spat_ae_epochs, rel_ae_epochs,
                                             rel_adj_matrix_url, spat_adj_matrix_url, id2idx_rel_url, id2idx_spat_url])
-        makedirs(join(JOBS_DIR, task.id), exist_ok=True)
-        with open(join(JOBS_DIR, task.id, "techniques.txt"), "w") as f:
-            f.write(rel_ne_technique+"\n")
-            f.write(spat_ne_technique)
         return jsonify({"Job id": task.id})
 
 
@@ -99,12 +92,15 @@ class Predict(Resource):
         predict_params = predict_parser.parse_args(request)
         job_id = predict_params['job_id']
         user_ids = predict_params['user_ids']
+        print("Ciao")
 
         with open(join(JOBS_DIR, job_id, "techniques.txt"), 'r') as f:
             tec = [l.strip() for l in f.readlines()]
         rel_technique = tec[0]
         spat_technique = tec[1]
+        print("Ciao2")
         task = train_task.AsyncResult(job_id)
+        print("Ciao3")
         if not exists(join(JOBS_DIR, job_id)) or task.state == "FAILURE":
             abort(400, "ERROR: the learning job id is not valid or not existent")
         elif task.state == 'PROGRESS' or task.state == 'STARTED':

@@ -4,7 +4,7 @@ from os.path import join, exists
 import gdown
 import pandas as pd
 from gensim.models import Word2Vec
-from modelling.sairus import train_w2v_model, learn_mlp
+from modelling.sairus import train_w2v_model, learn_mlp, classify_users
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
@@ -32,10 +32,14 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     job_id = self.request.id
     dataset_dir = DATASET_DIR.format(job_id)
     model_dir = MODEL_DIR.format(job_id)
-    makedirs(dataset_dir, exist_ok=True)
     makedirs(model_dir, exist_ok=True)
+    makedirs(dataset_dir, exist_ok=True)
+
     content_path = join(dataset_dir, CONTENT_FILENAME)
 
+    with open(join(JOBS_DIR, job_id, "techniques.txt"), "w") as f:
+        f.write(rel_node_emb_technique+"\n")
+        f.write(spat_node_emb_technique)
     ############### DOWNLOAD FILES ###############
     if not exists(content_path):
         self.update_state(state="PROGRESS", meta={"status": "Downloading content..."})
@@ -145,3 +149,21 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     mlp = learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
+
+
+@celery.task(bind=True)
+def predict_task(self, job_id, user_ids, rel_technique, spat_technique):
+    pred = classify_users(
+                join(JOBS_DIR, job_id), user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME,
+                SPAT_ADJ_MAT_FILENAME, rel_technique=rel_technique, spat_technique=spat_technique)
+    readable_preds = {}
+    for k in pred.keys():
+        if pred[k] == 0:
+            readable_preds[k] = "safe"
+        elif pred[k] == 1:
+            readable_preds[k] = "risky"
+        else:
+            readable_preds[k] = pred[k]
+    self.update_state(state="COMPLETED", meta={"status": "Prediction completed."})
+    # CAPIRE COME RITORNARE LE PREDS A CELERY
+    return readable_preds

@@ -1,6 +1,6 @@
 import requests
 
-response = requests.post("http://172.29.10.104:5000/node_classification/train",
+response = requests.post("http://172.18.0.4:5000/node_classification/train",
                          json={"content_url": 'https://drive.google.com/file/d/1o3kD4jg71IWv5RH9pxrYKMXw-J3CeDPP/view?usp=sharing',
                                "spat_ne_tec": 'pca', "rel_ne_tec": 'none', "kr": 128, "ks": 128,
                                "social_net_url": 'https://drive.google.com/file/d/1MhSo9tMDkfnlvZXPKgxv-HBLP4fSwvmN/view?usp=sharing',
@@ -12,9 +12,10 @@ response = requests.post("http://172.29.10.104:5000/node_classification/train",
                                "kc": 64, "window": 10, "w2v_epochs": 1})
 """
 i = [str(j) for j in range(2052, 2058)]
-response = requests.post("http://127.0.0.1:5000/node_classification/predict", json={"job_id": "912fa58f-500a-4b5e-ab70-fa4c615b0e93", "user_ids": ["121212121","2052","1077","2814"]})       # ,"2052","1077","2814"]+i
+response = requests.post("http://172.18.0.4:5000/node_classification/predict", json={"job_id": "4b7f687f-b552-415e-9819-dcbae97d6e59", "user_ids": ["121212121","2052","1077","2814"]})       # ,"2052","1077","2814"]+i
 """
 print(response)
 print(response.text)
 
+#resp = requests.get("http://172.18.0.4:5000/node_classification/task_status/ef26d791-3ebb-459d-ab11-5dd8b061b40c")
 

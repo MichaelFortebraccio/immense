@@ -1,6 +1,18 @@
 version: "2.12"
 
 services:
+    api:
+        container_name: api
+        build:
+            context: .
+            dockerfile: Dockerfile
+        environment:
+            - BROKER_URI=redis://redis
+            - BACKEND_URI=redis://redis
+        depends_on:
+            - worker
+        volumes:
+            -   ./jobs:/counter_sairus/jobs
     worker:
         container_name: celery
         environment:
@@ -11,6 +23,8 @@ services:
             dockerfile: Dockerfile_worker
         depends_on:
             - redis
+        volumes:
+            -  ./jobs:/counter_sairus/jobs
     redis:
         image: "redis:latest"
         ports:
