@@ -22,7 +22,7 @@ Then, the API can be started with the command <br>
 In this case, the API will run at the IP http://127.0.0.1
 
 ## Using the API
-Once you have the API IP, you can send requests to it. Find some examples in [test_api.py](test_api.py) or [examples.sh](examples.sh).
+Once you have the API IP, you can send requests to it. Find some examples in [examples](examples).
 Depending on the techniques that you want to use, some parameters are required and some others are not. The system requires links to
 some files. Refer to the next paragraph for more information about how the files should be structured.<br>
 Once a request is sent, the Job ID will be shown. It can be used for getting information about the status of the training task,
