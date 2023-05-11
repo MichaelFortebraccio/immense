@@ -27,9 +27,8 @@ Depending on the techniques that you want to use, some parameters are required a
 some files. Refer to the next paragraph for more information about how the files should be structured.<br>
 Once a request is sent, the Job ID will be shown. It can be used for getting information about the status of the training task,
 via the ```task_status``` endpoint. Once the training is finished, use the ```predict``` endpoint in order to get predictions. If one or more user IDs
-are specified, the model will classify those users. If no IDs are provided, the model will perform predictions on the test set and return the values
-of the metrics. Since the node embedding model is transductive, it can only provide predictions for users that it already knows (meaning that it appears in the 
-adjacency matrix or in the edge lists).
+are specified, the model will classify those users. Since the node embedding model is transductive, it can only provide predictions for users that 
+it already knows (meaning that it appears in the adjacency matrix or in the edge lists).
 
 ## Files format
 ### Content
@@ -53,7 +52,7 @@ containing three values: the two node IDs, and the distance that separates them.
 
 #### Autoencoder / PCA / None
 These techniques work on the adjacency matrix of user relationships. **Autoencoder** takes the rows of the matrix and feeds them
-to an autoencoder which reduces the dimensionality. **PCA** performs Principal Component Analysis on the matrix in order to reduice the row
+to an autoencoder which reduces the dimensionality. **PCA** performs Principal Component Analysis on the matrix in order to reduce the row
 dimensionality. **None** directly uses the rows of the matrix, without performing any dimensionality reduction. These techniques require the user
 to provide links to a .csv file containing the adjacency matrix, and an additional link to a .pkl file containing a dictionary having
 as keys the user IDs, taken from the ```.csv``` file with the content, and as values the index of the matrix row corresponding to that user.
