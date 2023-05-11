@@ -42,9 +42,10 @@ def main_test(args):
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
     else:
-        test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
-             ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
-             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+        report = test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
+                      ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+                      adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+        print(report)
 
 
 if __name__ == "__main__":

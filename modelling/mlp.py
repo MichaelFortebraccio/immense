@@ -35,7 +35,7 @@ class MLP:
                 y_p.append(1)
             elif round(p[0]) == 1:
                 y_p.append(0)
-        print(classification_report(y_true=y_test, y_pred=y_p))
+        return classification_report(y_true=y_test, y_pred=y_p)
 
     def load_weights(self):
         self.model = load_model(self._model_path)
