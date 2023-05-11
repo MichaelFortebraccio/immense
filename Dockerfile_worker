@@ -3,7 +3,7 @@ RUN apt-get install ca-certificates
 RUN update-ca-certificates
 COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
-COPY . .
-# RUN wget -O /usr/local/bin/wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh && chmod +x /usr/local/bin/wait-for-it.sh
+COPY . ./counter_sairus
+WORKDIR /counter_sairus
 CMD ["celery", "-A", "task_manager.worker.celery", "worker", "--loglevel", "debug"]
 

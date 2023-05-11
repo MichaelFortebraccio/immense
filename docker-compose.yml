@@ -11,6 +11,7 @@ services:
             - BACKEND_URI=redis://redis
         depends_on:
             - worker
+            - redis
         volumes:
             -   ./jobs:/counter_sairus/jobs
     worker:
@@ -26,6 +27,6 @@ services:
         volumes:
             -  ./jobs:/counter_sairus/jobs
     redis:
-        image: "redis:latest"
+        image: "redis:alpine3.17"
         ports:
             - 6379
