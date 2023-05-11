@@ -1,6 +1,5 @@
 #sys.path.append('../')
-from os import makedirs
-from os.path import join, exists
+import os, stat
 import gdown
 import pandas as pd
 from gensim.models import Word2Vec
@@ -23,7 +22,7 @@ JOBS_DIR = "jobs"
 MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
-
+print(os.listdir())
 @celery.task(bind=True)
 def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_node_emb_technique: str, spat_node_emb_technique: str,
                rel_node_embedding_size, spat_node_embedding_size, social_network_url=None, spatial_network_url=None, n_of_walks_rel=None, n_of_walks_spat=None,
@@ -32,16 +31,17 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     job_id = self.request.id
     dataset_dir = DATASET_DIR.format(job_id)
     model_dir = MODEL_DIR.format(job_id)
-    makedirs(model_dir, exist_ok=True)
-    makedirs(dataset_dir, exist_ok=True)
 
-    content_path = join(dataset_dir, CONTENT_FILENAME)
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(dataset_dir, exist_ok=True)
 
-    with open(join(JOBS_DIR, job_id, "techniques.txt"), "w") as f:
+    content_path = os.path.join(dataset_dir, CONTENT_FILENAME)
+
+    with open(os.path.join(JOBS_DIR, job_id, "techniques.txt"), "w") as f:
         f.write(rel_node_emb_technique+"\n")
         f.write(spat_node_emb_technique)
     ############### DOWNLOAD FILES ###############
-    if not exists(content_path):
+    if not os.path.exists(content_path):
         self.update_state(state="PROGRESS", meta={"status": "Downloading content..."})
         gdown.download(url=content_url, output=content_path, quiet=False, fuzzy=True)
 
@@ -55,8 +55,8 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     if rel_node_emb_technique == "node2vec":
         if not social_network_url:
             raise Exception("You need to provide a URL to the relational edge list")
-        rel_edges_path = join(dataset_dir, REL_EDGES_FILENAME)
-        if not exists(rel_edges_path):
+        rel_edges_path = os.path.join(dataset_dir, REL_EDGES_FILENAME)
+        if not os.path.exists(rel_edges_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social edge list..."})
             gdown.download(url=social_network_url, output=rel_edges_path, quiet=False, fuzzy=True)
     elif rel_node_emb_technique in ["pca", "autoencoder", "none"]:
@@ -64,32 +64,32 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
             raise Exception("You need to provide the URL to the relational adjacency matrix")
         if not id2idx_rel_url:
             raise Exception("You need to provide the URL to the relational id2idx file")
-        rel_adj_mat_path = join(dataset_dir, REL_ADJ_MAT_FILENAME)
-        id2idx_rel_path = join(dataset_dir, ID2IDX_REL_FILENAME)
-        if not exists(rel_adj_mat_path):
+        rel_adj_mat_path = os.path.join(dataset_dir, REL_ADJ_MAT_FILENAME)
+        id2idx_rel_path = os.path.join(dataset_dir, ID2IDX_REL_FILENAME)
+        if not os.path.exists(rel_adj_mat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social adjacency matrix..."})
             gdown.download(url=adj_matrix_rel_url, output=rel_adj_mat_path, quiet=False, fuzzy=True)
-        if not exists(id2idx_rel_path):
+        if not os.path.exists(id2idx_rel_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social id2idx_rel..."})
             gdown.download(url=id2idx_rel_url, output=id2idx_rel_path, quiet=False, fuzzy=True)
     if spat_node_emb_technique == "node2vec":
         if not spatial_network_url:
             raise Exception("You need to provide a URL to the spatial network edge list")
-        spat_edges_path = join(dataset_dir, SPAT_EDGES_FILENAME)
-        if not exists(spat_edges_path):
+        spat_edges_path = os.path.join(dataset_dir, SPAT_EDGES_FILENAME)
+        if not os.path.exists(spat_edges_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial edge list..."})
             gdown.download(url=spatial_network_url, output=spat_edges_path, quiet=False, fuzzy=True)
     elif spat_node_emb_technique in ["pca", "autoencoder", "none"]:
-        spat_adj_mat_path = join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
-        id2idx_spat_path = join(dataset_dir, ID2IDX_SPAT_FILENAME)
+        spat_adj_mat_path = os.path.join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
+        id2idx_spat_path = os.path.join(dataset_dir, ID2IDX_SPAT_FILENAME)
         if not adj_matrix_spat_url:
             raise Exception("You need to provide the URL to the spatial adjacency matrix")
         if not id2idx_spat_url:
             raise Exception("You need to provide the URL to the spatial id2idx file")
-        if not exists(spat_adj_mat_path):
+        if not os.path.exists(spat_adj_mat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial adjacency matrix..."})
             gdown.download(url=adj_matrix_spat_url, output=spat_adj_mat_path, quiet=False, fuzzy=True)
-        if not exists(id2idx_spat_path):
+        if not os.path.exists(id2idx_spat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial id2idx_rel..."})
             gdown.download(url=id2idx_spat_url, output=id2idx_spat_path, quiet=False, fuzzy=True)
     self.update_state(state="PROGRESS", meta={"status": "Dataset successfully downloaded."})
@@ -104,15 +104,15 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     self.update_state(state="PROGRESS", meta={"status": "Learning safe autoencoder."})
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
 
-    model_dir_rel = join(model_dir, "node_embeddings", "rel", rel_node_emb_technique)
-    model_dir_spat = join(model_dir, "node_embeddings", "spat", spat_node_emb_technique)
+    model_dir_rel = os.path.join(model_dir, "node_embeddings", "rel", rel_node_emb_technique)
+    model_dir_spat = os.path.join(model_dir, "node_embeddings", "spat", spat_node_emb_technique)
     try:
-        makedirs(model_dir_rel, exist_ok=False)
-        makedirs(model_dir_spat, exist_ok=False)
+        os.makedirs(model_dir_rel, exist_ok=False)
+        os.makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = join(model_dir_rel, "dtree.h5")
-    spat_tree_path = join(model_dir_spat, "dtree.h5")
+    rel_tree_path = os.path.join(model_dir_rel, "dtree.h5")
+    spat_tree_path = os.path.join(model_dir_spat, "dtree.h5")
 
     ############### LEARN NODE EMBEDDINGS ###############
     self.update_state(state="PROGRESS", meta={"status": "Learning relational embeddings."})
@@ -135,35 +135,18 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
 
     self.update_state(state="PROGRESS", meta={"status": "Learning mlp..."})
     if rel_node_emb_technique == "node2vec":
-        mod = Word2Vec.load(join(model_dir_rel, "n2v_rel.h5"))
+        mod = Word2Vec.load(os.path.join(model_dir_rel, "n2v_rel.h5"))
         d = mod.wv.key_to_index
         id2idx_rel = {int(k): d[k] for k in d.keys()}
     else:
         id2idx_rel = load_from_pickle(id2idx_rel_path)
     if spat_node_emb_technique == "node2vec":
-        mod = Word2Vec.load(join(model_dir_spat, "n2v_spat.h5"))
+        mod = Word2Vec.load(os.path.join(model_dir_spat, "n2v_spat.h5"))
         d = mod.wv.key_to_index
         id2idx_spat = {int(k): d[k] for k in d.keys()}
     else:
         id2idx_spat = load_from_pickle(id2idx_spat_path)
     mlp = learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
-    save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
+    save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
 
-
-@celery.task(bind=True)
-def predict_task(self, job_id, user_ids, rel_technique, spat_technique):
-    pred = classify_users(
-                join(JOBS_DIR, job_id), user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME,
-                SPAT_ADJ_MAT_FILENAME, rel_technique=rel_technique, spat_technique=spat_technique)
-    readable_preds = {}
-    for k in pred.keys():
-        if pred[k] == 0:
-            readable_preds[k] = "safe"
-        elif pred[k] == 1:
-            readable_preds[k] = "risky"
-        else:
-            readable_preds[k] = pred[k]
-    self.update_state(state="COMPLETED", meta={"status": "Prediction completed."})
-    # CAPIRE COME RITORNARE LE PREDS A CELERY
-    return readable_preds

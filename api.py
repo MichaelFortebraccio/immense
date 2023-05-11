@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
-from task_manager.tasks import train_task, predict_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
 from os import makedirs
 
@@ -92,15 +92,11 @@ class Predict(Resource):
         predict_params = predict_parser.parse_args(request)
         job_id = predict_params['job_id']
         user_ids = predict_params['user_ids']
-        print("Ciao")
-
         with open(join(JOBS_DIR, job_id, "techniques.txt"), 'r') as f:
             tec = [l.strip() for l in f.readlines()]
         rel_technique = tec[0]
         spat_technique = tec[1]
-        print("Ciao2")
         task = train_task.AsyncResult(job_id)
-        print("Ciao3")
         if not exists(join(JOBS_DIR, job_id)) or task.state == "FAILURE":
             abort(400, "ERROR: the learning job id is not valid or not existent")
         elif task.state == 'PROGRESS' or task.state == 'STARTED':
