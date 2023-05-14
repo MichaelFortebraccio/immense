@@ -1,12 +1,12 @@
 #sys.path.append('../')
-import os, stat
-import gdown
-import pandas as pd
 from gensim.models import Word2Vec
+import hdfs
 from modelling.sairus import train_w2v_model, learn_mlp, classify_users
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
+import os
+import pandas as pd
 from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
 
@@ -22,7 +22,11 @@ JOBS_DIR = "jobs"
 MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
-print(os.listdir())
+
+HDFS_HOST = "http://" + os.getenv("HDFS_HOST", "localhost") + ":" + os.getenv("HDFS_PORT", "9870")
+
+client = hdfs.InsecureClient(HDFS_HOST, timeout=60)
+
 @celery.task(bind=True)
 def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_node_emb_technique: str, spat_node_emb_technique: str,
                rel_node_embedding_size, spat_node_embedding_size, social_network_url=None, spatial_network_url=None, n_of_walks_rel=None, n_of_walks_spat=None,
@@ -43,7 +47,9 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     ############### DOWNLOAD FILES ###############
     if not os.path.exists(content_path):
         self.update_state(state="PROGRESS", meta={"status": "Downloading content..."})
-        gdown.download(url=content_url, output=content_path, quiet=False, fuzzy=True)
+        if not client.content(content_path):
+            raise FileNotFoundError("The URL to the content file does not exist")
+        client.download(hdfs_path=content_url, local_path=content_path)
 
     rel_edges_path = None
     spat_edges_path = None
@@ -58,7 +64,7 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
         rel_edges_path = os.path.join(dataset_dir, REL_EDGES_FILENAME)
         if not os.path.exists(rel_edges_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social edge list..."})
-            gdown.download(url=social_network_url, output=rel_edges_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=social_network_url, local_path=rel_edges_path)
     elif rel_node_emb_technique in ["pca", "autoencoder", "none"]:
         if not adj_matrix_rel_url:
             raise Exception("You need to provide the URL to the relational adjacency matrix")
@@ -68,17 +74,17 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
         id2idx_rel_path = os.path.join(dataset_dir, ID2IDX_REL_FILENAME)
         if not os.path.exists(rel_adj_mat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social adjacency matrix..."})
-            gdown.download(url=adj_matrix_rel_url, output=rel_adj_mat_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=adj_matrix_rel_url, local_path=rel_adj_mat_path)
         if not os.path.exists(id2idx_rel_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading social id2idx_rel..."})
-            gdown.download(url=id2idx_rel_url, output=id2idx_rel_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=id2idx_rel_url, local_path=id2idx_rel_path)
     if spat_node_emb_technique == "node2vec":
         if not spatial_network_url:
             raise Exception("You need to provide a URL to the spatial network edge list")
         spat_edges_path = os.path.join(dataset_dir, SPAT_EDGES_FILENAME)
         if not os.path.exists(spat_edges_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial edge list..."})
-            gdown.download(url=spatial_network_url, output=spat_edges_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=spatial_network_url, local_path=spat_edges_path)
     elif spat_node_emb_technique in ["pca", "autoencoder", "none"]:
         spat_adj_mat_path = os.path.join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
         id2idx_spat_path = os.path.join(dataset_dir, ID2IDX_SPAT_FILENAME)
@@ -88,10 +94,10 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
             raise Exception("You need to provide the URL to the spatial id2idx file")
         if not os.path.exists(spat_adj_mat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial adjacency matrix..."})
-            gdown.download(url=adj_matrix_spat_url, output=spat_adj_mat_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=adj_matrix_spat_url, local_path=spat_adj_mat_path)
         if not os.path.exists(id2idx_spat_path):
             self.update_state(state="PROGRESS", meta={"status": "Downloading spatial id2idx_rel..."})
-            gdown.download(url=id2idx_spat_url, output=id2idx_spat_path, quiet=False, fuzzy=True)
+            client.download(hdfs_path=id2idx_spat_url, local_path=id2idx_spat_path)
     self.update_state(state="PROGRESS", meta={"status": "Dataset successfully downloaded."})
 
     train_df = pd.read_csv(content_path, sep=',').reset_index()
