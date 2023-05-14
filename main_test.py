@@ -3,9 +3,7 @@ from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from os.path import join
-from gensim.models import Word2Vec
 from utils import load_from_pickle, get_ne_models
-import numpy as np
 import pandas as pd
 
 def main_test(args):
@@ -33,18 +31,21 @@ def main_test(args):
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
         models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
         id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
-
+    print("Loading w2w")
     w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
     if args.user_id:
-        pred = predict_user(user=test_df.loc[test_df.id==args.user_id], w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
+        df = train_df.append(test_df)
+        user = df.loc[df.id==args.user_id]
+        pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
                             tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel,
                             id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
     else:
-        test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
-             ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
-             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+        report = test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
+                      ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+                      adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+        print(report)
 
 
 if __name__ == "__main__":

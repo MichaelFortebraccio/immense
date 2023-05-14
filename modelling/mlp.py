@@ -9,7 +9,6 @@ from os.path import join
 class MLP:
     def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50, lr=0.03):
         self.X_train = X_train
-        print(self.X_train.shape)
         if len(y_train.shape) == 1:
             y_train = to_categorical(y_train)
         self.y_train = y_train
@@ -36,7 +35,7 @@ class MLP:
                 y_p.append(1)
             elif round(p[0]) == 1:
                 y_p.append(0)
-        print(classification_report(y_true=y_test, y_pred=y_p))
+        return classification_report(y_true=y_test, y_pred=y_p)
 
     def load_weights(self):
         self.model = load_model(self._model_path)
