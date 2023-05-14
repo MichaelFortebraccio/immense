@@ -2,7 +2,8 @@
 Code for **SAIRUS**, the multimodal classifier for risky users on social media. Currently, it has been used only with 
 Twitter data. It is a REST API service. <br>
 ## Docker
-The system can be used through docker. Run the following commands for starting the needed containers:
+The system can be used through docker. It is very important that you set the HDFS_HOST and HDFS_PORT parameters in 
+docker-compose.yml. Run the following commands for starting the containers:
 <br>
 ``` docker compose build ```<br>
 ``` docker compose up ```
@@ -23,7 +24,7 @@ In this case, the API will run at the IP http://127.0.0.1
 
 ## Using the API
 Once you have the API IP, you can send requests to it. Find some examples in [examples](examples).
-Depending on the techniques that you want to use, some parameters are required and some others are not. The system requires links to
+Depending on the techniques that you want to use, some parameters are required and some others are not. The system requires hdfs links to
 some files. Refer to the next paragraph for more information about how the files should be structured.<br>
 Once a request is sent, the Job ID will be shown. It can be used for getting information about the status of the training task,
 via the ```task_status``` endpoint. Once the training is finished, use the ```predict``` endpoint in order to get predictions. If one or more user IDs
