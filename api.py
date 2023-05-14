@@ -3,7 +3,7 @@ from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
 from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
-from os import makedirs
+
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
 application = Flask(__name__)
