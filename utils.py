@@ -4,7 +4,8 @@ from os.path import exists, join
 from sklearn.model_selection import train_test_split
 import pickle
 import numpy as np
-
+import pandas as pd
+from nltk.corpus import stopwords
 
 def save_to_pickle(name, c):
     with open(name, 'wb') as f:
@@ -15,6 +16,9 @@ def load_from_pickle(name):
         return pickle.load(f)
 
 def prepare_for_decision_tree(df, mod: Word2Vec):
+    """
+    Take a w2v model and split the vectors in a way that makes them suitable for training a decision tree, so split in
+    train and test set and separate the features from the labels"""
     y = []
     for k in mod.wv.key_to_index.keys():
         try:
@@ -24,36 +28,6 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
             continue
     X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
     return X_train, X_test, y_train, y_test
-
-
-def convert_ids(df):
-    """Use the matches file for converting the IDs"""
-    d = {}
-    with open("node_classification/graph_embeddings/stuff/closeness_matches", 'r') as f:
-        for l in f.readlines():
-            l = l.split("\t")
-            d[(l[0])] = str(l[1]).strip()
-    d2 = {}
-    for k in d.keys():
-        d2[int(k)] = d[k]
-    df['id'] = df['id'].replace(d2)
-    return df
-
-
-def correct_edg_format(fname):
-    l = []
-    with open(fname, 'r') as f:
-        for line in f.readlines():
-            l.append(line.split("\t\t"))
-        f.close()
-    with open(fname+"2", 'w') as f:
-        for e in l:
-            str = ""
-            for el in e:
-                str += "{}\t".format(el.strip())
-            str += "\n"
-            f.write(str)
-        f.close()
 
 
 def create_or_load_post_list(path, w2v_model, tokenized_list):
@@ -165,3 +139,57 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         id2idx_spat = load_from_pickle(id2idx_spat_path)
 
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
+
+def concat(l: pd.Series):
+    l = l.tolist()
+    return " ".join(l)
+
+def concatenate_posts(df):
+    """
+    Take a dataframe containing one post for each row and concatenate them in order to obtain a dataframe having one single row for each user, with the column
+    'content' containing all the posts made by that user, concatenated.
+    """
+    return df.groupby("id")['text_cleaned'].apply(concat)
+
+def preprocess():
+    pass
+
+
+"""d = pd.read_csv("to_merge", sep="\t")
+d.columns = ["id", "text_cleaned"]
+d = d.dropna()
+d2 = concatenate_posts(d)
+print(d2)"""
+
+########### UTILITY FUNCTIONS NOT USED IN THE API ###########
+def convert_ids(df):
+    """Use the matches file for converting the IDs"""
+    d = {}
+    with open("node_classification/graph_embeddings/stuff/closeness_matches", 'r') as f:
+        for l in f.readlines():
+            l = l.split("\t")
+            d[(l[0])] = str(l[1]).strip()
+    d2 = {}
+    for k in d.keys():
+        d2[int(k)] = d[k]
+    df['id'] = df['id'].replace(d2)
+    return df
+
+
+def correct_edg_format(fname):
+    l = []
+    with open(fname, 'r') as f:
+        for line in f.readlines():
+            l.append(line.split("\t\t"))
+        f.close()
+    with open(fname+"2", 'w') as f:
+        for e in l:
+            str = ""
+            for el in e:
+                str += "{}\t".format(el.strip())
+            str += "\n"
+            f.write(str)
+        f.close()
+
+
+
