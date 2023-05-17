@@ -174,7 +174,7 @@ def clean_text(text):
     cleaned = [w for w in cleaned if w not in stopwords.words('english')]
     return " ".join(cleaned)
 
-def clean_dataframe(df: pd.DataFrame, text_column, id_column):
+def clean_dataframe(df: pd.DataFrame, id_column, text_column):
     new_list = []
     for index, row in tqdm(df.iterrows()):
         dict_row = {}

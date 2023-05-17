@@ -9,7 +9,7 @@ import os
 import pandas as pd
 from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
-
+from utils import concatenate_posts, clean_dataframe
 
 CONTENT_FILENAME = "content_labeled.csv"
 REL_EDGES_FILENAME = "social_network.edg"
@@ -155,4 +155,13 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     mlp = learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
+
+def preprocess_task(content_url, id_field_name, text_field_name):
+    client.download(hdfs_path=content_url, local_path="./content_labeled.csv")
+    df = pd.read_csv("./content_labeled.csv")
+    df_proc = clean_dataframe(df, id_field_name, text_field_name)
+    if len(set(df_proc.id_field_name.values)) != len(df_proc.id_field_name.values):
+        df_proc = concatenate_posts(df_proc)
+    df_proc.to_csv("./content_labeled.csv")
+    client.upload(hdfs_path=content_url, local_path="./content_labeled.csv")
 
