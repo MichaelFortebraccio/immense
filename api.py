@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
-from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
@@ -20,7 +20,8 @@ class Preprocess(Resource):
         content_url = params['content_url']
         id_field_name = params['id_field_name']
         text_field_name = params['text_field_name']
-
+        print("bodd")
+        preprocess_task(content_url, id_field_name, text_field_name)
 
 
 train_parser = reqparse.RequestParser()

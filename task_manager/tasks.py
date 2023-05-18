@@ -23,7 +23,8 @@ MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
 
-HDFS_HOST = "http://" + os.getenv("HDFS_HOST", "localhost") + ":" + os.getenv("HDFS_PORT", "9870")
+HDFS_HOST = "http://172.21.0.6:16"
+#HDFS_HOST = "http://172.21.0.6:16" + os.getenv("HDFS_HOST", "172.21.0.6") + ":" + os.getenv("HDFS_PORT", "16")
 
 client = hdfs.InsecureClient(HDFS_HOST, timeout=60)
 
@@ -157,6 +158,7 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
 
 def preprocess_task(content_url, id_field_name, text_field_name):
+    print("ASDFGHJKKKKJHTVFIT " + HDFS_HOST)
     client.download(hdfs_path=content_url, local_path="./content_labeled.csv")
     df = pd.read_csv("./content_labeled.csv")
     df_proc = clean_dataframe(df, id_field_name, text_field_name)
