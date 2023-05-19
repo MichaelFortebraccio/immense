@@ -11,6 +11,7 @@ from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
 from utils import concatenate_posts, clean_dataframe
 
+
 CONTENT_FILENAME = "content_labeled.csv"
 REL_EDGES_FILENAME = "social_network.edg"
 SPAT_EDGES_FILENAME = "spatial_network.edg"
@@ -23,11 +24,10 @@ MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
 
-HDFS_HOST = "http://172.21.0.6:16"
-#HDFS_HOST = "http://172.21.0.6:16" + os.getenv("HDFS_HOST", "172.21.0.6") + ":" + os.getenv("HDFS_PORT", "16")
+HDFS_HOST = "http://172.21.0.5:9870"
+HDFS_HOST = "http://" + os.getenv("HDFS_HOST", "172.21.0.6") + ":" + os.getenv("HDFS_PORT", "16")
 
 client = hdfs.InsecureClient(HDFS_HOST, timeout=60)
-
 @celery.task(bind=True)
 def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_node_emb_technique: str, spat_node_emb_technique: str,
                rel_node_embedding_size, spat_node_embedding_size, social_network_url=None, spatial_network_url=None, n_of_walks_rel=None, n_of_walks_spat=None,
@@ -158,9 +158,8 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
 
 def preprocess_task(content_url, id_field_name, text_field_name):
-    print("ASDFGHJKKKKJHTVFIT " + HDFS_HOST)
-    client.download(hdfs_path=content_url, local_path="./content_labeled.csv")
-    df = pd.read_csv("./content_labeled.csv")
+    client.download(hdfs_path=content_url, local_path="./df.csv")
+    df = pd.read_csv("./df.csv")
     df_proc = clean_dataframe(df, id_field_name, text_field_name)
     if len(set(df_proc.id_field_name.values)) != len(df_proc.id_field_name.values):
         df_proc = concatenate_posts(df_proc)
