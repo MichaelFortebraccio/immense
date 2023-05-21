@@ -24,8 +24,8 @@ MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
 
-HDFS_HOST = "http://172.21.0.5:9870"
-HDFS_HOST = "http://" + os.getenv("HDFS_HOST", "172.21.0.6") + ":" + os.getenv("HDFS_PORT", "16")
+
+HDFS_HOST = "http://" + os.getenv("HDFS_HOST") + ":" + os.getenv("HDFS_PORT")
 
 client = hdfs.InsecureClient(HDFS_HOST, timeout=60)
 @celery.task(bind=True)

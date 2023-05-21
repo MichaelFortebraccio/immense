@@ -18,7 +18,7 @@ services:
         container_name: celery
         environment:
             - HDFS_HOST=172.21.0.6      # Replace this with the IP address of the hadoop container
-            - HDFS_PORT=16            # Replace the port with the one hadoop is listening on
+            - HDFS_PORT=9870            # Replace the port with the one hadoop is listening on
             - BROKER_URI=redis://redis
             - BACKEND_URI=redis://redis
         build:
@@ -32,8 +32,3 @@ services:
         image: "redis:alpine3.17"
         ports:
             - 6379
-
-networks:
-    default:
-        external:
-            name: rete1
