@@ -161,13 +161,11 @@ def preprocess_task(content_url, id_field_name, text_field_name):
         p = "/".join(content_url.split("/")[:-1]) + "/"       # Retrieve the directory where the file is located. The processed file will be put there
     else:
         p = "./"
-    client.download(hdfs_path=content_url, local_path="./processed.csv")
-    d = pd.read_csv("processed.csv")
-    print(d)
-    """df = pd.read_csv("./df.csv")
+    client.download(hdfs_path=content_url, local_path="./df.csv")
+    df = pd.read_csv("./df.csv")
     df_proc = clean_dataframe(df, id_field_name, text_field_name)
     if len(set(df_proc[id_field_name].values)) != len(df_proc[id_field_name].values):
         df_proc = concatenate_posts(df_proc)
-    df_proc.to_csv("./content_labeled.csv")
-    client.upload(hdfs_path=p+"processed.csv", local_path="./content_labeled.csv")"""
+    df_proc.to_csv("./processed.csv")
+    client.upload(hdfs_path=p+"processed.csv", local_path="./processed.csv")
 
