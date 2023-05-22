@@ -72,8 +72,7 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         id = row['id']
         if id in id2idx_rel.keys():
             idx = id2idx_rel[id]
-            dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
-            pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
+            pr, conf = test_decision_tree(test_set=np.expand_dims(rel_node_embs[idx], axis=0), cls=tree_rel)
         else:
             pr, conf = row['label'], 1.0
         dataset[index, 3] = pr

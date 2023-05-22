@@ -2,6 +2,7 @@ import requests
 
 def train(address="http://172.19.0.4:5000"):
     """ This function sends a POST request that trains the model with some predefined hyperparameters. The ID of the training job will be returned """
+    ######## DOCKER COMPOS UP DI ENTRAMBI I COMPOSE E FARE UN TEST USANDO L'ULTIMO COMANDO IN PYTHJON CONSOLE EVA LESBICA
     req = requests.post(
         "{}/node_classification/train".format(address),
         json={"content_url": 'user/dataset/content_labeled.csv',

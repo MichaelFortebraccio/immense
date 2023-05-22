@@ -1,0 +1,5 @@
+,id,text
+0,agag,Stemming is desirable as it may reduce redundancy as most of the time the word stem and their inflected/derived words mean the same.
+1,fdf,There are mainly two errors in stemming – Overstemming and Understemming. Overstemming occurs when two words are stemmed from the same root that are of different stems.
+2,fdf,Stemming is the process of producing morphological variants of a root/base word. Stemming programs are commonly referred to as stemming algorithms or stemmers
+3,gdg,"A stemming algorithm reduces the words “chocolates”, “chocolatey”, and “choco” to the root word, “chocolate” and “retrieval”, “retrieved”, “retrieves” reduce to the stem “retrieve”."

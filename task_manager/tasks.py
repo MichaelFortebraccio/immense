@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
+from utils import concatenate_posts, clean_dataframe
 
 
 CONTENT_FILENAME = "content_labeled.csv"
@@ -23,10 +24,9 @@ MODEL_DIR = JOBS_DIR+"/{}/models"
 DATASET_DIR = JOBS_DIR+"/{}/dataset"
 WORD_EMB_SIZE = 0
 
-HDFS_HOST = "http://" + os.getenv("HDFS_HOST", "localhost") + ":" + os.getenv("HDFS_PORT", "9870")
+HDFS_HOST = "http://" + os.getenv("HDFS_HOST") + ":" + os.getenv("HDFS_PORT")
 
-client = hdfs.InsecureClient(HDFS_HOST, timeout=60)
-
+client = hdfs.InsecureClient(HDFS_HOST, timeout=60, user="root")
 @celery.task(bind=True)
 def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_node_emb_technique: str, spat_node_emb_technique: str,
                rel_node_embedding_size, spat_node_embedding_size, social_network_url=None, spatial_network_url=None, n_of_walks_rel=None, n_of_walks_spat=None,
@@ -155,4 +155,17 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
     mlp = learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, model_dir=model_dir,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
+
+def preprocess_task(content_url, id_field_name, text_field_name):
+    if content_url.__contains__("/"):
+        p = "/".join(content_url.split("/")[:-1]) + "/"       # Retrieve the directory where the file is located. The processed file will be put there
+    else:
+        p = "./"
+    client.download(hdfs_path=content_url, local_path="./df.csv")
+    df = pd.read_csv("./df.csv")
+    df_proc = clean_dataframe(df, id_field_name, text_field_name)
+    if len(set(df_proc[id_field_name].values)) != len(df_proc[id_field_name].values):
+        df_proc = concatenate_posts(df_proc)
+    df_proc.to_csv("./processed.csv")
+    client.upload(hdfs_path=p+"processed.csv", local_path="./processed.csv")
 
