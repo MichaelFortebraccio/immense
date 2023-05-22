@@ -1,13 +1,28 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
-from task_manager.tasks import train_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
-
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
 application = Flask(__name__)
 api.init_app(application)
+
+preprocess_parser = reqparse.RequestParser()
+preprocess_parser.add_argument('content_url', type=str, required=True, help="Path to the file containing the unprocessed content")
+preprocess_parser.add_argument('id_field_name', type=str, help="Name of the field containing the user ids")
+preprocess_parser.add_argument('text_field_name', type=str, help="Name of the field containing the text")
+@api.route("/node_classification/preprocess", methods=['POST'])
+class Preprocess(Resource):
+    @api.expect(preprocess_parser)
+    def post(self):
+        params = preprocess_parser.parse_args()
+        content_url = params['content_url']
+        id_field_name = params['id_field_name']
+        text_field_name = params['text_field_name']
+        print("bodd")
+        preprocess_task(content_url, id_field_name, text_field_name)
+
 
 train_parser = reqparse.RequestParser()
 train_parser.add_argument('rel_ne_tec', type=str, required=True, default="node2vec", choices=("none", "autoencoder", "node2vec", "pca"),
