@@ -146,22 +146,11 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
 
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
 
-def concat(l: pd.Series):
-    l = l.tolist()
-    return " ".join(l)
-
-def concatenate_posts(df):
-    """
-    Take a dataframe containing one post for each row and concatenate them in order to obtain a dataframe having one single row for each user, with the column
-    'content' containing all the posts made by that user, concatenated.
-    """
-    ser = df.groupby("id")['text_cleaned'].apply(concat)
-    df = pd.DataFrame(columns=["id", "text_cleaned"])
-    df["id"] = ser.index
-    df["text_cleaned"] = ser.values
-    return df
 
 def clean_text(text):
+    """
+    Apply NLP pipeline to the text. The actions performed are tokenization, punctuation removal, stopwords removal, stemming
+    """
     stemmer = PorterStemmer()
     t = re.sub(r'[_"\-;“”%()|+&=~*%.,!?:#$\[\]/]', ' ', text)
     t = re.sub(r'@\w+', "", t)
@@ -175,6 +164,7 @@ def clean_text(text):
     return " ".join(cleaned)
 
 def clean_dataframe(df: pd.DataFrame, id_column, text_column):
+    """Preprocess the textual content of the dataframe, ignore useless columns, rename the columns with text and id """
     new_list = []
     for index, row in tqdm(df.iterrows()):
         dict_row = {}
@@ -186,6 +176,19 @@ def clean_dataframe(df: pd.DataFrame, id_column, text_column):
             new_list.append(dict_row)
     cleaned_df = pd.DataFrame(new_list)
     return cleaned_df
+
+def concat(l: pd.Series):
+    l = l.tolist()
+    return " ".join(l)
+
+
+def concatenate_posts(df):
+    """Take a df having one row for each post, return a new df having one row for each user, and as values the concatenation of the posts made by that user"""
+    ser = df.groupby("id")['text_cleaned'].apply(concat)
+    df = pd.DataFrame(columns=["id", "text_cleaned"])
+    df["id"] = ser.index
+    df["text_cleaned"] = ser.values
+    return df
 
 
 """d = pd.read_csv("to_merge", sep="\t")
