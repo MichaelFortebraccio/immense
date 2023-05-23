@@ -4,20 +4,18 @@ from os.path import exists
 from os import makedirs
 from modelling.sairus import train
 import argparse
-
 seed = 123
 np.random.seed(seed)
 
 
 def main_train(args):
-    ##### URLs #####
-    textual_content_url = args.textual_content_url
-    social_net_url = args.social_net_url
-    spatial_net_url = args.spatial_net_url
-    rel_adj_mat_url = args.rel_adj_mat_path
-    spat_adj_mat_url = args.spat_adj_mat_path
-    id2idx_rel_url = args.id2idx_rel_path
-    id2idx_spat_url = args.id2idx_spat_path
+    textual_content_path = args.textual_content_path
+    social_net_path = args.social_net_path
+    spatial_net_path = args.spatial_net_path
+    rel_adj_mat_path = args.rel_adj_mat_path
+    spat_adj_mat_path = args.spat_adj_mat_path
+    id2idx_rel_path = args.id2idx_rel_path
+    id2idx_spat_path = args.id2idx_spat_path
 
     rel_technique = args.rel_technique
     spat_technique = args.spat_technique
@@ -45,18 +43,9 @@ def main_train(args):
         makedirs(dataset_dir)
     if not exists(models_dir):
         makedirs(models_dir)
-    posts_path = "{}/posts_labeled.csv".format(dataset_dir)
-    social_path = "{}/social_network.edg".format(dataset_dir)
-    closeness_path = "{}/spatial_network.edg".format(dataset_dir)
-    if not exists(posts_path):
-        gdown.download(url=textual_content_url, output=posts_path, quiet=False, fuzzy=True)
-    if not exists(social_path):
-        gdown.download(url=social_net_url, output=social_path, quiet=False, fuzzy=True)
-    if not exists(closeness_path):
-        gdown.download(url=spatial_net_url, output=closeness_path, quiet=False, fuzzy=True)
     train_path = "{}/train.csv".format(dataset_dir)
     test_path = "{}/test.csv".format(dataset_dir)
-    df = pd.read_csv(posts_path, sep=',')
+    df = pd.read_csv(textual_content_path, sep=',')
     cols = ['index', 'label', 'id', 'text_cleaned']
     if not exists(train_path) or not exists(test_path):
         shuffled_df = df.sample(frac=1, random_state=1).reset_index()    # Shuffle the dataframe
@@ -75,30 +64,30 @@ def main_train(args):
         train_df = pd.read_csv(train_path)
 
     if rel_technique.lower() in ["autoencoder", "pca", "none"]:
-        if not rel_adj_mat_url:
+        if not rel_adj_mat_path:
             raise Exception("You need to provide a path to the relational adjacency matrix")
-        if not id2idx_rel_url:
+        if not id2idx_rel_path:
             raise Exception("You need to provide a path to the pkl file with the matching between the IDs and the relational matrix rows")
     if spat_technique.lower() in ["autoencoder", "pca", "none"]:
-        if not spat_adj_mat_url:
+        if not spat_adj_mat_path:
             raise Exception("You need to provide a path to the spatial adjacency matrix")
-        if not id2idx_spat_url:
+        if not id2idx_spat_path:
             raise Exception("You need to provide a path to the pkl file with the matching between the IDs and the spatial matrix rows")
 
-    train(train_df=train_df, full_df=df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_net_url, spatial_path=spatial_net_url,
+    train(train_df=train_df, full_df=df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_net_path, spatial_path=spatial_net_path,
           word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
           n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
           spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,
           p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel, rel_node_emb_technique=rel_technique,
-          spat_node_emb_technique=spat_technique, adj_matrix_spat_path=spat_adj_mat_url, adj_matrix_rel_path=rel_adj_mat_url, id2idx_rel_path=id2idx_rel_url,
-          id2idx_spat_path=id2idx_spat_url, rel_ae_epochs=rel_autoenc_epochs, spat_ae_epochs=spat_autoenc_epochs)
+          spat_node_emb_technique=spat_technique, adj_matrix_spat_path=spat_adj_mat_path, adj_matrix_rel_path=rel_adj_mat_path, id2idx_rel_path=id2idx_rel_path,
+          id2idx_spat_path=id2idx_spat_path, rel_ae_epochs=rel_autoenc_epochs, spat_ae_epochs=spat_autoenc_epochs)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--textual_content_url", type=str, required=True, help="Link to the file containing the posts")
-    parser.add_argument("--social_net_url", type=str, required=False, default="", help="Link to the file containing the edges in the social network. Can be ignored if you don't want to use node2vec")
-    parser.add_argument("--spatial_net_url", type=str, required=False, default="", help="Link to the file containing the edges in the spatial network. Can be ignored if you don't want to use node2vec")
+    parser.add_argument("--textual_content_path", type=str, required=True, help="Link to the file containing the posts")
+    parser.add_argument("--social_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the social network. Can be ignored if you don't want to use node2vec")
+    parser.add_argument("--spatial_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the spatial network. Can be ignored if you don't want to use node2vec")
     parser.add_argument("--word_embedding_size", type=int, default=512, required=True, help="Dimension of the word embeddings")
     parser.add_argument("--window", type=int, default=5, required=False, help="Dimension of the window for learning word embeddings")
     parser.add_argument("--w2v_epochs", type=int, default=50, required=False, help="For how many epochs to train the w2v model")

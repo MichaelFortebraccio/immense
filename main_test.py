@@ -3,13 +3,11 @@ from modelling.sairus import test, predict_user
 from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from os.path import join
-from gensim.models import Word2Vec
 from utils import load_from_pickle, get_ne_models
-import numpy as np
 import pandas as pd
 
 def main_test(args=None):
-    """spat_technique = args.spat_technique
+    spat_technique = args.spat_technique
     rel_technique = args.rel_technique
     dataset_dir = args.dataset_dir
     models_dir = args.models_dir
@@ -17,14 +15,14 @@ def main_test(args=None):
     adj_mat_spat_path = args.spat_adj_mat_path
     id2idx_spat_path = args.id2idx_spat_path
     id2idx_rel_path = args.id2idx_rel_path
-    we_size = args.word_embedding_size"""
+    we_size = args.word_embedding_size
 
     # For testing purposes
-    spat_technique = rel_technique = "node2vec"
+    """spat_technique = rel_technique = "node2vec"
     dataset_dir = "dataset"
     models_dir = "models"
     adj_mat_spat_path = adj_mat_rel_path = id2idx_spat_path = id2idx_rel_path = None
-    we_size = 256
+    we_size = 256"""
 
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
@@ -43,7 +41,7 @@ def main_test(args=None):
 
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(we_size)))
 
-    if False:
+    if args.user_id:
         df = train_df.append(test_df)
         user = df.loc[df.id==args.user_id]
         pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
@@ -58,7 +56,7 @@ def main_test(args=None):
 
 
 if __name__ == "__main__":
-    """parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("--spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning spatial node embeddings")
     parser.add_argument("--rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning relational node embeddings")
     parser.add_argument("--dataset_dir", type=str, default="", required=True, help="Directory containing the train and test set")
@@ -71,5 +69,5 @@ if __name__ == "__main__":
     parser.add_argument("--user_id", type=int, required=False, help="ID of the user that you want to predict. If you set this field, only the prediction for the user will be returned."
                                                                     "Ignore this field if you want to measure the performance of the system on the test set")
 
-    args = parser.parse_args()"""
-    main_test()
+    args = parser.parse_args()
+    main_test(args)
