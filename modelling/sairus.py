@@ -2,16 +2,18 @@ from os.path import join, exists
 from os import makedirs
 import pandas as pd
 import numpy as np
+from sklearn.model_selection import StratifiedKFold
 import tensorflow as tf
+import modelling.mlp
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
 from modelling.ae import AE
-from modelling.mlp import MLP
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
 from utils import create_or_load_post_list, save_to_pickle, load_from_pickle, get_ne_models
 from gensim.models import Word2Vec
 from tqdm import tqdm
+from modelling.mlp import MLP
 from keras.models import load_model
 
 np.random.seed(123)
@@ -72,7 +74,8 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         id = row['id']
         if id in id2idx_rel.keys():
             idx = id2idx_rel[id]
-            pr, conf = test_decision_tree(test_set=np.expand_dims(rel_node_embs[idx], axis=0), cls=tree_rel)
+            dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
+            pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
         else:
             pr, conf = row['label'], 1.0
         dataset[index, 3] = pr
@@ -169,15 +172,11 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
     if rel_node_emb_technique == "node2vec":
-        mod = Word2Vec.load(join(model_dir_rel, "n2v_rel.h5"))
-        d = mod.wv.key_to_index
-        id2idx_rel = {int(k): d[k] for k in d.keys()}
+        id2idx_rel = load_from_pickle(model_dir_rel + "/id2idx_rel.pkl")        # Load the id2idx file that we manually created in reduce_dimension.py, row 57
     else:
         id2idx_rel = load_from_pickle(id2idx_rel_path)
     if spat_node_emb_technique == "node2vec":
-        mod = Word2Vec.load(join(model_dir_spat, "n2v_spat.h5"))
-        d = mod.wv.key_to_index
-        id2idx_spat = {int(k): d[k] for k in d.keys()}
+        id2idx_spat = load_from_pickle(model_dir_spat + "/id2idx_spat.pkl")
     else:
         id2idx_spat = load_from_pickle(id2idx_spat_path)
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
@@ -185,9 +184,10 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: MLP, rel_node_emb_technique, spat_node_emb_technique,
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
     test_array = np.zeros(shape=(1, 7))
+    print(user['text_cleaned'])
     posts = user['text_cleaned'].values[0].split(" ")
     posts_embs = w2v_model.text_to_vec([posts])
     pred_dang = dang_ae.predict(posts_embs)
@@ -224,6 +224,7 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, 
         pr_spat, conf_spat = pred_missing_info, conf_missing_info
     test_array[0, 5] = pr_spat
     test_array[0, 6] = conf_spat
+    print(test_array)
 
     pred = mlp.model.predict(test_array, verbose=0)
     if round(pred[0][0]) == 0:
@@ -235,6 +236,7 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
     """
     Depending on the node embedding technique adopted, provide the processed array that will then be used by the decision tree
     """
+    idx = str(idx)
     if node_emb_technique == "node2vec":
         mod = n2v.wv
         test_set = mod.vectors[mod.key_to_index[idx]]
@@ -251,10 +253,10 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
         test_set = np.expand_dims(adj_matrix[idx], axis=0)
     return test_set
 
-def classify_users(job_path, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME,
+def classify_users(job_id, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME,
                    REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME, rel_technique, spat_technique):
-    dataset_dir = join(job_path, "dataset")
-    models_dir = join(job_path, "models")
+    dataset_dir = join(job_id, "dataset")
+    models_dir = join(job_id, "models")
     adj_mat_rel_path = join(dataset_dir, REL_ADJ_MAT_FILENAME)
     adj_mat_spat_path = join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
     id2idx_rel_path = join(dataset_dir, ID2IDX_REL_FILENAME)
@@ -287,7 +289,7 @@ def classify_users(job_path, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID
     return out
 
 ####### THESE FUNCTIONS ARE NOT USED IN THE API #######
-def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: MLP, id2idx_rel=None,
+def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat, mlp: modelling.mlp.MLP, id2idx_rel=None,
          id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None):
     test_set = np.zeros(shape=(len(test_df), 7))
 
@@ -327,5 +329,23 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
         test_set[index, 4] = conf_rel
         test_set[index, 5] = pr_spat
         test_set[index, 6] = conf_spat
-    return mlp.test(test_set, np.array(test_df['label']))
+    print(mlp.test(test_set, np.array(test_df['label'])))
+
+
+
+def cross_validation(dataset_path, n_folds):
+    df = pd.read_csv(dataset_path, sep=',')
+    X = df
+    y = df['label']
+
+    st = StratifiedKFold(n_splits=n_folds)
+    folds = st.split(X=X, y=y)
+    l = []
+    for k, (train_idx, test_idx) in enumerate(folds):
+        dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp = train(df.iloc[train_idx], k)
+        p, r, f1, s = test(test_df=df.iloc[test_idx], train_df=df.iloc[train_idx], dang_ae=dang_ae, safe_ae=safe_ae,
+                           tree_rel=tree_rel, tree_spat=tree_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, mlp=mlp,
+                           w2v_model=w2v_model)
+        l.append((p, r, f1, s))
+
 

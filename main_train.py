@@ -3,7 +3,6 @@ import numpy as np
 from os.path import exists
 from os import makedirs
 from modelling.sairus import train
-import gdown
 import argparse
 
 seed = 123
