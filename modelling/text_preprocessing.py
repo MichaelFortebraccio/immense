@@ -24,9 +24,3 @@ class TextPreprocessing:
         for t in text:
             list_sentences.append(t.split(' '))
         return list_sentences
-
-
-
-
-
-

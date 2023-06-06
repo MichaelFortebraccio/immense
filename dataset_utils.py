@@ -107,7 +107,7 @@ if __name__ == "__main__":
     # Load and preprocess the dataframe containing the risky tweets. The so-obtained dataset will be used for building a
     # w2v vector that will act as reference for assessing whether a user can be labeled as risky or not depending on how
     # close his tweets are to the reference
-    d = pd.read_csv("evil/cleaned/no_affiliations.csv")
+    d = pd.read_csv("evil/cleaned/spam.csv")
     # d.drop(d[d.level.values=="0 - Negative"].index, inplace=True)
-    d = clean_dataframe(d, id_column="level", text_column="text")
-    d.to_csv("evil/cleaned/preprocessed.csv")
+    d = clean_dataframe(d, id_column="type", text_column="text")
+    d.to_csv("evil/cleaned/spam.csv")
