@@ -1,7 +1,7 @@
 #sys.path.append('../')
 from gensim.models import Word2Vec
 import hdfs
-from modelling.sairus import train_w2v_model, learn_mlp, classify_users
+from modelling.sairus import train_w2v_model, learn_mlp
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
@@ -9,7 +9,7 @@ import os
 import pandas as pd
 from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
-from dataset_utils import concatenate_posts, clean_dataframe
+from dataset_scripts.dataset_utils import concatenate_posts, clean_dataframe
 
 
 CONTENT_FILENAME = "content_labeled.csv"
