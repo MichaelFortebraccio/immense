@@ -1,7 +1,6 @@
 celery==5.2.3
 Flask==2.2.3
 flask_restx==1.1.0
-gdown==4.6.4
 gensim==4.3.0
 keras==2.11.0
 networkx==2.6.3

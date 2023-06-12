@@ -27,10 +27,8 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         p: n2v's hyperparameter p. Ignored if node_emb_technique != 'node2vec'
         q: n2v's hyperparameter q. Ignored if node_emb_technique != 'node2vec'
         n2v_epochs: for how many epochs the n2v model will be trained. Ignored if node_emb_technique != 'node2vec'
-        weighted: whether the edges are weighted. Ignored if node_emb_technique != 'node2vec'
-        directed: Whether the edges are directed. Ignored if node_emb_technique != 'node2vec'
-        adj_matrix: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
-        id2idx: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
+        adj_matrix_path: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
+        id2idx_path: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
         from node2vec, and the user IDs are not the index of the position of the users into the adjacency matrix,
         this parameter must be set. Otherwise, it can be left to none
         epochs: Epochs for training the autoencoder, if it is chosen as embedding technique. If another technique is
