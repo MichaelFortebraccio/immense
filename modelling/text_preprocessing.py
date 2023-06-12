@@ -22,8 +22,23 @@ class TextPreprocessing:
     def token_list(self, text) -> object:
         list_sentences = []
         for t in text:
-            list_sentences.append(t.split(' '))
+            try:
+                splitted = t.split(' ')
+                splitted = self.remove_nonalpha(splitted)
+                list_sentences.append(splitted)
+            except AttributeError:
+                print("met nan. skipping")
         return list_sentences
+
+    def remove_nonalpha(self, tl):
+        to_pop = []
+        for i in range(len(tl)):
+            if not tl[i].isalpha():
+                to_pop.append(i)
+        to_pop.reverse()
+        for idx in to_pop:
+            tl.pop(idx)
+        return tl
 
 
 
