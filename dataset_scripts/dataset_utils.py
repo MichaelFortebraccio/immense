@@ -58,28 +58,35 @@ def clean_text(text):
     """
     stemmer = PorterStemmer()
     text = text.lower()
-    t = re.sub(r'\(\+photos*\)|\(\+videos*\)|\(\+images*\)|\[[^\]]*\]', "", text)   # First remove placeholders
+    t = re.sub(r'\(\+photos*\)|\(\+videos*\)|\(\+images*\)|\[[^\]]*\]|^rt', "", text)   # First remove placeholders
     t = re.sub(r'\w*@\w+|\b(?:https?://)\S+\b|[_"\-;“”%()|+&=~*%’.,!?:#$\[\]/]', "", t)   # Remove tags, links and apostrophe
     t = re.sub(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDCF\uFDF0-\uFDFF\uFE70-\uFEFF]', "", t)      # Remove arabic characters
     splitted = t.split()
     cleaned = []
     for w in splitted:
         w = w.lower()
-        w = stemmer.stem(w)
+        #w = stemmer.stem(w)
         cleaned.append(w)
     cleaned = [w for w in cleaned if w not in stopwords.words('english')]
     return " ".join(cleaned)
 
 
-def clean_dataframe(df: pd.DataFrame, id_column, text_column):
-    """Preprocess the textual content of the dataframe, ignore useless columns, rename the columns with text and id """
+def clean_dataframe(df: pd.DataFrame, non_text_columns, text_column):
+    """
+    Preprocess the textual content of the dataframe, ignore useless columns, rename the columns with text and id
+    :param df: Dataframe
+    :param non_text_columns: list of column names that don't contain text, and which will not be modified
+    :param text_column: Name of the column containing the text to preprocess
+    :return: dataframe cleaned
+    """
     new_list = []
     for index, row in tqdm(df.iterrows()):
         dict_row = {}
         if pd.isna(row[text_column]):
             pass
         else:
-            dict_row[id_column] = row[id_column]
+            for c in non_text_columns:
+                dict_row[c] = row[c]
             dict_row[text_column] = clean_text(row[text_column])
             new_list.append(dict_row)
     cleaned_df = pd.DataFrame(new_list)
@@ -91,20 +98,20 @@ def concat(l: pd.Series):
     return " ".join(l)
 
 
-def concatenate_posts(df, aggregator, text_column):
+def concatenate_posts(df, aggregator_column, text_column):
     """
     Take a df having one row for each post, return a new df having one row for each user, and as values the concatenation of the posts made by that user
     Args:
         df: Dataframe on which the concatenation will be performed
-        aggregator: Name of the column along which the posts will be concatenated (ie the ID column)
+        aggregator_column: Name of the column along which the posts will be concatenated (ie the ID column)
         text_column: Name of the column containing the text that will be concatenated
 
     Returns:
 
     """
-    ser = df.groupby(aggregator)[text_column].apply(concat)
-    df = pd.DataFrame(columns=[aggregator, text_column])
-    df[aggregator] = ser.index
+    ser = df.groupby(aggregator_column)[text_column].apply(concat)
+    df = pd.DataFrame(columns=[aggregator_column, text_column])
+    df[aggregator_column] = ser.index
     df[text_column] = ser.values
     return df
 
