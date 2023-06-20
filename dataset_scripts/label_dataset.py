@@ -1,9 +1,10 @@
-from gensim.models import Word2Vec, KeyedVectors
+from gensim.models import KeyedVectors, Word2Vec
+from tqdm import tqdm
 from modelling.text_preprocessing import TextPreprocessing
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-
+from utils import save_to_pickle, load_from_pickle
 
 def cosine_similarity(matrix, vector):
     # Normalize the matrix rows and the vector
@@ -23,6 +24,7 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
     Obtain a vector from a textual content. This function is needed even if it alrady exists in the WordEmb class, because
     this function works using a pretrained word embedding model"""
     list_tot = []
+    a = 0
     e = {w.lower(): w for w in mod_learned.key_to_index.keys() if not w.islower()}
     for tw in posts:
         list_temp = []
@@ -36,6 +38,7 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
                         learned_embedding = mod_learned[e[t]]
                         f_l = True
                     except KeyError:
+                        a += 1
                         f_l = False
                 if f_l:
                     list_temp.append(learned_embedding)
@@ -48,7 +51,37 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)
     list_tot = np.asarray(list_tot)
-    return list_tot
+    return list_tot, a
+
+def text_to_vec_w2v(mod_learned:Word2Vec, posts):
+    """
+    Obtain a vector from a textual content. This function is needed even if it alrady exists in the WordEmb class, because
+    this function works using a pretrained word embedding model"""
+    list_tot = []
+    a = 0
+    wv = mod_learned.wv
+    for tw in posts:
+        list_temp = []
+        if tw:
+            for t in tw:
+                try:
+                    learned_embedding = wv[t]
+                    f_l = True
+                except KeyError:
+                    a += 1
+                    f_l = False
+                if f_l:
+                    list_temp.append(learned_embedding)
+                else:
+                    list_temp.append(np.zeros(shape=(300,)))
+        else:
+            continue
+        if list_temp:
+            list_temp = np.array(list_temp)
+            list_temp = np.sum(list_temp, axis=0)
+            list_tot.append(list_temp)
+    list_tot = np.asarray(list_tot)
+    return list_tot, a
 
 
 def plot_values(sorted_values, type, l):
@@ -82,8 +115,9 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
     tok = TextPreprocessing()
     posts_content_negative = tok.token_list(df_negative["text"].values.tolist())
     posts_content_tolabel = tok.token_list(df_tolabel["text"].values.tolist())
-    model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
-
+    #model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
+    model_negative = load_from_pickle("w2v_model_300.pkl")
+    model_negative = model_negative.model
     folds_idx = kfold(len(df_negative), 5)
     sim_tolabel = np.zeros(len(posts_content_tolabel))
     l_tolabel = np.zeros(shape=(1, len(posts_content_tolabel)))
@@ -93,15 +127,14 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
         next_idx = folds_idx[i+1]
         train_tl = posts_content_negative[:cur_idx] + posts_content_negative[next_idx:]     # Token list of the posts that will be used as reference for measuring how risky a post is
         test_tl = posts_content_negative[cur_idx:next_idx]      # Token list of the posts that are known to be negative and that will be compared to those in train_tl
-
-        t2v_negative, a = text_to_vec(posts=train_tl, mod_learned=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
-        print(a)
+        #45286, 52668, 108521
+        t2v_negative, _ = text_to_vec_w2v(posts=train_tl, mod_learned=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
         l_negative = np.zeros(shape=(1, len(test_tl)))
         sim_evil = np.zeros(len(test_tl))
-        t2v_tolabel, _ = text_to_vec(posts=posts_content_tolabel, mod_learned=model_negative)
-        t2v_test_negative, _ = text_to_vec(posts=test_tl, mod_learned=model_negative)
-        #print("ciao")
-        for j in range(t2v_tolabel.shape[0]):
+        t2v_tolabel, a = text_to_vec_w2v(posts=posts_content_tolabel, mod_learned=model_negative)
+        print(a)
+        t2v_test_negative, _ = text_to_vec_w2v(posts=test_tl, mod_learned=model_negative)
+        for j in tqdm(range(t2v_tolabel.shape[0])):
             sim = cosine_similarity(t2v_negative, t2v_tolabel[j, :])
             sim_tolabel[j] = np.nanmax(sim)
         for j in range(t2v_test_negative.shape[0]):
@@ -109,13 +142,16 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
             sim_evil[j] = np.nanmax(sim)
         l_negative[0, :] = sim_evil
         l_tolabel[0, :] = sim_tolabel
-
+        save_to_pickle("sim_2l.pkl", l_tolabel)
+        save_to_pickle("sim_neg.pkl", l_negative)
         plot_values([l_tolabel, l_negative], type="cosine", l=n)
+
+        break
 
     # return l_positive, l_evil"""
 
 
 if __name__ == "__main__":
-    main(dataset_negative_path="evil/no_aff_preproc_nolow.csv", dataset_to_label_path="", model_path="evil/google_w2v.bin",
+    main(dataset_negative_path="../evil/no_aff_preproc_nolow.csv", dataset_to_label_path="concatenated_tweets.csv", model_path="../evil/google_w2v.bin",
         n="spam")
 
