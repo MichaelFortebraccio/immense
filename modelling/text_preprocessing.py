@@ -19,7 +19,7 @@ class TextPreprocessing:
             list_sentences.append(new_string)
         return list_sentences
 
-    def token_list(self, text) -> object:
+    def token_list(self, text) -> list:
         list_sentences = []
         for t in text:
             try:
