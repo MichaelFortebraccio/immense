@@ -1,12 +1,9 @@
-import nltk
 import numpy as np
 import pickle
 from gensim.models import Word2Vec
 from keras.models import load_model
 from os.path import exists, join
 from sklearn.model_selection import train_test_split
-
-nltk.download("stopwords")
 
 
 def save_to_pickle(name, c):
