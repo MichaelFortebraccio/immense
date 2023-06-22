@@ -32,31 +32,11 @@ def tweets_per_keyword(d):
         d_stats[w] = c
 
 
-def plot_dictionary_histogram(dictionary):
-    keys = list(dictionary.keys())
-    values = list(dictionary.values())
-    # Plot the histogram
-    plt.bar(keys, values)
-    # Set labels and title
-    plt.xlabel('Keywords')
-    plt.ylabel('No. tweets')
-    plt.title('Distribution of the keywords in the tweets')
-    # Rotate x-axis labels for better visibility
-    plt.xticks(rotation=90)
-    # Display the plot
-    plt.show()
-
-"""with open("Twitter/tweets_per_user.json", 'r') as f:
-    d = json.load(f)
-d_stats = tweets_per_keyword(d)
-plot_dictionary_histogram(d_stats)"""
-
-
 def clean_text(text):
     """
     Apply NLP pipeline to the text. The actions performed are tokenization, punctuation removal, stopwords removal, stemming
     """
-    stemmer = PorterStemmer()
+    #stemmer = PorterStemmer()
     text = text.lower()
     t = re.sub(r'\(\+photos*\)|\(\+videos*\)|\(\+images*\)|\[[^\]]*\]|^rt', "", text)   # First remove placeholders
     t = re.sub(r'\w*@\w+|\b(?:https?://)\S+\b|[_"\-;“”%()|+&=~*%’.,!?:#$\[\]/]', "", t)   # Remove tags, links and apostrophe
@@ -107,7 +87,6 @@ def concatenate_posts(df, aggregator_column, text_column):
         text_column: Name of the column containing the text that will be concatenated
 
     Returns:
-
     """
     ser = df.groupby(aggregator_column)[text_column].apply(concat)
     df = pd.DataFrame(columns=[aggregator_column, text_column])

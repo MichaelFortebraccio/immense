@@ -55,8 +55,6 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         adj_mat_spat_path: Path to the spatial adj matrix
         id2idx_spat_path:
 
-    Returns:
-
     """
     mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
     mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
