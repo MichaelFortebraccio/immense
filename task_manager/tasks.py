@@ -1,7 +1,7 @@
 #sys.path.append('../')
 from gensim.models import Word2Vec
 import hdfs
-from modelling.sairus import train_w2v_model, learn_mlp, classify_users
+from modelling.sairus import train_w2v_model, learn_mlp
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
@@ -9,7 +9,7 @@ import os
 import pandas as pd
 from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
-from dataset_utils import concatenate_posts, clean_dataframe
+from dataset_scripts.dataset_utils import concatenate_posts, clean_dataframe
 
 
 CONTENT_FILENAME = "content_labeled.csv"
@@ -165,7 +165,7 @@ def preprocess_task(content_url, id_field_name, text_field_name):
     df = pd.read_csv("./df.csv")
     df_proc = clean_dataframe(df, id_field_name, text_field_name)
     if len(set(df_proc[id_field_name].values)) != len(df_proc[id_field_name].values):
-        df_proc = concatenate_posts(df_proc, aggregator=id_field_name, text_column=text_field_name)
+        df_proc = concatenate_posts(df_proc, aggregator_column=id_field_name, text_column=text_field_name)
     df_proc.to_csv("./processed.csv")
     client.upload(hdfs_path=p+"processed.csv", local_path="./processed.csv")
 

@@ -1,4 +1,3 @@
-import nltk
 import numpy as np
 import pickle
 from gensim.models import Word2Vec
@@ -6,15 +5,16 @@ from keras.models import load_model
 from os.path import exists, join
 from sklearn.model_selection import train_test_split
 
-nltk.download("stopwords")
 
 def save_to_pickle(name, c):
     with open(name, 'wb') as f:
         pickle.dump(c, f)
 
+
 def load_from_pickle(name):
     with open(name, 'rb') as f:
         return pickle.load(f)
+
 
 def prepare_for_decision_tree(df, mod: Word2Vec):
     y = []
@@ -26,6 +26,7 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
             continue
     X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
     return X_train, X_test, y_train, y_test
+
 
 def create_or_load_post_list(path, w2v_model, tokenized_list):
     if exists(path):
@@ -41,6 +42,7 @@ def create_or_load_post_list(path, w2v_model, tokenized_list):
 def is_square(m):
     return m.shape[0] == m.shape[1]
 
+
 def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=None, id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
     """
     Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
@@ -52,8 +54,6 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         id2idx_rel_path:
         adj_mat_spat_path: Path to the spatial adj matrix
         id2idx_spat_path:
-
-    Returns:
 
     """
     mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
@@ -124,6 +124,7 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         id2idx_spat = load_from_pickle(id2idx_spat_path)
 
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
+
 
 ########### UTILITY FUNCTIONS NOT USED IN THE API ###########
 def convert_ids(df):
