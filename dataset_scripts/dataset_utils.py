@@ -1,11 +1,7 @@
-import json
-import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
 import pandas as pd
 import re
 from tqdm import tqdm
-#import Twitter.keywords as t
 
 
 def tweets_with_position_amount(d):
@@ -17,19 +13,6 @@ def tweets_with_position_amount(d):
                 if "geo" in d[user][tw].keys():
                     c += 1
     return c
-
-
-def tweets_per_keyword(d):
-    d_stats = {}
-    for w in tqdm(t.word_list):
-        c = 0
-        for user in d.keys():
-            if d[user]:
-                for tw in d[user].keys():
-                    txt = d[user][tw]['text']
-                    if txt.lower().__contains__(w.lower()):
-                        c += 1
-        d_stats[w] = c
 
 
 def clean_text(text):
@@ -99,7 +82,7 @@ if __name__ == "__main__":
     # Load and preprocess the dataframe containing the risky tweets. The so-obtained dataset will be used for building a
     # w2v vector that will act as reference for assessing whether a user can be labeled as risky or not depending on how
     # close his tweets are to the reference
-    d = pd.read_csv("evil/cleaned/no_affiliations.csv")
+    d = pd.read_csv("evil/cleaned/spam.csv")
     # d.drop(d[d.level.values=="0 - Negative"].index, inplace=True)
-    d = clean_dataframe(d, id_column="level", text_column="text")
-    d.to_csv("evil/cleaned/preprocessed.csv")
+    d = clean_dataframe(d, id_column="type", text_column="text")
+    d.to_csv("evil/cleaned/spam.csv")
