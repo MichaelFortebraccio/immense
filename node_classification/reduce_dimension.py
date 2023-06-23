@@ -1,17 +1,17 @@
 import os.path
+from os.path import exists
 import numpy as np
 import pickle
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from modelling.ae import AE
 from sklearn.decomposition import PCA
-from utils import is_square, load_from_pickle
-from os.path import exists
-from utils import save_to_pickle
+from utils import is_square, load_from_pickle, save_to_pickle
+
 
 # Transductive
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None, n_of_walks=None,
-                             walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None, id2idx_path=None,
-                             epochs=None):
+def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
+                             n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
+                             id2idx_path=None, epochs=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
@@ -49,7 +49,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
             fname = os.path.join(model_dir, "id2idx_spat.pkl")
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
-                               epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings(l=lab)
+                               epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings()
         mod = n2v.wv
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]      # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         id2idx = {train_set_ids[i]: i for i in range(len(train_set_ids))}
