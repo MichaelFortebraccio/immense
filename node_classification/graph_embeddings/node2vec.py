@@ -1,6 +1,6 @@
 import os.path
 from gensim.models import Word2Vec
-from pecanpy import pecanpy as node2vec
+from pecanpy import node2vec
 from os.path import exists
 
 
@@ -29,7 +29,7 @@ class Node2VecEmbedder():
         self.epochs = epochs
         self._model_path = model_path
 
-    def learn_n2v_embeddings(self, workers=0, l=None):
+    def learn_n2v_embeddings(self, workers=0):
         """
         Args:
             workers: How many threads to use. Set this to 0 for using all the available threads
