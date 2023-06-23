@@ -9,4 +9,4 @@
 !./requirements_worker.txt
 !./utils.py
 !./task_manager
-/dataset_scripts/ids_to_use.pkl
+
