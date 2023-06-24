@@ -16,13 +16,16 @@ def main_test(args=None):
     id2idx_spat_path = args.id2idx_spat_path
     id2idx_rel_path = args.id2idx_rel_path
     we_size = args.word_embedding_size
+    spat_ne_dim = args.spat_ne_size
+    rel_ne_dim = args.rel_ne_size
 
     # For testing purposes
     """spat_technique = rel_technique = "node2vec"
-    dataset_dir = "dataset"
-    models_dir = "models"
+    dataset_dir = "dataset/anthony"
+    models_dir = "dataset/models"
     adj_mat_spat_path = adj_mat_rel_path = id2idx_spat_path = id2idx_rel_path = None
-    we_size = 256"""
+    we_size = 128
+    spat_ne_dim = rel_ne_dim = 128"""
 
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
@@ -36,12 +39,13 @@ def main_test(args=None):
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
-        models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
+    models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
+    id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, spat_ne_dim=spat_ne_dim,
+    rel_ne_dim=rel_ne_dim)
 
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(we_size)))
 
-    if args.user_id:
+    """if args.user_id:
         df = train_df.append(test_df)
         user = df.loc[df.id==args.user_id]
         pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
@@ -49,10 +53,10 @@ def main_test(args=None):
                             id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
-    else:
-        test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
-             ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
-             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+    else:"""
+    test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
+         ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+         adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
 
 
 if __name__ == "__main__":
@@ -60,6 +64,8 @@ if __name__ == "__main__":
     parser.add_argument("--spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning spatial node embeddings")
     parser.add_argument("--rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning relational node embeddings")
     parser.add_argument("--dataset_dir", type=str, default="", required=True, help="Directory containing the train and test set")
+    parser.add_argument("--spat_ne_size", type=int, default=128, required=True, help="Dimension of spatial node embeddings to use")
+    parser.add_argument("--rel_ne_size", type=int, default=128, required=True, help="Dimension of relational node embeddings to use")
     parser.add_argument("--models_dir", type=str, default="", required=True, help="Directory where the models are saved")
     parser.add_argument("--spat_adj_mat_path", type=str, required=False, help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you used n2v for learning spatial node embeddings")
     parser.add_argument("--rel_adj_mat_path", type=str, required=False, help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you used n2v for learning relational node embeddings")
@@ -71,3 +77,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     main_test(args)
+    main_test()

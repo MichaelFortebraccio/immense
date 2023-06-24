@@ -6,6 +6,7 @@ from keras.models import load_model
 from sklearn.metrics import classification_report
 from os.path import join
 
+
 class MLP:
     def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50, lr=0.03):
         self.X_train = X_train

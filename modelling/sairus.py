@@ -24,12 +24,12 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     """
     tok = TextPreprocessing()
     posts_content = tok.token_list(train_df['text_cleaned'].tolist())
-    if not exists(join(model_dir, "w2v.pkl")):
+    if not exists(join(model_dir, "w2v_{}.pkl".format(embedding_size))):
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
         w2v_model.train_w2v()
-        save_to_pickle(join(model_dir, "w2v.pkl"), w2v_model)
+        save_to_pickle(join(model_dir, "w2v_{}.pkl".format(embedding_size)), w2v_model)
     else:
-        w2v_model = load_from_pickle(join(model_dir, "w2v.pkl"))
+        w2v_model = load_from_pickle(join(model_dir, "w2v_{}.pkl".format(embedding_size)))
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
     safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
@@ -232,6 +232,7 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, 
     elif round(pred[0][0]) == 1:
         return 0
 
+
 def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae=None):
     """
     Depending on the node embedding technique adopted, provide the processed array that will then be used by the decision tree
@@ -271,9 +272,11 @@ def classify_users(job_id, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2I
     tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
-    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
-        models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
+    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = \
+        get_ne_models(
+            models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
+            id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path,
+            spat_ne_dim=lxllxlxlx, rel_ne_dim=owdncoiwejn)
 
     mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
     out = {}
@@ -313,13 +316,19 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
     for index, row in tqdm(test_df.iterrows()):
         id = row['id']
         if id in id2idx_rel.keys():
-            idx = id2idx_rel[id]
+            if rel_node_emb_technique == "node2vec":
+                idx = id
+            else:
+                idx = id2idx_rel[id]
             dtree_input = get_testset(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
             pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
         else:
             pr_rel, conf_rel = pred_missing_info, conf_missing_info
         if id in id2idx_spat.keys():
-            idx = id2idx_spat[id]
+            if rel_node_emb_technique == "node2vec":
+                idx = id
+            else:
+                idx = id2idx_rel[id]
             dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
             pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
         else:

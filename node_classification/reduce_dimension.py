@@ -39,7 +39,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
     """
     node_emb_technique = node_emb_technique.lower()
     if node_emb_technique == "node2vec":
-        n2v_path = "{}/n2v_{}.h5".format(model_dir, lab)
+        n2v_path = "{}/n2v_{}.h5".format(model_dir, node_embedding_size)
         weighted = False
         directed = True
         fname = os.path.join(model_dir, "id2idx_rel.pkl")

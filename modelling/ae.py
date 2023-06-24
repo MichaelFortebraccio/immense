@@ -12,11 +12,12 @@ seed = 123
 np.random.seed(seed)
 tf.random.set_seed(seed)
 
+
 class AE:
     def __init__(self, X_train, name, model_dir, epochs, batch_size, lr):
         self._X_train = X_train
         self._input_len = self._X_train.shape[1]
-        self._model_dir = join(model_dir, "{}.h5".format(name))
+        self._model_dir = join(model_dir, "{}_{}.h5".format(name, X_train.shape[1]))
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr

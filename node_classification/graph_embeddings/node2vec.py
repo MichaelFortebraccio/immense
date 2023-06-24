@@ -35,6 +35,7 @@ class Node2VecEmbedder():
             workers: How many threads to use. Set this to 0 for using all the available threads
         """
         if not exists(os.path.join(self._model_path)):
+            print("Learning node2vec")
             g = node2vec.SparseOTF(p=self.p, q=self.q, workers=workers, verbose=True)
             g.read_edg(self.path_to_edges, weighted=self.weighted, directed=self.directed)
             g.preprocess_transition_probs()

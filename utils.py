@@ -43,7 +43,7 @@ def is_square(m):
     return m.shape[0] == m.shape[1]
 
 
-def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=None, id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
+def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne_dim, adj_mat_rel_path=None, id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
     """
     Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
     Args:
@@ -70,7 +70,7 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
     id2idx_rel = None
     id2idx_spat = None
     if rel_technique == "node2vec":
-        n2v_rel = Word2Vec.load(join(mod_dir_rel, "n2v_rel.h5"))
+        n2v_rel = Word2Vec.load(join(mod_dir_rel, "n2v_{}.h5".format(rel_ne_dim)))
         id2idx_rel = load_from_pickle("{}/id2idx_rel.pkl".format(mod_dir_rel))
     elif rel_technique == "autoencoder":
         ae_rel = load_model(join(mod_dir_rel, "encoder_rel.h5"))
@@ -97,7 +97,7 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         id2idx_rel = load_from_pickle(id2idx_rel_path)
 
     if spat_technique == "node2vec":
-        n2v_spat = Word2Vec.load(join(mod_dir_spat, "n2v_spat.h5"))
+        n2v_spat = Word2Vec.load(join(mod_dir_spat, "n2v_{}.h5".format(spat_ne_dim)))
         id2idx_spat = load_from_pickle("{}/id2idx_spat.pkl".format(mod_dir_spat))
     elif spat_technique == "autoencoder":
         ae_spat = load_model(join(mod_dir_spat, "encoder_spat.h5"))
