@@ -9,7 +9,7 @@ from utils import is_square, load_from_pickle, save_to_pickle
 
 
 # Transductive
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
+def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, full_df, node_embedding_size, lab, edge_path=None,
                              n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
                              id2idx_path=None, epochs=None):
     """
@@ -19,6 +19,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         node_emb_technique: Can be either "node2vec", "pca", "autoencoder" or "none" (uses the whole adjacency matrix rows as feature vectors)
         model_dir: Directory where the models will be saved
         train_df: Dataframe with the training data. The IDs will be used
+        full_df: Complete dataframe. It will be used for storing the IDs of the users who have network relationships associated
         node_embedding_size: Dimension of the embeddings to create
         lab: Label, can be either "spat" or "rel"
         edge_path: Path to the list of edges used by node2vec. Ignored if node_emb_technique != 'node2vec'
@@ -39,23 +40,22 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
     """
     node_emb_technique = node_emb_technique.lower()
     if node_emb_technique == "node2vec":
-        n2v_path = "{}/n2v_{}.h5".format(model_dir, node_embedding_size)
+        n2v_path = os.path.join(model_dir, "n2v.h5")
         weighted = False
         directed = True
-        fname = os.path.join(model_dir, "id2idx_rel.pkl")
         if lab == "spat":
             weighted = True
             directed = False
-            fname = os.path.join(model_dir, "id2idx_spat.pkl")
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
                                epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings()
         mod = n2v.wv
-        train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]      # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
-        id2idx = {train_set_ids[i]: i for i in range(len(train_set_ids))}
-        save_to_pickle(fname, id2idx)
-        train_set = [mod.vectors[mod.key_to_index[str(i)]] for i in train_set_ids]
-        train_set_labels = train_df[train_df['id'].isin(train_set_ids)]['label']
+        train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]  # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
+        train_set = []
+        train_set_labels = []
+        for i in train_set_ids:
+            train_set.append(mod[str(i)])
+            train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):
