@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from utils import save_to_pickle, load_from_pickle
+from utils import kfold
 
 
 def cosine_similarity(matrix, vector):
@@ -57,10 +58,11 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
     list_tot = np.asarray(list_tot)
     return list_tot, a
 
+
 def text_to_vec_w2v(mod_learned:Word2Vec, posts):
     """
-    Obtain a vector from a textual content. This function is needed even if it alrady exists in the WordEmb class, because
-    this function works using a pretrained word embedding model"""
+    Obtain a vector from a textual content. This function is needed even if it already exists in the WordEmb class, because
+    this function works using a pretrained word embedding model while the other works on list"""
     list_tot = []
     a = 0
     wv = mod_learned.wv
@@ -86,6 +88,35 @@ def text_to_vec_w2v(mod_learned:Word2Vec, posts):
             list_tot.append(list_temp)
     list_tot = np.asarray(list_tot)
     return list_tot, a
+
+
+def intersection(lst1, lst2):
+    return list(set(lst1) & set(lst2))
+
+
+def label_based_on_relationships(df, path_to_rel):
+    """A user can be risky even if he doesn't post malicious content, but directly follow many users who do that. This
+    function marks as risky those users that fall in this category"""
+    safe = df[df.label == 0]
+    risky = df[df.label == 1]
+    safe_ids = [str(i) for i in safe.id.values]
+    risky_ids = [str(i) for i in risky.id.values]
+    with open("dataset/graph/social_network.edg", 'r') as f:
+        fol_dict = {}
+        for l in f.readlines():
+            follower, followed = l.split("\t")
+            if follower not in fol_dict.keys():
+                fol_dict[follower] = [followed.strip()]
+            else:
+                fol_dict[follower].append(followed.strip())
+    neg = []
+    for k in fol_dict.keys():
+        inters = intersection(risky_ids, fol_dict[k])
+        if k in safe_ids and len(inters) > len(fol_dict[k]) / 2:
+            neg.append(int(k))
+    df['label'].mask(df.id.isin(neg), 1, inplace=True)
+    df.to_csv("dataset/tweets_labeled_085")
+
 
 
 def plot_values(sorted_values, type, l):
@@ -120,12 +151,6 @@ def plot_single_values(sorted_values, type, l):
     plt.show()
 
 
-def kfold(dim, splits):
-    prog = int(dim/splits)
-    folds_idx = np.arange(start=0, stop=dim, step=prog)
-    return folds_idx
-
-
 def main(dataset_negative_path, dataset_to_label_path, model_path, n):
     # effettua kfold sul set di tweet malevoli
     df_negative = pd.read_csv(dataset_negative_path)
@@ -149,7 +174,7 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
         next_idx = folds_idx[i+1]
         train_tl = posts_content_negative[:cur_idx] + posts_content_negative[next_idx:]     # Token list of the posts that will be used as reference for measuring how risky a post is
         test_tl = posts_content_negative[cur_idx:next_idx]      # Token list of the posts that are known to be negative and that will be compared to those in train_tl
-        #45286, 52668, 108521
+
         t2v_negative, _ = text_to_vec(posts=train_tl, mod_learned=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
         l_negative = np.zeros(shape=(1, len(test_tl)))
         sim_evil = np.zeros(len(test_tl))
@@ -197,26 +222,26 @@ def main_whole(dataset_negative_path, dataset_to_label_path, model_path, n):
 
 
 def add_label(df, sim_array):
-    l = [0 if sim_array[i]<0.9 else 1 for i in range(len(sim_array))]
+    l = [0 if sim_array[i]<0.88 else 1 for i in range(len(sim_array))]
     df['label'] = l
     return df
 
 
 if __name__ == "__main__":
-    """main_whole(dataset_negative_path="../evil/no_aff_preproc_nolow.csv", dataset_to_label_path="concatenated_tweets.csv", model_path="../evil/google_w2v.bin",
+    """main_whole(dataset_negative_path="../evil/no_aff_preproc_nolow.csv", dataset_to_label_path="cose/concatenated_tweets.csv", model_path="../evil/google_w2v.bin",
         n="bo")"""
 
     ## ADD LABEL COLUMN TO THE DATASET
-    df = pd.read_csv("concatenated_tweets.csv")
+    df = pd.read_csv("cose/concatenated_tweets.csv")
     ar = load_from_pickle("sim_to_label_official.pkl")
     df = add_label(df, sim_array=ar)
-    df.to_csv("labeled_tweets.csv")
+    df.to_csv("../dataset/tweets_labeled088.csv")
 
-    ## THE DATASET WILL CONTAIN THE TOP 1% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 20% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
+    """## THE DATASET WILL CONTAIN THE TOP 1% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 20% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
     sorted_indexes = ar.argsort()[::-1]
     oneperc = int(np.ceil(len(ar)/100))
-    twperc = int(np.ceil(len(ar))*20/100)
+    twperc = int(np.ceil(len(ar)*20/100))
     indexes = ar[:oneperc].tolist() + ar[-twperc:].tolist()
     dataset = df.iloc[indexes]
-    dataset.to_csv("dataset_scripts/dataset.csv")
+    dataset.to_csv("dataset085.csv")"""
 
