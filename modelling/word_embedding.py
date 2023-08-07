@@ -30,7 +30,6 @@ class WordEmb:
         w2v_model.train(self._token_word, total_examples=total_examples, epochs=self.epochs)
         self.model = w2v_model
 
-
     def load_model(self):
         return Word2Vec.load(self._model_dir)
 

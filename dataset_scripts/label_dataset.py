@@ -72,13 +72,9 @@ def text_to_vec_w2v(mod_learned:Word2Vec, posts):
             for t in tw:
                 try:
                     learned_embedding = wv[t]
-                    f_l = True
+                    list_temp.append(learned_embedding)
                 except KeyError:
                     a += 1
-                    f_l = False
-                if f_l:
-                    list_temp.append(learned_embedding)
-                else:
                     list_temp.append(np.zeros(shape=(300,)))
         else:
             continue
@@ -94,14 +90,14 @@ def intersection(lst1, lst2):
     return list(set(lst1) & set(lst2))
 
 
-def label_based_on_relationships(df, path_to_rel):
+def label_based_on_relationships(df, path_to_rel="../dataset/graph/social_network.edg", factor=0.1):
     """A user can be risky even if he doesn't post malicious content, but directly follow many users who do that. This
     function marks as risky those users that fall in this category"""
     safe = df[df.label == 0]
     risky = df[df.label == 1]
     safe_ids = [str(i) for i in safe.id.values]
     risky_ids = [str(i) for i in risky.id.values]
-    with open("dataset/graph/social_network.edg", 'r') as f:
+    with open(path_to_rel, 'r') as f:
         fol_dict = {}
         for l in f.readlines():
             follower, followed = l.split("\t")
@@ -112,11 +108,12 @@ def label_based_on_relationships(df, path_to_rel):
     neg = []
     for k in fol_dict.keys():
         inters = intersection(risky_ids, fol_dict[k])
-        if k in safe_ids and len(inters) > len(fol_dict[k]) / 2:
+        if k in safe_ids and len(inters) > len(fol_dict[k])*factor:       # Segue almeno il 10% di utenti risky
             neg.append(int(k))
-    df['label'].mask(df.id.isin(neg), 1, inplace=True)
-    df.to_csv("dataset/tweets_labeled_085")
 
+    #df['label'].mask(df.id.isin(neg), 1, inplace=True)
+    #df.to_csv("dataset/tweets_labeled_09")
+    return neg
 
 
 def plot_values(sorted_values, type, l):
@@ -205,7 +202,7 @@ def main_whole(dataset_negative_path, dataset_to_label_path, model_path, n):
     posts_content_tolabel = tok.token_list(df_tolabel["text"].values.tolist())
     model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
     print("model loaded")
-    sim_tolabel = np.zeros(len(posts_content_tolabel))
+    sim_tolabel = {}
     l_tolabel = np.zeros(shape=(1, len(posts_content_tolabel)))
     t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod_learned=model_negative)
     t2v_negative, _ = text_to_vec(posts=posts_content_negative,
@@ -222,7 +219,7 @@ def main_whole(dataset_negative_path, dataset_to_label_path, model_path, n):
 
 
 def add_label(df, sim_array):
-    l = [0 if sim_array[i]<0.88 else 1 for i in range(len(sim_array))]
+    l = [0 if sim_array[i]<0.89 else 1 for i in range(len(sim_array))]
     df['label'] = l
     return df
 
@@ -235,13 +232,24 @@ if __name__ == "__main__":
     df = pd.read_csv("cose/concatenated_tweets.csv")
     ar = load_from_pickle("sim_to_label_official.pkl")
     df = add_label(df, sim_array=ar)
-    df.to_csv("../dataset/tweets_labeled088.csv")
+    factors = [0.03, 0.05, 0.1, 0.15, 0.2]
+    for factor in factors:
+        neg = label_based_on_relationships(df=df, factor=factor)
+        neg_idxs = []
+        for index, r in df.iterrows():
+            if r.id in neg:
+                neg_idxs.append(index)
+        #df.to_csv("../dataset/tweets_labeled09.csv")
 
-    """## THE DATASET WILL CONTAIN THE TOP 1% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 20% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
-    sorted_indexes = ar.argsort()[::-1]
-    oneperc = int(np.ceil(len(ar)/100))
-    twperc = int(np.ceil(len(ar)*20/100))
-    indexes = ar[:oneperc].tolist() + ar[-twperc:].tolist()
-    dataset = df.iloc[indexes]
-    dataset.to_csv("dataset085.csv")"""
-
+        ## THE DATASET WILL CONTAIN THE TOP 2% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 25% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
+        sorted_indexes = ar.argsort()[::-1]
+        twoperc = int(np.ceil(len(ar)*2/100))
+        twperc = int(np.ceil(len(ar)*25/100))
+        l1 = sorted_indexes[:twoperc].tolist()
+        l2 = sorted_indexes[-twperc:].tolist()
+        indexes = list(set(l1 + l2 + neg_idxs))
+        dataset = df.iloc[indexes]
+        dataset = dataset.drop(columns=["Unnamed: 0"])
+        dataset.to_csv("tweets_labeled_089_{}.csv".format(int(factor*100)))
+#todo prova con dataset contenente solo utenti con informazione spaziale
+# [3067, 1311, 312, 142, 70]

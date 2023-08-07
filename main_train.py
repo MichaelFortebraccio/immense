@@ -9,7 +9,7 @@ np.random.seed(seed)
 
 
 def main_train(args=None):
-    textual_content_path = args.textual_content_path
+    """textual_content_path = args.textual_content_path
     social_net_path = args.social_net_path
     spatial_net_path = args.spatial_net_path
     rel_adj_mat_path = args.rel_adj_mat_path
@@ -37,42 +37,51 @@ def main_train(args=None):
     rel_autoenc_epochs = args.rel_ae_epochs
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
-    dataset_dir = args.dataset_dir
+    dataset_dir = args.dataset_dir"""
+    """
+    dataset_dir = "dataset/anthony"
+    models_dir = "dataset/anthony/models"
+    textual_content_path = "dataset/anthony/tweet_labeled_full.csv"
+    train_path = "{}/train.csv".format(dataset_dir)
+    test_path = "{}/test.csv".format(dataset_dir)
+    """
+    dataset_dir = "dataset"
+    val = 20
+    models_dir = "dataset/models/{}".format(val)
 
-    """dataset_dir = "dataset/anthony"
-    models_dir = "dataset/model_anthony"
-    textual_content_path = "dataset/anthony/tweet_labeled.csv"
+    textual_content_path = "dataset/tweets_labeled_089_{}.csv".format(val)
+    train_path = "{}/train_089_{}.csv".format(dataset_dir, val)
+    test_path = "{}/test_089_{}.csv".format(dataset_dir, val)
+
     rel_technique = spat_technique = "node2vec"
     rel_adj_mat_path = id2idx_rel_path = id2idx_spat_path = spat_adj_mat_path = None
-    social_net_path = "dataset/anthony/graph/social_network.edg"
-    spatial_net_path = "dataset/anthony/graph/closeness_network.edg"
-    word_embedding_size=128
-    window = 10
-    w2v_epochs = 10
+    social_net_path = "dataset/graph/social_network.edg"     #.format(models_dir)
+    spatial_net_path = "dataset/graph/closeness_network.edg"     #.format(models_dir)
     n_of_walks_spat = n_of_walks_rel = walk_length_spat = walk_length_rel = 10
     spat_node_embedding_size = rel_node_embedding_size = 128
+    word_embedding_size = 512
+    window = 10
+    w2v_epochs = 15
     p_spat = p_rel = 1
     q_spat = q_rel = 4
-    n2v_epochs_spat = n2v_epochs_rel = 100
-    rel_autoenc_epochs = spat_autoenc_epochs = 0"""
-
+    n2v_epochs_spat = n2v_epochs_rel = 20
+    rel_autoenc_epochs = spat_autoenc_epochs = 0
 
     if not exists(dataset_dir):
         makedirs(dataset_dir)
     if not exists(models_dir):
         makedirs(models_dir)
-    train_path = "{}/train.csv".format(dataset_dir)
-    test_path = "{}/test.csv".format(dataset_dir)
+
     df = pd.read_csv(textual_content_path, sep=',')
 
     cols = ['index', 'label', 'id', 'text_cleaned']
     if not exists(train_path) or not exists(test_path):
-        shuffled_df = df.sample(frac=1, random_state=1).reset_index()    # Shuffle the dataframe
-        shuffled_df = shuffled_df.drop(columns=[col for col in shuffled_df.columns if col not in cols])
-        shuffled_df.to_csv("{}/shuffled_content.csv".format(dataset_dir))
-        idx = round(len(shuffled_df)*0.8)
-        train_df = shuffled_df[:idx]
-        test_df = shuffled_df[idx:]
+        df = df.sample(frac=1, random_state=1).reset_index()  # Shuffle the dataframe
+        df = df.drop(columns=[col for col in df.columns if col not in cols])
+        df.to_csv("{}/shuffled_content_089_{}.csv".format(dataset_dir, val))
+        idx = round(len(df)*0.8)
+        train_df = df[:idx]
+        test_df = df[idx:]
         train_df = train_df.reset_index()
         test_df = test_df.reset_index()
         train_df = train_df.drop(columns=[col for col in train_df.columns if col not in cols])
@@ -93,17 +102,17 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Exception("You need to provide a path to the pkl file with the matching between the IDs and the spatial matrix rows")
 
-    train(train_df=train_df, full_df=df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_net_path, spatial_path=spatial_net_path,
+    train(train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, rel_path=social_net_path, spatial_path=spatial_net_path,
           word_embedding_size=word_embedding_size, window=window, w2v_epochs=w2v_epochs, n_of_walks_spat=n_of_walks_spat,
           n_of_walks_rel=n_of_walks_rel, walk_length_spat=walk_length_spat, walk_length_rel=walk_length_rel,
           spat_node_embedding_size=spat_node_embedding_size, rel_node_embedding_size=rel_node_embedding_size, p_spat=p_spat,
           p_rel=p_rel, q_spat=q_spat, q_rel=q_rel, n2v_epochs_spat=n2v_epochs_spat, n2v_epochs_rel=n2v_epochs_rel, rel_node_emb_technique=rel_technique,
           spat_node_emb_technique=spat_technique, adj_matrix_spat_path=spat_adj_mat_path, adj_matrix_rel_path=rel_adj_mat_path, id2idx_rel_path=id2idx_rel_path,
-          id2idx_spat_path=id2idx_spat_path, rel_ae_epochs=rel_autoenc_epochs, spat_ae_epochs=spat_autoenc_epochs)
+          id2idx_spat_path=id2idx_spat_path, rel_ae_epochs=rel_autoenc_epochs, spat_ae_epochs=spat_autoenc_epochs, we_model_name="w2v_{}_089_{}.pkl".format(word_embedding_size, val))
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    """parser = argparse.ArgumentParser()
     parser.add_argument("--textual_content_path", type=str, required=True, help="Link to the file containing the posts")
     parser.add_argument("--social_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the social network. Can be ignored if you don't want to use node2vec")
     parser.add_argument("--spatial_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the spatial network. Can be ignored if you don't want to use node2vec")
@@ -133,5 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--models_dir", type=str, default='models', required=False, help="Directory where the models will be saved")
     parser.add_argument("--dataset_dir", type=str, required=True, help="Directory containing the dataset")
 
-    args = parser.parse_args()
+    args = parser.parse_args()"""
+    args = None
     main_train(args)
+
