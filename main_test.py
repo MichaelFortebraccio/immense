@@ -7,7 +7,7 @@ from utils import load_from_pickle, get_ne_models
 import pandas as pd
 
 def main_test(args=None):
-    spat_technique = args.spat_technique
+    """spat_technique = args.spat_technique
     rel_technique = args.rel_technique
     dataset_dir = args.dataset_dir
     models_dir = args.models_dir
@@ -15,14 +15,15 @@ def main_test(args=None):
     adj_mat_spat_path = args.spat_adj_mat_path
     id2idx_spat_path = args.id2idx_spat_path
     id2idx_rel_path = args.id2idx_rel_path
-    we_size = args.word_embedding_size
+    we_size = args.word_embedding_size"""
 
     # For testing purposes
-    """spat_technique = rel_technique = "node2vec"
+    spat_technique = rel_technique = "node2vec"
     dataset_dir = "dataset"
     models_dir = "models"
     adj_mat_spat_path = adj_mat_rel_path = id2idx_spat_path = id2idx_rel_path = None
-    we_size = 256"""
+    we_size = 256
+    spat_ne_dim = rel_ne_dim = 128
 
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
@@ -37,11 +38,12 @@ def main_test(args=None):
 
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
         models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path)
+        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, spat_ne_dim=spat_ne_dim,
+        rel_ne_dim=rel_ne_dim)
 
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(we_size)))
 
-    if args.user_id:
+    """if args.user_id:
         df = train_df.append(test_df)
         user = df.loc[df.id==args.user_id]
         pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
@@ -49,14 +51,14 @@ def main_test(args=None):
                             id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
-    else:
-        test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
-             ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
-             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+    else:"""
+    test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel,
+         ae_spat=ae_spat, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+         adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    """parser = argparse.ArgumentParser()
     parser.add_argument("--spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning spatial node embeddings")
     parser.add_argument("--rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning relational node embeddings")
     parser.add_argument("--dataset_dir", type=str, default="", required=True, help="Directory containing the train and test set")
@@ -69,5 +71,5 @@ if __name__ == "__main__":
     parser.add_argument("--user_id", type=int, required=False, help="ID of the user that you want to predict. If you set this field, only the prediction for the user will be returned."
                                                                     "Ignore this field if you want to measure the performance of the system on the test set")
 
-    args = parser.parse_args()
-    main_test(args)
+    args = parser.parse_args()"""
+    main_test()

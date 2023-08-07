@@ -9,7 +9,7 @@ np.random.seed(seed)
 
 
 def main_train(args):
-    textual_content_path = args.textual_content_path
+    """textual_content_path = args.textual_content_path
     social_net_path = args.social_net_path
     spatial_net_path = args.spatial_net_path
     rel_adj_mat_path = args.rel_adj_mat_path
@@ -36,7 +36,23 @@ def main_train(args):
     n2v_epochs_rel = args.n2v_epochs_rel
     rel_autoenc_epochs = args.rel_ae_epochs
     spat_autoenc_epochs = args.spat_ae_epochs
-    models_dir = args.models_dir
+    models_dir = args.models_dir"""
+
+    models_dir = "models"
+    textual_content_path = "dataset/posts_labeled.csv"
+    rel_technique = spat_technique = "node2vec"
+    rel_adj_mat_path = id2idx_rel_path = id2idx_spat_path = spat_adj_mat_path = None
+    social_net_path = "node_classification/graph_embeddings/stuff/rel_network.edg"
+    spatial_net_path = "node_classification/graph_embeddings/stuff/spatial_network.edg"
+    window = 10
+    w2v_epochs = 10
+    n_of_walks_spat = n_of_walks_rel = walk_length_spat = walk_length_rel = 10
+    spat_node_embedding_size = rel_node_embedding_size = 128
+    word_embedding_size = 256
+    p_spat = p_rel = 1
+    q_spat = q_rel = 4
+    n2v_epochs_spat = n2v_epochs_rel = 20
+    rel_autoenc_epochs = spat_autoenc_epochs = 0
 
     dataset_dir = "dataset"
     if not exists(dataset_dir):
@@ -84,7 +100,7 @@ def main_train(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    """parser = argparse.ArgumentParser()
     parser.add_argument("--textual_content_path", type=str, required=True, help="Link to the file containing the posts")
     parser.add_argument("--social_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the social network. Can be ignored if you don't want to use node2vec")
     parser.add_argument("--spatial_net_path", type=str, required=False, default="", help="Link to the file containing the edges in the spatial network. Can be ignored if you don't want to use node2vec")
@@ -113,5 +129,6 @@ if __name__ == "__main__":
     parser.add_argument("--spat_ae_epochs", type=int, default=50, required=False, help="Epochs for training the autoencoder that will learn spatial embeddings")
     parser.add_argument("--models_dir", type=str, default='models', required=False, help="Directory where the models will be saved")
 
-    args = parser.parse_args()
+    args = parser.parse_args()"""
+    args = None
     main_train(args)
