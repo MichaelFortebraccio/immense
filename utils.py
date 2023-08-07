@@ -30,14 +30,14 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
     return X_train, X_test, y_train, y_test
 
 
-def create_or_load_post_list(path, w2v_model, tokenized_list):
-    if exists(path):
+def create_post_list(path, w2v_model, tokenized_list):
+    """if exists(path):
         with open(path, 'rb') as handle:
             post_list = pickle.load(handle)
-    else:
-        post_list = w2v_model.text_to_vec(tokenized_list)
-        with open(path, 'wb') as handle:
-            pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:"""
+    post_list = w2v_model.text_to_vec(tokenized_list)
+    with open(path, 'wb') as handle:
+        pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return post_list
 
 
@@ -45,19 +45,24 @@ def is_square(m):
     return m.shape[0] == m.shape[1]
 
 
-def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne_dim, mod_dir_rel=None, mod_dir_spat=None, adj_mat_rel_path=None, id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
+def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne_dim, mod_dir_rel=None, mod_dir_spat=None, adj_mat_rel_path=None,
+                  id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
     """
     Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
     Args:
         models_dir: Directory containing the models
         rel_technique:
         spat_technique:
-        adj_mat_rel_path: Path to the relational adj matrix
-        id2idx_rel_path:
-        adj_mat_spat_path: Path to the spatial adj matrix
-        id2idx_spat_path:
-
+        spat_ne_dim: spatial embedding dimension
+        rel_ne_dim: relational embedding dimension
+        mod_dir_rel: directory where the relational node embedding model can be found
+        mod_dir_spat:  directory where the spatial node embedding model can be found
+        adj_mat_rel_path: path to the relational adj matrix (ignore it if rel_technique=="node2vec")
+        id2idx_rel_path: path to the relational id2idx file (ignore it if rel_technique=="node2vec")
+        adj_mat_spat_path: path to the spatial adj matrix (ignore it if spat_technique=="node2vec")
+        id2idx_spat_path: path to the spatial id2idx file (ignore it if spat_technique=="node2vec")
     """
+
     if not mod_dir_rel and not mod_dir_spat:
         mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique, str(rel_ne_dim))
         mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique, str(spat_ne_dim))

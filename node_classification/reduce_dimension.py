@@ -8,8 +8,8 @@ from sklearn.decomposition import PCA
 from utils import is_square, load_from_pickle, save_to_pickle
 
 
-# Transductive
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, full_df, node_embedding_size, lab, edge_path=None,
+
+def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
                              n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
                              id2idx_path=None, epochs=None):
     """
@@ -19,7 +19,6 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, full_
         node_emb_technique: Can be either "node2vec", "pca", "autoencoder" or "none" (uses the whole adjacency matrix rows as feature vectors)
         model_dir: Directory where the models will be saved
         train_df: Dataframe with the training data. The IDs will be used
-        full_df: Complete dataframe. It will be used for storing the IDs of the users who have network relationships associated
         node_embedding_size: Dimension of the embeddings to create
         lab: Label, can be either "spat" or "rel"
         edge_path: Path to the list of edges used by node2vec. Ignored if node_emb_technique != 'node2vec'

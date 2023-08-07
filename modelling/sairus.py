@@ -10,7 +10,7 @@ from modelling.word_embedding import WordEmb
 from modelling.ae import AE
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
-from utils import create_or_load_post_list, save_to_pickle, load_from_pickle, get_ne_models
+from utils import create_post_list, save_to_pickle, load_from_pickle, get_ne_models
 from gensim.models import Word2Vec
 from tqdm import tqdm
 from modelling.mlp import MLP
@@ -19,11 +19,12 @@ from keras.models import load_model
 np.random.seed(123)
 
 
-def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset_dir):
+def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset_dir, name):
     """
     Train the Word2Vc model that will be used for learning the embeddings of the content
     """
-    name = "w2v_{}_88_10.pkl".format(embedding_size)
+    #name = "w2v_{}_089_10.pkl".format(embedding_size)
+    #name = "w2v_{}.pkl".format(embedding_size)
     tok = TextPreprocessing()
     posts_content = tok.token_list(train_df['text_cleaned'].tolist())
     if not exists(join(model_dir, name)):
@@ -35,9 +36,9 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
     safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
-    list_dang_posts = create_or_load_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
+    list_dang_posts = create_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_or_load_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
+    list_safe_posts = create_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
                                                tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
     return list_dang_posts, list_safe_posts, list_embs
@@ -68,58 +69,55 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(content_embs, dtype=tf.float32)).numpy()      # Apply the sigmoid to the posts and make them comparable with the autoencoder predictions (the autoencoder uses the sigmoid activation function)
     prediction_loss_dang = tf.keras.losses.mse(prediction_dang, posts_sigmoid).numpy()
     prediction_loss_safe = tf.keras.losses.mse(prediction_safe, posts_sigmoid).numpy().tolist()
-    #prediction_loss_dang = prediction_loss_safe = np.ones(shape=len(prediction_loss_safe))
     labels = [1 if i < j else 0 for i, j in zip(prediction_loss_dang, prediction_loss_safe)]
-    #labels = [1 if i < j else 1 for i, j in zip(prediction_loss_dang, prediction_loss_safe)]
     dataset[:, 0] = prediction_loss_dang
     dataset[:, 1] = prediction_loss_safe
     dataset[:, 2] = np.array(labels)
-
-    for index, row in train_df.iterrows():
+    for index, row in tqdm(train_df.iterrows()):
         id = row['id']
         if n2v_rel:
             try:
                 dtree_input = np.expand_dims(n2v_rel.wv[str(id)], axis=0)
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
+                pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
             except KeyError:
-                pr, conf = row['label'], 1.0
+                pr_rel, conf_rel = row['label'], 1.0
         else:
             if id in id2idx_rel.keys():
                 idx = id2idx_rel[id]
                 dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_rel)
+                pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
             else:
-                pr, conf = row['label'], 1.0
-        #pr = conf = 1
-        dataset[index, 3] = pr
-        dataset[index, 4] = conf
-
+                pr_rel, conf_rel = row['label'], 1.0
         if n2v_spat:
             try:
-                dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree_spat)
+                pass
+                #dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
+                #pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
             except KeyError:
-                pr, conf = row['label'], 1.0
+                pr_spat, conf_spat = row['label'], 1.0
         else:
             if id in id2idx_spat.keys():
                 idx = id2idx_spat[id]
-                try:
-                    pr, conf = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
-                except IndexError:
-                    print("error")
+                pr_spat, conf_spat = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
             else:
-                pr, conf = row['label'], 1.0
-        #pr = conf = 1
-        dataset[index, 5] = pr
-        dataset[index, 6] = conf
-
+                pr_spat, conf_spat = row['label'], 1.0
+        pr_spat = conf_spat = 1
+        #pr_rel = conf_rel = 1
+        dataset[index, 3] = pr_rel
+        dataset[index, 4] = conf_rel
+        dataset[index, 5] = pr_spat
+        dataset[index, 6] = conf_spat
+    #############   IMPORTANTE  #############
+    #### STO TRAINANDO IL MODELLO 3%      ###
+    #### CONSIDERANDO SOLO IL TESTO       ###
+    #########################################
     mlp = MLP(X_train=dataset, y_train=np.array(train_df['label']), model_dir=model_dir)
     mlp.train()
     return mlp
 
 
-def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, rel_node_emb_technique:str,
-          spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, rel_path=None, spatial_path=None,
+def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, rel_node_emb_technique:str,
+          spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, we_model_name, rel_path=None, spatial_path=None,
           n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, p_spat=None, p_rel=None,
           q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None,
           adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
@@ -159,15 +157,15 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     Returns:
     """
     list_dang_posts, list_safe_posts, list_content_embs = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
-                                                         epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir)
+                                                         epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir, name=we_model_name)
 
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
     dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     ################# TRAIN OR LOAD DECISION TREES ####################
-    model_dir_rel = join("dataset/anthony/models", "node_embeddings", "rel", rel_node_emb_technique, str(rel_node_embedding_size))      #model_dir
-    model_dir_spat = join("dataset/anthony/models", "node_embeddings", "spat", spat_node_emb_technique, str(spat_node_embedding_size))
+    model_dir_rel = join(model_dir, "node_embeddings", "rel", rel_node_emb_technique, str(rel_node_embedding_size))      #model_dir
+    model_dir_spat = join(model_dir, "node_embeddings", "spat", spat_node_emb_technique, str(spat_node_embedding_size))
     try:
         makedirs(model_dir_rel, exist_ok=False)
         makedirs(model_dir_spat, exist_ok=False)
@@ -179,14 +177,13 @@ def train(train_df, full_df, dataset_dir, model_dir, word_embedding_size, window
     train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path,
                                                                    n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
                                                                    node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
-                                                                   n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=adj_matrix_rel_path,
-                                                                   full_df=full_df)
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=adj_matrix_rel_path)
 
     train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path,
                                                                      n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
                                                                      node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat, lab="spat",
                                                                      n2v_epochs=n2v_epochs_spat, train_df=train_df, adj_matrix_path=adj_matrix_spat_path,
-                                                                     id2idx_path=id2idx_spat_path, full_df=full_df)
+                                                                     id2idx_path=id2idx_spat_path)
 
     train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
     train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spat")
@@ -345,6 +342,7 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
     pred_missing_info = train_df['label'].value_counts().argmax()
     #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
+    k=0
     for index, row in tqdm(test_df.iterrows()):
         id = row['id']
         if n2v_rel:
@@ -363,13 +361,14 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
                 pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
             else:
                 pr_rel, conf_rel = pred_missing_info, conf_missing_info
-
+        #pr_rel = conf_rel = 1
         if n2v_spat:
             try:
                 dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
-                pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
+                #pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
             except KeyError:
-                pr_spat, conf_spat = pred_missing_info, conf_missing_info
+                k+=1
+                #pr_spat, conf_spat = pred_missing_info, conf_missing_info
         else:
             if id in id2idx_spat.keys():
                 if spat_node_emb_technique == "node2vec":
@@ -380,7 +379,7 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
                 pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
             else:
                 pr_spat, conf_spat = pred_missing_info, conf_missing_info
-
+        pr_spat = conf_spat = 1
         test_set[index, 3] = pr_rel
         test_set[index, 4] = conf_rel
         test_set[index, 5] = pr_spat
