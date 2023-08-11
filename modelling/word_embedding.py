@@ -1,6 +1,5 @@
 from gensim.models import Word2Vec
 import numpy as np
-from os.path import exists, join
 seed = 123
 np.random.seed(seed)
 
@@ -24,9 +23,10 @@ class WordEmb:
             self._word_vec_dict[word] = w2v_model.wv.get_vector(word)
 
     def train_w2v(self):
-        w2v_model = Word2Vec(vector_size=self.embedding_size, seed=seed, window=self.window, min_count=0, sg=1, workers=1)
+        w2v_model = Word2Vec(vector_size=self.embedding_size, seed=seed, window=self.window, min_count=0, sg=1, workers=5)
         w2v_model.build_vocab(self._token_word, min_count=1)
         total_examples = w2v_model.corpus_count
+        print("training")
         w2v_model.train(self._token_word, total_examples=total_examples, epochs=self.epochs)
         self.model = w2v_model
 
@@ -38,12 +38,15 @@ class WordEmb:
         list_tot = []
         for tw in tweets:
             list_temp = []
-            for t in tw:
-                embed_vector = self._word_vec_dict.get(t)
-                if embed_vector is not None:  # word is in the vocabulary learned by the w2v model
-                    list_temp.append(embed_vector)
-                else:
-                    list_temp.append(np.zeros(shape=(self.embedding_size)))
+            if tw:
+                for t in tw:
+                    embed_vector = self._word_vec_dict.get(t)
+                    if embed_vector is not None:  # word is in the vocabulary learned by the w2v model
+                        list_temp.append(embed_vector)
+                    else:
+                        list_temp.append(np.zeros(shape=(self.embedding_size)))
+            else:
+                continue
             list_temp = np.array(list_temp)
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)

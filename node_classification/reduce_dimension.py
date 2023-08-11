@@ -1,17 +1,17 @@
 import os.path
+from os.path import exists
 import numpy as np
 import pickle
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
 from modelling.ae import AE
 from sklearn.decomposition import PCA
-from utils import is_square, load_from_pickle
-from os.path import exists
-from utils import save_to_pickle
+from utils import is_square, load_from_pickle, save_to_pickle
 
-# Transductive
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, full_df, edge_path=None, n_of_walks=None,
-                             walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None, id2idx_path=None,
-                             epochs=None):
+
+
+def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
+                             n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
+                             id2idx_path=None, epochs=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
@@ -27,10 +27,8 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         p: n2v's hyperparameter p. Ignored if node_emb_technique != 'node2vec'
         q: n2v's hyperparameter q. Ignored if node_emb_technique != 'node2vec'
         n2v_epochs: for how many epochs the n2v model will be trained. Ignored if node_emb_technique != 'node2vec'
-        weighted: whether the edges are weighted. Ignored if node_emb_technique != 'node2vec'
-        directed: Whether the edges are directed. Ignored if node_emb_technique != 'node2vec'
-        adj_matrix: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
-        id2idx: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
+        adj_matrix_path: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
+        id2idx_path: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique different
         from node2vec, and the user IDs are not the index of the position of the users into the adjacency matrix,
         this parameter must be set. Otherwise, it can be left to none
         epochs: Epochs for training the autoencoder, if it is chosen as embedding technique. If another technique is
@@ -41,7 +39,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
     """
     node_emb_technique = node_emb_technique.lower()
     if node_emb_technique == "node2vec":
-        n2v_path = "{}/n2v_{}.h5".format(model_dir, node_embedding_size)
+        n2v_path = os.path.join(model_dir, "n2v.h5")
         weighted = False
         directed = True
         if lab == "spat":
@@ -51,12 +49,12 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
                                epochs=n2v_epochs, model_path=n2v_path).learn_n2v_embeddings()
         mod = n2v.wv
-        train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]      # we use this cycle so to keep the order of the users as they appear in the df. The same applies for the next line
+        train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]  # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = []
         train_set_labels = []
         for i in train_set_ids:
             train_set.append(mod[str(i)])
-            train_set_labels.append(train_df[train_df.id==i]['label'].values[0])
+            train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):

@@ -3,8 +3,10 @@ from keras import Model
 from keras.optimizers import Adam
 from keras.utils import to_categorical
 from keras.models import load_model
-from sklearn.metrics import classification_report
 from os.path import join
+from sklearn.metrics import classification_report
+from utils import plot_confusion_matrix
+
 
 class MLP:
     def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50, lr=0.03):
@@ -18,6 +20,7 @@ class MLP:
         self._model_path = join(model_dir, "mlp.h5")
 
     def train(self):
+        print("Training MLP...")
         input_layer = Input(shape=(self.X_train.shape[1],))
         x = Dense(units=3, activation='sigmoid')(input_layer)
         output = Dense(units=2, activation='softmax')(x)
@@ -35,6 +38,7 @@ class MLP:
                 y_p.append(1)
             elif round(p[0]) == 1:
                 y_p.append(0)
+        plot_confusion_matrix(y_true=y_test, y_pred=y_p)
         return classification_report(y_true=y_test, y_pred=y_p)
 
     def load_weights(self):

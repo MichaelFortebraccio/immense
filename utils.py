@@ -1,28 +1,22 @@
-import nltk
 import numpy as np
-import pandas as pd
 import pickle
-import re
 from gensim.models import Word2Vec
 from keras.models import load_model
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
 from os.path import exists, join
 from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sn
-
-nltk.download("stopwords")
 
 def save_to_pickle(name, c):
     with open(name, 'wb') as f:
         pickle.dump(c, f)
 
+
 def load_from_pickle(name):
     with open(name, 'rb') as f:
         return pickle.load(f)
+
 
 def prepare_for_decision_tree(df, mod: Word2Vec):
     y = []
@@ -35,38 +29,42 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
     X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
     return X_train, X_test, y_train, y_test
 
-def create_or_load_post_list(path, w2v_model, tokenized_list):
-    if exists(path):
+
+def create_post_list(path, w2v_model, tokenized_list):
+    """if exists(path):
         with open(path, 'rb') as handle:
             post_list = pickle.load(handle)
-    else:
-        post_list = w2v_model.text_to_vec(tokenized_list)
-        with open(path, 'wb') as handle:
-            pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:"""
+    post_list = w2v_model.text_to_vec(tokenized_list)
+    with open(path, 'wb') as handle:
+        pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return post_list
 
 
 def is_square(m):
     return m.shape[0] == m.shape[1]
 
-def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=None, id2idx_rel_path=None,
-                  adj_mat_spat_path=None, id2idx_spat_path=None, spat_ne_dim=None, rel_ne_dim=None):
+def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne_dim, mod_dir_rel=None, mod_dir_spat=None, adj_mat_rel_path=None,
+                  id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
     """
     Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
     Args:
         models_dir: Directory containing the models
         rel_technique:
         spat_technique:
-        adj_mat_rel_path: Path to the relational adj matrix
-        id2idx_rel_path:
-        adj_mat_spat_path: Path to the spatial adj matrix
-        id2idx_spat_path:
-
-    Returns:
-
+        spat_ne_dim: spatial embedding dimension
+        rel_ne_dim: relational embedding dimension
+        mod_dir_rel: directory where the relational node embedding model can be found
+        mod_dir_spat:  directory where the spatial node embedding model can be found
+        adj_mat_rel_path: path to the relational adj matrix (ignore it if rel_technique=="node2vec")
+        id2idx_rel_path: path to the relational id2idx file (ignore it if rel_technique=="node2vec")
+        adj_mat_spat_path: path to the spatial adj matrix (ignore it if spat_technique=="node2vec")
+        id2idx_spat_path: path to the spatial id2idx file (ignore it if spat_technique=="node2vec")
     """
-    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
-    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
+
+    if not mod_dir_rel and not mod_dir_spat:
+        mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique, str(rel_ne_dim))
+        mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique, str(spat_ne_dim))
 
     n2v_rel = None
     n2v_spat = None
@@ -79,8 +77,7 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
     id2idx_rel = None
     id2idx_spat = None
     if rel_technique == "node2vec":
-        n2v_rel = Word2Vec.load(join(mod_dir_rel, "n2v_{}.h5".format(rel_ne_dim)))
-        #id2idx_rel = load_from_pickle("{}/id2idx_rel__PP.pkl".format(mod_dir_rel))
+        n2v_rel = Word2Vec.load(join(mod_dir_rel, "n2v.h5"))
     elif rel_technique == "autoencoder":
         ae_rel = load_model(join(mod_dir_rel, "encoder_rel.h5"))
         if not adj_mat_rel_path:
@@ -106,8 +103,7 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
         id2idx_rel = load_from_pickle(id2idx_rel_path)
 
     if spat_technique == "node2vec":
-        n2v_spat = Word2Vec.load(join(mod_dir_spat, "n2v_{}.h5".format(spat_ne_dim)))
-        #id2idx_spat = load_from_pickle("{}/id2idx_spat__PP.pkl".format(mod_dir_spat))
+        n2v_spat = Word2Vec.load(join(mod_dir_spat, "n2v.h5"))
     elif spat_technique == "autoencoder":
         ae_spat = load_model(join(mod_dir_spat, "encoder_spat.h5"))
         if not adj_mat_spat_path:
@@ -134,56 +130,6 @@ def get_ne_models(models_dir, rel_technique, spat_technique, adj_mat_rel_path=No
 
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
 
-
-def clean_text(text):
-    """
-    Apply NLP pipeline to the text. The actions performed are tokenization, punctuation removal, stopwords removal, stemming
-    """
-    stemmer = PorterStemmer()
-    t = re.sub(r'[_"\-;“”%()|+&=~*%.,!?:#$\[\]/]', ' ', text)
-    t = re.sub(r'@\w+', "", t)
-    splitted = t.split()
-    cleaned = []
-    for w in splitted:
-        w = w.lower()
-        w = stemmer.stem(w)
-        cleaned.append(w)
-    cleaned = [w for w in cleaned if w not in stopwords.words('english')]
-    return " ".join(cleaned)
-
-def clean_dataframe(df: pd.DataFrame, id_column, text_column):
-    """Preprocess the textual content of the dataframe, ignore useless columns, rename the columns with text and id """
-    new_list = []
-    for index, row in tqdm(df.iterrows()):
-        dict_row = {}
-        if pd.isna(row[text_column]):
-            pass
-        else:
-            dict_row['id'] = row[id_column]
-            dict_row['text_cleaned'] = clean_text(row[text_column])
-            new_list.append(dict_row)
-    cleaned_df = pd.DataFrame(new_list)
-    return cleaned_df
-
-def concat(l: pd.Series):
-    l = l.tolist()
-    return " ".join(l)
-
-
-def concatenate_posts(df):
-    """Take a df having one row for each post, return a new df having one row for each user, and as values the concatenation of the posts made by that user"""
-    ser = df.groupby("id")['text_cleaned'].apply(concat)
-    df = pd.DataFrame(columns=["id", "text_cleaned"])
-    df["id"] = ser.index
-    df["text_cleaned"] = ser.values
-    return df
-
-
-"""d = pd.read_csv("to_merge", sep="\t")
-d.columns = ["id", "text_cleaned"]
-d = d.dropna()
-d2 = concatenate_posts(d)
-print(d2)"""
 
 ########### UTILITY FUNCTIONS NOT USED IN THE API ###########
 def convert_ids(df):
@@ -214,6 +160,11 @@ def correct_edg_format(fname):
             str += "\n"
             f.write(str)
         f.close()
+
+def kfold(dim, splits):
+    prog = int(dim/splits)
+    folds_idx = np.arange(start=0, stop=dim, step=prog)
+    return folds_idx
 
 def plot_confusion_matrix(y_true, y_pred):
     mat = confusion_matrix(y_true=y_true, y_pred=y_pred)

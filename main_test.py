@@ -6,6 +6,7 @@ from os.path import join
 from utils import load_from_pickle, get_ne_models
 import pandas as pd
 
+
 def main_test(args=None):
     """spat_technique = args.spat_technique
     rel_technique = args.rel_technique
@@ -15,33 +16,47 @@ def main_test(args=None):
     adj_mat_spat_path = args.spat_adj_mat_path
     id2idx_spat_path = args.id2idx_spat_path
     id2idx_rel_path = args.id2idx_rel_path
-    we_size = args.word_embedding_size"""
+    we_size = args.word_embedding_size
+    spat_ne_dim = args.spat_ne_size
+    rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
     spat_technique = rel_technique = "node2vec"
+    """
+    dataset_dir = "dataset/anthony"
+    models_dir = "dataset/anthony/models"
+    """
     dataset_dir = "dataset"
-    models_dir = "models"
-    adj_mat_spat_path = adj_mat_rel_path = id2idx_spat_path = id2idx_rel_path = None
-    we_size = 256
-    spat_ne_dim = rel_ne_dim = 128
+    val = 20
+    models_dir = "dataset/models/{}".format(val)
 
+    adj_mat_spat_path = adj_mat_rel_path = id2idx_spat_path = id2idx_rel_path = None
+    word_embedding_size = 512
+    spat_ne_dim = rel_ne_dim = 128
+    """
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
-    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(we_size)))
-    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(we_size)))
+    w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
+    """
+
+    train_df = pd.read_csv(join(dataset_dir, "train_089_{}.csv".format(val)))
+    test_df = pd.read_csv(join(dataset_dir, "test_089_{}.csv".format(val)))
+    w2v_model = load_from_pickle(join(models_dir, "w2v_{}_089_{}.pkl".format(word_embedding_size, val)))
+
+    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(word_embedding_size)))
+    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(word_embedding_size)))
     mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
 
-    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
-    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
+    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique, str(rel_ne_dim))
+    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique, str(spat_ne_dim))
     tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
-        models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-        id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, spat_ne_dim=spat_ne_dim,
-        rel_ne_dim=rel_ne_dim)
+    models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
+    id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, spat_ne_dim=spat_ne_dim,
+    rel_ne_dim=rel_ne_dim)
 
-    w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(we_size)))
 
     """if args.user_id:
         df = train_df.append(test_df)
@@ -62,6 +77,8 @@ if __name__ == "__main__":
     parser.add_argument("--spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning spatial node embeddings")
     parser.add_argument("--rel_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning relational node embeddings")
     parser.add_argument("--dataset_dir", type=str, default="", required=True, help="Directory containing the train and test set")
+    parser.add_argument("--spat_ne_size", type=int, default=128, required=True, help="Dimension of spatial node embeddings to use")
+    parser.add_argument("--rel_ne_size", type=int, default=128, required=True, help="Dimension of relational node embeddings to use")
     parser.add_argument("--models_dir", type=str, default="", required=True, help="Directory where the models are saved")
     parser.add_argument("--spat_adj_mat_path", type=str, required=False, help="Link to the file containing the spatial adjacency matrix. Ignore this parameter if you used n2v for learning spatial node embeddings")
     parser.add_argument("--rel_adj_mat_path", type=str, required=False, help="Link to the file containing the relational adjacency matrix. Ignore this parameter if you used n2v for learning relational node embeddings")
@@ -71,5 +88,6 @@ if __name__ == "__main__":
     parser.add_argument("--user_id", type=int, required=False, help="ID of the user that you want to predict. If you set this field, only the prediction for the user will be returned."
                                                                     "Ignore this field if you want to measure the performance of the system on the test set")
 
-    args = parser.parse_args()"""
+    args = parser.parse_args()
+    main_test(args)"""
     main_test()
