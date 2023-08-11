@@ -1,15 +1,14 @@
 #sys.path.append('../')
-from gensim.models import Word2Vec
+import os
+import pandas as pd
 import hdfs
+from gensim.models import Word2Vec
 from modelling.sairus import train_w2v_model, learn_mlp, classify_users
 from modelling.ae import AE
 from node_classification.decision_tree import train_decision_tree, load_decision_tree
 from node_classification.reduce_dimension import dimensionality_reduction
-import os
-import pandas as pd
-from utils import load_from_pickle, save_to_pickle
 from task_manager.worker import celery
-from utils import concatenate_posts, clean_dataframe
+from utils import concatenate_posts, clean_dataframe, load_from_pickle, save_to_pickle
 
 
 CONTENT_FILENAME = "content_labeled.csv"
@@ -156,16 +155,30 @@ def train_task(self, content_url, word_embedding_size, window, w2v_epochs, rel_n
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat)
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
 
-def preprocess_task(content_url, id_field_name, text_field_name):
+def preprocess_task(content_url, id_field_name, text_field_name, dst_file_name):
+    """
+    Task that executes the preprocessing of a file. In order to be processable, the file must have these requisites:
+    - Be in csv or csv-like format, such as xlsx
+    - Have one user ID field and one text field. The names of the fields are provided by the user.
+    The preprocessing consists in tokenization, punctuation removal, stopwords removal, stemming, and aggregation of the
+    posts depending on the poster: in the final file we will have one row for each user, and the concatenation of the
+    posts of that user as value
+    Args:
+        content_url: Path to the unprocessed file in the hadoop cluster
+        id_field_name: Name of the field representing the user ID
+        text_field_name: Name of the field representing the text
+        dst_file_name: Name that the processed file will have
+    """
     if content_url.__contains__("/"):
         p = "/".join(content_url.split("/")[:-1]) + "/"       # Retrieve the directory where the file is located. The processed file will be put there
     else:
         p = "./"
-    client.download(hdfs_path=content_url, local_path="./df.csv")
+    client.download(hdfs_path=content_url, local_path="./df.csv", overwrite=True)
     df = pd.read_csv("./df.csv")
     df_proc = clean_dataframe(df, id_field_name, text_field_name)
     if len(set(df_proc[id_field_name].values)) != len(df_proc[id_field_name].values):
         df_proc = concatenate_posts(df_proc)
-    df_proc.to_csv("./processed.csv")
-    client.upload(hdfs_path=p+"processed.csv", local_path="./processed.csv")
+    dst_file_name = dst_file_name + ".csv" if not dst_file_name.endswith(".csv") else dst_file_name
+    df_proc.to_csv("./{}".format(dst_file_name))
+    client.upload(hdfs_path=p+dst_file_name, local_path="./{}".format(dst_file_name))
 

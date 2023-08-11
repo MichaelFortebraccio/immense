@@ -7,10 +7,10 @@ services:
             context: .
             dockerfile: Dockerfile
         environment:
+            - HDFS_HOST=172.21.0.5      # Replace this with the IP address of the hadoop container
+            - HDFS_PORT=9870            # Replace the port with the one hadoop is listening on
             - BROKER_URI=redis://redis
             - BACKEND_URI=redis://redis
-            - HDFS_HOST=172.21.0.4      # Replace this with the IP address of the hadoop container
-            - HDFS_PORT=9870            # Replace the port with the one hadoop is listening on
         depends_on:
             - worker
             - redis
@@ -19,7 +19,7 @@ services:
     worker:
         container_name: celery
         environment:
-            - HDFS_HOST=172.21.0.4      # Replace this with the IP address of the hadoop container
+            - HDFS_HOST=172.21.0.5      # Replace this with the IP address of the hadoop container
             - HDFS_PORT=9870            # Replace the port with the one hadoop is listening on
             - BROKER_URI=redis://redis
             - BACKEND_URI=redis://redis

@@ -1,6 +1,7 @@
 import requests
 
-def train(address="http://172.19.0.4:5000"):
+ADDRESS = "http://172.21.0.9:5000"
+def train(address=ADDRESS):
     """ This function sends a POST request that trains the model with some predefined hyperparameters. The ID of the training job will be returned """
     ######## DOCKER COMPOS UP DI ENTRAMBI I COMPOSE E FARE UN TEST USANDO L'ULTIMO COMANDO IN PYTHJON CONSOLE EVA LESBICA
     req = requests.post(
@@ -18,17 +19,24 @@ def train(address="http://172.19.0.4:5000"):
     print("ID: {}".format(id))
     return id
 
-def task_status(job_id, address="http://172.19.0.4:5000"):
-    """Get info about the status of the task with given ID"""
-    req = requests.get("{}/node_classification/task_status/{}".format(address, job_id))
+def preprocess(address=ADDRESS):
+    req = requests.post("{}/node_classification/preprocess".format(address),
+                        json={"content_url": "/prova/unprocessed.csv",
+                              "id_field_name": "id",
+                              "text_field_name": "te"})
     print(req.json())
-    return req.json()['state']
 
-def predict(job_id, user_ids:list, address="http://172.19.0.4:5000"):
+def predict(job_id, user_ids:list, address=ADDRESS):
     response = requests.post(
         "{}/node_classification/predict".format(address),
         json={"job_id": job_id, "user_ids": user_ids})
     return response.json()
+
+def task_status(job_id, address=ADDRESS):
+    """Get info about the status of the task with given ID"""
+    req = requests.get("{}/node_classification/task_status/{}".format(address, job_id))
+    print(req.json())
+    return req.json()['state']
 
 
 if __name__ == "__main__":
