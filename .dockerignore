@@ -4,10 +4,9 @@
 !node_classification/reduce_dimension.py
 !node_classification/graph_embeddings/graph.py
 !node_classification/graph_embeddings/node2vec.py
-!./api.py
-!./requirements.txt
-!./requirements_worker.txt
-!./utils.py
-!./task_manager
-!./dataset_scripts
+!api.py
+!requirements.txt
+!utils.py
+!task_manager
+!dataset_scripts
 
