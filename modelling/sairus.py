@@ -36,16 +36,16 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
     safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
-    list_dang_posts = create_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
-                                               tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)), w2v_model=w2v_model,
-                                               tokenized_list=tok.token_list(safe_posts))
+    list_dang_posts = create_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)),
+                                       w2v_model=w2v_model, tokenized_list=tok.token_list(dang_posts))
+    list_safe_posts = create_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)),
+                                       w2v_model=w2v_model, tokenized_list=tok.token_list(safe_posts))
     list_embs = w2v_model.text_to_vec(posts_content)
     return list_dang_posts, list_safe_posts, list_embs
 
 
 def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs,
-              id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel, n2v_spat):
+              id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel=None, n2v_spat=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -60,6 +60,8 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
         id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
         model_dir:
+        n2v_spat: spatial node2vec model
+        n2v_rel: relational node2vec model
     Returns: The learned MLP
     """
     dataset = np.zeros((len(train_df), 7))
@@ -213,7 +215,6 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
     test_array = np.zeros(shape=(1, 7))
-    print(user['text_cleaned'])
     posts = user['text_cleaned'].values[0].split(" ")
     posts_embs = w2v_model.text_to_vec([posts])
     pred_dang = dang_ae.predict(posts_embs)
@@ -232,22 +233,34 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, 
     conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
 
     id = user['id'].values[0]
-    if id in id2idx_rel.keys():
+    if n2v_rel:
+        try:
+            dtree_input = np.expand_dims(n2v_rel.wv[str(id)], axis=0)
+            pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
+        except KeyError:
+            pr_rel, conf_rel = pred_missing_info, conf_missing_info
+    else:
         idx = id2idx_rel[id]
         dtree_input = get_testset(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
         pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
-    else:
-        print("missing")
-        pr_rel, conf_rel = pred_missing_info, conf_missing_info
+
     test_array[0, 3] = pr_rel
     test_array[0, 4] = conf_rel
-    if id in id2idx_spat.keys():
-        idx = id2idx_spat[id]
-        dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
-        pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
+    if n2v_spat:
+        try:
+            dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
+            pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
+        except KeyError:
+            pr_spat, conf_spat = pred_missing_info, conf_missing_info
+            pass
     else:
-        print("missing")
-        pr_spat, conf_spat = pred_missing_info, conf_missing_info
+        if id in id2idx_spat.keys():
+            idx = id2idx_spat[id]
+            dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
+            pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
+        else:
+            print("missing")
+            pr_spat, conf_spat = pred_missing_info, conf_missing_info
     test_array[0, 5] = pr_spat
     test_array[0, 6] = conf_spat
     print(test_array)
@@ -281,29 +294,27 @@ def get_testset(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae
     return test_set
 
 
-def classify_users(job_id, user_ids, CONTENT_FILENAME, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME,
-                   REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME, rel_technique, spat_technique):
-    dataset_dir = join(job_id, "dataset")
-    models_dir = join(job_id, "models")
-    adj_mat_rel_path = join(dataset_dir, REL_ADJ_MAT_FILENAME)
-    adj_mat_spat_path = join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
-    id2idx_rel_path = join(dataset_dir, ID2IDX_REL_FILENAME)
-    id2idx_spat_path = join(dataset_dir, ID2IDX_SPAT_FILENAME)
+def classify_users(preprocess_job_id, train_job_id, user_ids, content_filename, id2idx_rel_fname, id2idx_spat_fname,
+                   rel_adj_mat_fname, spat_adj_mat_fname, rel_technique, spat_technique, we_dim):
+    dataset_dir = join(preprocess_job_id, "dataset")
+    models_dir = join(train_job_id, "models")
+    adj_mat_rel_path = join(dataset_dir, rel_adj_mat_fname)
+    adj_mat_spat_path = join(dataset_dir, spat_adj_mat_fname)
+    id2idx_rel_path = join(dataset_dir, id2idx_rel_fname)
+    id2idx_spat_path = join(dataset_dir, id2idx_spat_fname)
 
-    df = pd.read_csv(join(dataset_dir, CONTENT_FILENAME))
+    df = pd.read_csv(join(dataset_dir, content_filename))
     w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
-    dang_ae = load_model(join(models_dir, "autoencoderdang.h5"))
-    safe_ae = load_model(join(models_dir, "autoencodersafe.h5"))
+    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(we_dim)))
+    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(we_dim)))
     mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
     mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
     tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
-    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = \
-        get_ne_models(
-            models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-            id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path,
-            spat_ne_dim=lxllxlxlx, rel_ne_dim=owdncoiwejn)
+    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
+        rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path, id2idx_rel_path=id2idx_rel_path,
+        adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, mod_dir_rel=mod_dir_rel, mod_dir_spat=mod_dir_spat)
 
     mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
     out = {}
@@ -353,10 +364,7 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
                 pr_rel, conf_rel = pred_missing_info, conf_missing_info
         else:
             if id in id2idx_rel.keys():
-                if rel_node_emb_technique == "node2vec":
-                    idx = id
-                else:
-                    idx = id2idx_rel[id]
+                idx = id2idx_rel[id]
                 dtree_input = get_testset(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
                 pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
             else:
@@ -371,10 +379,7 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
                 #pr_spat, conf_spat = pred_missing_info, conf_missing_info
         else:
             if id in id2idx_spat.keys():
-                if spat_node_emb_technique == "node2vec":
-                    idx = id
-                else:
-                    idx = id2idx_spat[id]
+                idx = id2idx_spat[id]
                 dtree_input = get_testset(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
                 pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
             else:

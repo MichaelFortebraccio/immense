@@ -44,7 +44,7 @@ def create_post_list(path, w2v_model, tokenized_list):
 def is_square(m):
     return m.shape[0] == m.shape[1]
 
-def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne_dim, mod_dir_rel=None, mod_dir_spat=None, adj_mat_rel_path=None,
+def get_ne_models(rel_technique, spat_technique, mod_dir_rel, mod_dir_spat, adj_mat_rel_path=None,
                   id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
     """
     Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
@@ -52,8 +52,6 @@ def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne
         models_dir: Directory containing the models
         rel_technique:
         spat_technique:
-        spat_ne_dim: spatial embedding dimension
-        rel_ne_dim: relational embedding dimension
         mod_dir_rel: directory where the relational node embedding model can be found
         mod_dir_spat:  directory where the spatial node embedding model can be found
         adj_mat_rel_path: path to the relational adj matrix (ignore it if rel_technique=="node2vec")
@@ -61,10 +59,6 @@ def get_ne_models(models_dir, rel_technique, spat_technique, spat_ne_dim, rel_ne
         adj_mat_spat_path: path to the spatial adj matrix (ignore it if spat_technique=="node2vec")
         id2idx_spat_path: path to the spatial id2idx file (ignore it if spat_technique=="node2vec")
     """
-
-    if not mod_dir_rel and not mod_dir_spat:
-        mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique, str(rel_ne_dim))
-        mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique, str(spat_ne_dim))
 
     n2v_rel = None
     n2v_spat = None

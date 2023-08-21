@@ -53,9 +53,8 @@ def main_test(args=None):
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
 
     n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
-    models_dir=models_dir, rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path,
-    id2idx_rel_path=id2idx_rel_path, adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, spat_ne_dim=spat_ne_dim,
-    rel_ne_dim=rel_ne_dim)
+        rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path, id2idx_rel_path=id2idx_rel_path,
+        adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, mod_dir_rel=mod_dir_rel, mod_dir_spat=mod_dir_spat)
 
 
     """if args.user_id:

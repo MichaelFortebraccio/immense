@@ -30,7 +30,6 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
     i = 0
     e = {w.lower(): w for w in mod_learned.key_to_index.keys() if not w.islower()}
     for tw in posts:
-
         list_temp = []
         if tw:
             for t in tw:

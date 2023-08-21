@@ -1,6 +1,6 @@
 import os.path
 from gensim.models import Word2Vec
-from pecanpy import node2vec
+from pecanpy import pecanpy as node2vec
 from os.path import exists
 from utils import save_to_pickle
 

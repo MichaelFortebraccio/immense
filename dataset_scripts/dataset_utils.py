@@ -1,8 +1,9 @@
-from nltk.corpus import stopwords
+import nltk
 import pandas as pd
 import re
+nltk.download("stopwords")
+from nltk.corpus import stopwords
 from tqdm import tqdm
-
 
 def tweets_with_position_amount(d):
     """How many tweets have geographical information available"""
@@ -34,15 +35,15 @@ def clean_text(text):
     return " ".join(cleaned)
 
 
-def clean_dataframe(df: pd.DataFrame, non_text_columns, text_column):
+def clean_dataframe(df: pd.DataFrame, text_column):
     """
     Preprocess the textual content of the dataframe, ignore useless columns, rename the columns with text and id
     :param df: Dataframe
-    :param non_text_columns: list of column names that don't contain text, and which will not be modified
     :param text_column: Name of the column containing the text to preprocess
     :return: dataframe cleaned
     """
     new_list = []
+    non_text_columns = [c for c in df.columns if c != text_column]
     for index, row in tqdm(df.iterrows()):
         dict_row = {}
         if pd.isna(row[text_column]):
@@ -76,13 +77,3 @@ def concatenate_posts(df, aggregator_column, text_column):
     df[aggregator_column] = ser.index
     df[text_column] = ser.values
     return df
-
-
-if __name__ == "__main__":
-    # Load and preprocess the dataframe containing the risky tweets. The so-obtained dataset will be used for building a
-    # w2v vector that will act as reference for assessing whether a user can be labeled as risky or not depending on how
-    # close his tweets are to the reference
-    d = pd.read_csv("evil/cleaned/spam.csv")
-    # d.drop(d[d.level.values=="0 - Negative"].index, inplace=True)
-    d = clean_dataframe(d, id_column="type", text_column="text")
-    d.to_csv("evil/cleaned/spam.csv")

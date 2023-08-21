@@ -8,7 +8,6 @@ from sklearn.decomposition import PCA
 from utils import is_square, load_from_pickle, save_to_pickle
 
 
-
 def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
                              n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
                              id2idx_path=None, epochs=None):

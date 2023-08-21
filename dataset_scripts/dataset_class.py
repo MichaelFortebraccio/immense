@@ -2,8 +2,8 @@ import json
 import pandas as pd
 import numpy as np
 from collections import Counter
+from dataset_scripts.dataset_utils import clean_dataframe, concatenate_posts
 from tqdm import tqdm
-from utils import load_from_pickle
 from scipy.stats import zscore
 
 
@@ -35,21 +35,29 @@ def normalize_closeness(d, file_name):
 
 
 class Dataset:
-    def __init__(self, path_to_posts_json, ids_to_use=None):
-        self.path_to_posts_json = path_to_posts_json
+    def __init__(self, posts_dict, rel_dict, ids_to_use=None):
+        self.posts_dict = posts_dict
         self.ids_to_use = ids_to_use
-        with open(self.path_to_posts_json, 'r') as f:
-            d = json.load(f)
-        if not self.ids_to_use:
-            self.d_effective = d
-        else:
-            self.d_effective = {str(k): d[str(k)] for k in ids_to_use}
+        self.rel_dict = rel_dict
         self.positions = {}
-        self.users = []     # List of users who shared their position in at least one tweet
+        self.users_with_position = []     # List of users who shared their position in at least one tweet
+
+    def preprocess_content(self, id_field_name, text_field_name):
+        users = self.posts_dict
+        l = []
+        for k in users.keys():
+            if users[k]:
+                for tk in users[k].keys():
+                    l.append({id_field_name: k, "tweet_id": tk, text_field_name: users[k][tk]['text'].replace("\n", " ")})
+        df = pd.DataFrame.from_dict(l)
+        cleaned_df = clean_dataframe(df, text_column=text_field_name)
+        if len(set(cleaned_df[id_field_name].values)) != len(cleaned_df[id_field_name].values):
+            cleaned_df = concatenate_posts(cleaned_df, aggregator_column=id_field_name, text_column=text_field_name)
+        return cleaned_df
 
     def users_with_pos(self):
-        for k in tqdm(self.d_effective.keys()):
-            us = self.d_effective[k]
+        for k in tqdm(self.posts_dict.keys()):
+            us = self.posts_dict[k]
             user = User(k)
             for p_k in us.keys():
                 post = us[p_k]
@@ -59,7 +67,7 @@ class Dataset:
                     country = post['country']
                     user.add_position((lat, lon, country))
             if user.positions:
-                self.users.append(user)
+                self.users_with_position.append(user)
 
     def calculate_all_closenesses(self):
         """
@@ -68,12 +76,22 @@ class Dataset:
         :return: Dictionary having as keys the couples of user ids and as values the distance between those users
         """
         dist = {}
-        for i in tqdm(range(len(self.users))):
-            us1 = self.users[i]
-            for j in range(i + 1, len(self.users)):
-                us2 = self.users[j]
+        for i in tqdm(range(len(self.users_with_position))):
+            us1 = self.users_with_position[i]
+            for j in range(i + 1, len(self.users_with_position)):
+                us2 = self.users_with_position[j]
                 dist[us1.id + "_" + us2.id] = us1.calculate_closeness(us2)
         return dist
+
+    def build_rel_network(self, dst_fname):
+        d_users = self.rel_dict
+        l = []
+        for user in d_users.keys():
+            for followed in d_users[user]:
+                l.append("{}\t{}\n".format(user, followed))
+        with open(dst_fname, 'w') as f2:
+            for e in l:
+                f2.write(e)
 
 
 class User:
@@ -98,25 +116,3 @@ class User:
         a = np.sin((self.lat - u.lat)/2)**2 + np.cos(self.lat) * np.cos(u.lat) * np.cos((self.lon - u.lon)/2)**2
         d = 2*radius * np.arctan(np.sqrt(a)/np.sqrt(1-a))
         return d
-
-
-if __name__ == "__main__":
-    path_to_ids = "ids_to_use.pkl"
-    path_to_posts_json = "../Twitter/tweets_per_user.json"
-    path_to_edg = "../dataset/graph/closeness_network_all_users.edg"
-
-    l = load_from_pickle(path_to_ids)
-    dat = Dataset(path_to_posts_json=path_to_posts_json, ids_to_use=None)
-    dat.users_with_pos()
-    for us in dat.users:
-        us.position_mode()      # Set, for each user, the mode of locations as its location
-    dist = dat.calculate_all_closenesses()
-    normalize_closeness(dist, path_to_edg)
-
-
-
-
-
-
-
-
