@@ -10,7 +10,7 @@ from modelling.word_embedding import WordEmb
 from modelling.ae import AE
 from node_classification.reduce_dimension import dimensionality_reduction
 from node_classification.decision_tree import *
-from utils import create_post_list, save_to_pickle, load_from_pickle, get_ne_models
+from utils import save_to_pickle, load_from_pickle, get_ne_models
 from gensim.models import Word2Vec
 from tqdm import tqdm
 from modelling.mlp import MLP
@@ -21,27 +21,40 @@ np.random.seed(123)
 
 def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset_dir, name):
     """
-    Train the Word2Vc model that will be used for learning the embeddings of the content
+    Train the Word2Vc model that will be used for learning the embeddings of the content.
+    :param train_df: Dataframe with training data
+    :param embedding_size:
+    :param window:
+    :param epochs:
+    :param model_dir:
+    :param dataset_dir:
+    :param name: name of the file containing the word2vec mmodel
+    :return: dang_posts_array: Numpy array of shape [n_dang_users, embedding_size] containing the embeddings of the dangerous users
+    :return: safe_posts_array: Numpy array of shape [n_safe_users, embedding_size] containing the embeddings of the safe users
+    :return: users_embeddings (although the variable name is safe_users_embeddings): Dictionary having as keys the
+        users' IDs and, for each of them, the embedding array given by the sum of the words in their posts
     """
     #name = "w2v_{}_089_10.pkl".format(embedding_size)
     #name = "w2v_{}.pkl".format(embedding_size)
     tok = TextPreprocessing()
-    posts_content = tok.token_list(train_df['text_cleaned'].tolist())
+    posts_content = tok.token_list(train_df)
     if not exists(join(model_dir, name)):
+        print("Training word2vec model")
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=window, epochs=epochs, model_dir=model_dir)
         w2v_model.train_w2v()
         save_to_pickle(join(model_dir, name), w2v_model)
     else:
+        print("Loading word2vec model")
         w2v_model = load_from_pickle(join(model_dir, name))
     # split content in safe and dangerous
-    dang_posts = train_df.loc[train_df['label'] == 1]['text_cleaned']
-    safe_posts = train_df.loc[train_df['label'] == 0]['text_cleaned']
-    list_dang_posts = create_post_list(path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)),
-                                       w2v_model=w2v_model, tokenized_list=tok.token_list(dang_posts))
-    list_safe_posts = create_post_list(path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)),
-                                       w2v_model=w2v_model, tokenized_list=tok.token_list(safe_posts))
-    list_embs = w2v_model.text_to_vec(posts_content)
-    return list_dang_posts, list_safe_posts, list_embs
+    dang_posts = train_df.loc[train_df['label'] == 1]
+    safe_posts = train_df.loc[train_df['label'] == 0]
+    dang_users_embeddings = w2v_model.text_to_vec(users=tok.token_list(dang_posts), path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)))
+    safe_users_embeddings = w2v_model.text_to_vec(users=tok.token_list(safe_posts), path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)))
+    dang_posts_array = np.array(list(dang_users_embeddings.values()))
+    safe_posts_array = np.array(list(safe_users_embeddings.values()))
+    safe_users_embeddings.update(dang_users_embeddings)     # This line will merge dang_users_embeddings and safe_users_embeddings, so we have a dict with all the users. Doing dang_users_embeddings.update(safe_users_embeddings) has the same output. Ugly but effective
+    return dang_posts_array, safe_posts_array, safe_users_embeddings
 
 
 def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs,
@@ -119,10 +132,11 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
 
 
 def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epochs, rel_node_emb_technique:str,
-          spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, we_model_name, rel_path=None, spatial_path=None,
-          n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None, p_spat=None, p_rel=None,
-          q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None, spat_ae_epochs=None, rel_ae_epochs=None,
-          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
+          spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size, we_model_name, rel_path=None,
+          spatial_path=None, n_of_walks_spat=None, n_of_walks_rel=None, walk_length_spat=None, walk_length_rel=None,
+          p_spat=None, p_rel=None, q_spat=None, q_rel=None, n2v_epochs_spat=None, n2v_epochs_rel=None,
+          spat_ae_epochs=None, rel_ae_epochs=None, adj_matrix_spat_path=None, adj_matrix_rel_path=None,
+          id2idx_rel_path=None, id2idx_spat_path=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and then fuses them with the MLP
     Args:
@@ -158,13 +172,13 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
         id2idx_spat_path: Path to the file matching between the node IDs and their index in the spatial adj matrix (pca, autoencoder)
     Returns:
     """
-    list_dang_posts, list_safe_posts, list_content_embs = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
+    dang_users_arrays, safe_users_arrays, users_embeddings_dict = train_w2v_model(train_df=train_df, embedding_size=word_embedding_size, window=window,
                                                          epochs=w2v_epochs, model_dir=model_dir, dataset_dir=dataset_dir, name=we_model_name)
 
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
-    dang_ae = AE(X_train=list_dang_posts, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
-    safe_ae = AE(X_train=list_safe_posts, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
+    dang_ae = AE(X_train=dang_users_arrays, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
+    safe_ae = AE(X_train=safe_users_arrays, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
     ################# TRAIN OR LOAD DECISION TREES ####################
     model_dir_rel = join(model_dir, "node_embeddings", "rel", rel_node_emb_technique, str(rel_node_embedding_size))      #model_dir
     model_dir_spat = join(model_dir, "node_embeddings", "spat", spat_node_emb_technique, str(spat_node_embedding_size))
@@ -179,13 +193,14 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
     train_set_rel, train_set_labels_rel = dimensionality_reduction(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path,
                                                                    n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
                                                                    node_embedding_size=rel_node_embedding_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
-                                                                   n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=adj_matrix_rel_path)
+                                                                   n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=adj_matrix_rel_path,
+                                                                   features_dict=users_embeddings_dict)
 
     train_set_spat, train_set_labels_spat = dimensionality_reduction(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path,
                                                                      n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
                                                                      node_embedding_size=spat_node_embedding_size, p=p_spat, q=q_spat, lab="spat",
                                                                      n2v_epochs=n2v_epochs_spat, train_df=train_df, adj_matrix_path=adj_matrix_spat_path,
-                                                                     id2idx_path=id2idx_spat_path)
+                                                                     id2idx_path=id2idx_spat_path, features_dict=users_embeddings_dict)
 
     train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="rel")
     train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spat")
@@ -206,6 +221,7 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
     else:
         n2v_spat = None
         id2idx_spat = load_from_pickle(id2idx_spat_path)
+    list_content_embs = list(users_embeddings_dict.values())
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
                     n2v_rel=n2v_rel, n2v_spat=n2v_spat)
@@ -217,6 +233,7 @@ def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, 
     test_array = np.zeros(shape=(1, 7))
     posts = user['text_cleaned'].values[0].split(" ")
     posts_embs = w2v_model.text_to_vec([posts])
+    posts_embs = list(posts_embs.values())[0]
     pred_dang = dang_ae.predict(posts_embs)
     pred_safe = safe_ae.predict(posts_embs)
     posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(posts_embs, dtype=tf.float32)).numpy()
@@ -338,6 +355,7 @@ def test(rel_node_emb_technique, spat_node_emb_technique, test_df, train_df, w2v
     tok = TextPreprocessing()
     posts = tok.token_list(test_df['text_cleaned'].tolist())
     test_posts_embs = w2v_model.text_to_vec(posts)
+    test_posts_embs = list(test_posts_embs.values())[0]
     pred_dang = dang_ae.predict(test_posts_embs)
     pred_safe = safe_ae.predict(test_posts_embs)
     test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(test_posts_embs, dtype=tf.float32)).numpy()

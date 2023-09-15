@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sn
+from tqdm import tqdm
 
 def save_to_pickle(name, c):
     with open(name, 'wb') as f:
@@ -29,20 +30,9 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
     X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
     return X_train, X_test, y_train, y_test
 
-
-def create_post_list(path, w2v_model, tokenized_list):
-    """if exists(path):
-        with open(path, 'rb') as handle:
-            post_list = pickle.load(handle)
-    else:"""
-    post_list = w2v_model.text_to_vec(tokenized_list)
-    with open(path, 'wb') as handle:
-        pickle.dump(post_list, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    return post_list
-
-
 def is_square(m):
     return m.shape[0] == m.shape[1]
+
 
 def get_ne_models(rel_technique, spat_technique, mod_dir_rel, mod_dir_spat, adj_mat_rel_path=None,
                   id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
@@ -155,10 +145,12 @@ def correct_edg_format(fname):
             f.write(str)
         f.close()
 
+
 def kfold(dim, splits):
     prog = int(dim/splits)
     folds_idx = np.arange(start=0, stop=dim, step=prog)
     return folds_idx
+
 
 def plot_confusion_matrix(y_true, y_pred):
     mat = confusion_matrix(y_true=y_true, y_pred=y_pred)
@@ -176,3 +168,25 @@ def plot_confusion_matrix(y_true, y_pred):
     bottom, top = ax.get_ylim()
     ax.set_ylim(bottom + 0.5, top - 0.5)
     plt.show()
+
+
+def create_id_mapping(path_to_edgelist, dst_path):
+    """
+    Pytorch requires IDs to be named in progressive way starting from 0. This function creates a dictionary with a mapping
+    between original IDs and progressive IDs
+    :param path_to_edgelist: Path to the file with the edgelist
+    :return:
+    """
+    lis = []
+    d = {}
+    with open(path_to_edgelist, 'r') as f:
+        for l in tqdm(f.readlines()):
+            i1, i2 = l.split("\t")
+            lis.append(i1.strip())
+            lis.append(i2.strip())
+    lst = list(set(lis))
+    i = 0
+    for el in lst:
+        d[i] = el
+        i += 1
+    save_to_pickle(dst_path, d)

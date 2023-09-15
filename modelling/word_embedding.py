@@ -1,5 +1,8 @@
-from gensim.models import Word2Vec
 import numpy as np
+from gensim.models import Word2Vec
+from os.path import exists
+from utils import load_from_pickle, save_to_pickle
+
 seed = 123
 np.random.seed(seed)
 
@@ -26,29 +29,29 @@ class WordEmb:
         w2v_model = Word2Vec(vector_size=self.embedding_size, seed=seed, window=self.window, min_count=0, sg=1, workers=5)
         w2v_model.build_vocab(self._token_word, min_count=1)
         total_examples = w2v_model.corpus_count
-        print("training")
         w2v_model.train(self._token_word, total_examples=total_examples, epochs=self.epochs)
         self.model = w2v_model
 
     def load_model(self):
         return Word2Vec.load(self._model_dir)
 
-    def text_to_vec(self, tweets):
-        self.load_dict()
-        list_tot = []
-        for tw in tweets:
-            list_temp = []
-            if tw:
-                for t in tw:
-                    embed_vector = self._word_vec_dict.get(t)
+    def text_to_vec(self, users, path):
+        if exists(path):
+            d = load_from_pickle(path)
+        else:
+            self.load_dict()
+            d = {}
+            for u in users:
+                list_temp = []
+                for w in users[u]:
+                    embed_vector = self._word_vec_dict.get(w)
                     if embed_vector is not None:  # word is in the vocabulary learned by the w2v model
                         list_temp.append(embed_vector)
                     else:
                         list_temp.append(np.zeros(shape=(self.embedding_size)))
-            else:
-                continue
-            list_temp = np.array(list_temp)
-            list_temp = np.sum(list_temp, axis=0)
-            list_tot.append(list_temp)
-        list_tot = np.asarray(list_tot)
-        return list_tot
+                list_temp = np.array(list_temp)
+                list_temp = np.sum(list_temp, axis=0)
+                d[u] = list_temp
+            save_to_pickle(path, d)
+            #list_tot = np.asarray(list_tot)
+        return d

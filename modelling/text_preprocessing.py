@@ -1,4 +1,4 @@
-import nltk
+from nltk import word_tokenize
 from nltk.stem.porter import PorterStemmer
 from nltk.stem import WordNetLemmatizer
 import string
@@ -12,23 +12,24 @@ class TextPreprocessing:
     def preprocessing_text(self, text):
         list_sentences = []
         new_string = text.translate(str.maketrans('', '', string.punctuation))      # Remove punctuation
-        text_tokens = nltk.word_tokenize(new_string)
+        text_tokens = word_tokenize(new_string)
         for n in text_tokens:
             new_string = self.porter_stemmer.stem(n)
             new_string = self.wordnet_lemmatizer.lemmatize(new_string)
             list_sentences.append(new_string)
         return list_sentences
 
-    def token_list(self, text) -> list:
-        list_sentences = []
-        for t in text:
+    def token_list(self, df) -> dict:
+        d = {}
+        #list_sentences = []
+        for i, r in df.iterrows():
             try:
-                splitted = t.split(' ')
+                splitted = r['text_cleaned'].split(' ')
                 splitted = self.remove_nonalpha(splitted)
-                list_sentences.append(splitted)
+                d[r['id']] = splitted
             except AttributeError:
                 print("met nan. skipping")
-        return list_sentences
+        return d
 
     def remove_nonalpha(self, tl):
         to_pop = []

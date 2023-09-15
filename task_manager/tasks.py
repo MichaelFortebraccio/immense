@@ -99,12 +99,6 @@ def train_task(self, job_id, word_embedding_size, window, w2v_epochs, rel_node_e
         f.write(rel_node_emb_technique+"\n")
         f.write(spat_node_emb_technique+"\n")
         f.write(str(word_embedding_size))
-    ############### DOWNLOAD FILES ###############
-    """if not os.path.exists(content_path):
-        self.update_state(state="PROGRESS", meta={"status": "Downloading content..."})
-        if not client.content(content_path):
-            raise FileNotFoundError("Content file not found")
-        client.download(hdfs_path=content_url, local_path=content_path)"""
 
     rel_edges_path = os.path.join(DATASET_DIR.format(job_id), "social_network.edg")
     spat_edges_path = os.path.join(DATASET_DIR.format(job_id), "spatial_network.edg")
@@ -112,48 +106,6 @@ def train_task(self, job_id, word_embedding_size, window, w2v_epochs, rel_node_e
     spat_adj_mat_path = None
     id2idx_rel_path = None
     id2idx_spat_path = None
-
-    """if rel_node_emb_technique == "node2vec":
-        if not social_network_url:
-            raise Exception("You need to provide a URL to the relational edge list")
-        rel_edges_path = os.path.join(dataset_dir, REL_EDGES_FILENAME)
-        if not os.path.exists(rel_edges_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading social edge list..."})
-            client.download(hdfs_path=social_network_url, local_path=rel_edges_path)
-    elif rel_node_emb_technique in ["pca", "autoencoder", "none"]:
-        if not adj_matrix_rel_url:
-            raise Exception("You need to provide the URL to the relational adjacency matrix")
-        if not id2idx_rel_url:
-            raise Exception("You need to provide the URL to the relational id2idx file")
-        rel_adj_mat_path = os.path.join(dataset_dir, REL_ADJ_MAT_FILENAME)
-        id2idx_rel_path = os.path.join(dataset_dir, ID2IDX_REL_FILENAME)
-        if not os.path.exists(rel_adj_mat_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading social adjacency matrix..."})
-            client.download(hdfs_path=adj_matrix_rel_url, local_path=rel_adj_mat_path)
-        if not os.path.exists(id2idx_rel_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading social id2idx_rel..."})
-            client.download(hdfs_path=id2idx_rel_url, local_path=id2idx_rel_path)
-    if spat_node_emb_technique == "node2vec":
-        if not spatial_network_url:
-            raise Exception("You need to provide a URL to the spatial network edge list")
-        spat_edges_path = os.path.join(dataset_dir, SPAT_EDGES_FILENAME)
-        if not os.path.exists(spat_edges_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading spatial edge list..."})
-            client.download(hdfs_path=spatial_network_url, local_path=spat_edges_path)
-    elif spat_node_emb_technique in ["pca", "autoencoder", "none"]:
-        spat_adj_mat_path = os.path.join(dataset_dir, SPAT_ADJ_MAT_FILENAME)
-        id2idx_spat_path = os.path.join(dataset_dir, ID2IDX_SPAT_FILENAME)
-        if not adj_matrix_spat_url:
-            raise Exception("You need to provide the URL to the spatial adjacency matrix")
-        if not id2idx_spat_url:
-            raise Exception("You need to provide the URL to the spatial id2idx file")
-        if not os.path.exists(spat_adj_mat_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading spatial adjacency matrix..."})
-            client.download(hdfs_path=adj_matrix_spat_url, local_path=spat_adj_mat_path)
-        if not os.path.exists(id2idx_spat_path):
-            self.update_state(state="PROGRESS", meta={"status": "Downloading spatial id2idx_rel..."})
-            client.download(hdfs_path=id2idx_spat_url, local_path=id2idx_spat_path)
-    self.update_state(state="PROGRESS", meta={"status": "Dataset successfully downloaded."})"""
 
     train_df = pd.read_csv(content_path, sep=',').reset_index()
 

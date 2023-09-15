@@ -2,7 +2,7 @@ import os.path
 from gensim.models import Word2Vec
 from pecanpy import pecanpy as node2vec
 from os.path import exists
-from utils import save_to_pickle
+
 
 class Node2VecEmbedder():
     def __init__(self, path_to_edges, weighted, directed, n_of_walks, walk_length, embedding_size, p, q, epochs, model_path):

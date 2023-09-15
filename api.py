@@ -12,6 +12,8 @@ preprocess_parser.add_argument('content_url', type=str, required=True, help="Pat
 preprocess_parser.add_argument('rel_url', type=str, help="Path to the file containing the social relationships among users")
 preprocess_parser.add_argument('id_field_name', type=str, help="Name of the field containing the user ids")
 preprocess_parser.add_argument('text_field_name', type=str, help="Name of the field containing the text")
+
+
 @api.route("/node_classification/preprocess", methods=['POST'])
 class Preprocess(Resource):
     """Preprocess the posts, concatenate and aggregate them"""
@@ -24,7 +26,6 @@ class Preprocess(Resource):
         text_field_name = params['text_field_name']
         task = preprocess_task.apply_async(args=[content_url, rel_url, id_field_name, text_field_name])
         return jsonify({"Job id": task.id})
-        #preprocess_task(content_url=content_url, rel_url=rel_url, id_field_name=id_field_name, text_field_name=text_field_name)
 
 
 train_parser = reqparse.RequestParser()
@@ -152,6 +153,44 @@ class TaskStatus(Resource):
         if task.info:
             response['info'] = task.info
         return jsonify(response)
+
+
+neighbourhood_parser = reqparse.RequestParser()
+neighbourhood_parser.add_argument("node_id", required=True, help="ID of the node")
+neighbourhood_parser.add_argument("depth", required=True, help="Depth of the neighbourhood (can either be 1 or 2)")
+neighbourhood_parser.add_argument("edge_path", required=True, help="Path to the file containing the edge list")
+
+@api.route("/node_classification/neighbourhood", methods=["POST"])
+class Neighbourhood(Resource):
+    @api.expect(neighbourhood_parser)
+    def post(self):
+        params = neighbourhood_parser.parse_args(request)
+        id = str(params["node_id"])
+        depth = params["depth"]
+        edge_path = params["edge_path"]
+        edgelist = []
+        def find_neighbourhood(edgelist, id):
+            nodes = []
+            for couple in edgelist:
+                if couple[0] == id or couple[1] == id:
+                    #if couple[0] not in ids_to_ignore and couple[1] not in ids_to_ignore:
+                    nodes.append(couple)
+                return nodes
+
+        with open(edge_path, 'r') as f:
+            for line in f.readlines():
+                n1, n2 = line.split("\t")
+                edgelist.append(n1.strip())
+                edgelist.append(n2.strip())
+
+        ids_to_ignore = []
+        neighs_dict = {}
+        neighs_dict[0] = find_neighbourhood(edgelist, id)
+        ids_to_ignore.append(id)
+        for i in range(depth-1):
+            for ns in neighs_dict[i]:
+                neighs_dict[i+1] = []
+                neighs_dict[i+1].append(find_neighbourhood(edgelist, id=ns[0]))
 
 
 if __name__ == '__main__':
