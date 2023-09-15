@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource, reqparse, abort
 from modelling.sairus import classify_users
-from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
+#from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
 from os.path import exists, join
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
@@ -13,10 +13,10 @@ preprocess_parser.add_argument('rel_url', type=str, help="Path to the file conta
 preprocess_parser.add_argument('id_field_name', type=str, help="Name of the field containing the user ids")
 preprocess_parser.add_argument('text_field_name', type=str, help="Name of the field containing the text")
 
-
+"""
 @api.route("/node_classification/preprocess", methods=['POST'])
 class Preprocess(Resource):
-    """Preprocess the posts, concatenate and aggregate them"""
+    #Preprocess the posts, concatenate and aggregate them
     @api.expect(preprocess_parser)
     def post(self):
         params = preprocess_parser.parse_args()
@@ -89,10 +89,6 @@ class Train(Resource):
         id2idx_rel_url = train_params['id2idx_rel_url']
         id2idx_spat_url = train_params['id2idx_spat_url']
 
-        """task = train_task.apply_async(args=[content_url, WORD_EMB_SIZE, window, w2v_epochs, rel_ne_technique, spat_ne_technique, rel_node_embedding_size,
-                                            spat_node_embedding_size, social_network_url, spatial_network_url, n_of_walks_rel, n_of_walks_spat, walk_length_rel,
-                                            walk_length_spat, p_rel, p_spat, q_rel, q_spat, n2v_epochs_rel, n2v_epochs_spat, spat_ae_epochs, rel_ae_epochs,
-                                            rel_adj_matrix_url, spat_adj_matrix_url, id2idx_rel_url, id2idx_spat_url])"""
         task = train_task.apply_async(args=[job_id, WORD_EMB_SIZE, window, w2v_epochs, rel_ne_technique, spat_ne_technique, rel_node_embedding_size,
                                             spat_node_embedding_size, n_of_walks_rel, n_of_walks_spat, walk_length_rel,
                                             walk_length_spat, p_rel, p_spat, q_rel, q_spat, n2v_epochs_rel, n2v_epochs_spat, spat_ae_epochs, rel_ae_epochs,
@@ -153,11 +149,11 @@ class TaskStatus(Resource):
         if task.info:
             response['info'] = task.info
         return jsonify(response)
-
+"""
 
 neighbourhood_parser = reqparse.RequestParser()
 neighbourhood_parser.add_argument("node_id", required=True, help="ID of the node")
-neighbourhood_parser.add_argument("depth", required=True, help="Depth of the neighbourhood (can either be 1 or 2)")
+neighbourhood_parser.add_argument("depth", required=True, type=int, choices=(1, 2), help="Depth of the neighbourhood (can either be 1 or 2)")
 neighbourhood_parser.add_argument("edge_path", required=True, help="Path to the file containing the edge list")
 
 @api.route("/node_classification/neighbourhood", methods=["POST"])
@@ -169,28 +165,24 @@ class Neighbourhood(Resource):
         depth = params["depth"]
         edge_path = params["edge_path"]
         edgelist = []
-        def find_neighbourhood(edgelist, id):
-            nodes = []
+
+        def dfs(edgelist, id, d, nodes, nodes_to_ignore):
             for couple in edgelist:
-                if couple[0] == id or couple[1] == id:
-                    #if couple[0] not in ids_to_ignore and couple[1] not in ids_to_ignore:
-                    nodes.append(couple)
-                return nodes
+                if id in couple:
+                    other_node = couple[1] if couple[0] == id else couple[0]
+                    if couple not in nodes:
+                        nodes.append(couple)
+                        if d > 1:
+                            nodes_to_ignore.append(id)
+                            nodes = dfs(edgelist, other_node, d - 1, nodes, nodes_to_ignore)
+            return nodes
 
         with open(edge_path, 'r') as f:
             for line in f.readlines():
                 n1, n2 = line.split("\t")
-                edgelist.append(n1.strip())
-                edgelist.append(n2.strip())
-
-        ids_to_ignore = []
-        neighs_dict = {}
-        neighs_dict[0] = find_neighbourhood(edgelist, id)
-        ids_to_ignore.append(id)
-        for i in range(depth-1):
-            for ns in neighs_dict[i]:
-                neighs_dict[i+1] = []
-                neighs_dict[i+1].append(find_neighbourhood(edgelist, id=ns[0]))
+                edgelist.append((n1.strip(), n2.strip()))
+        result = dfs(edgelist, id, depth, [], [])
+        return result
 
 
 if __name__ == '__main__':
