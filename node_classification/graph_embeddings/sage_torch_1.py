@@ -4,34 +4,29 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.loader import NeighborSampler
-from torch_geometric.nn import SAGEConv
 from tqdm import tqdm
 from utils import load_from_pickle
-
-
+from torch_geometric.nn import GraphSAGE
+from torch_geometric.nn.norm import LayerNorm
 class GraphSAGEEmbedder(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, edg_dir, features, train_df, num_hidden_layers=3):
+    def __init__(self, in_channels, hidden_channels, edg_dir, features, train_df, norm=False, num_layers=3):
         """
         Class for creating a Pytorch graph and training an inductive graph embedding model with graphsage
         :param in_channels: Dimension of input features
         :param hidden_channels: Dimension of hidden channels
-        :param out_channels: How many output channels
         :param edg_dir: Directory with the edge list
         :param features: Dictionary with the features for each node
         :param train_df: Dataframe used for retrieving each node's label
         :param num_layers:
         """
         super(GraphSAGEEmbedder, self).__init__()
-        self.convs = torch.nn.ModuleList()
-        self.convs.append(SAGEConv(in_channels, hidden_channels, normalize=True))
-        for _ in range(num_hidden_layers - 1):
-            self.convs.append(SAGEConv(hidden_channels, hidden_channels, normalize=True))
-        self.convs.append(SAGEConv(hidden_channels, out_channels, normalize=True))
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.norm = LayerNorm(in_channels=hidden_channels) if norm else None
+        self.model = GraphSAGE(in_channels=in_channels, num_layers=num_layers, hidden_channels=hidden_channels,
+                               norm=self.norm).to(self.device)
         self.edg_dir = edg_dir
         self.features = features
         self.train_df = train_df
-        self.num_layers = num_hidden_layers + 1
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def create_mappers(self):
         """
@@ -53,7 +48,7 @@ class GraphSAGEEmbedder(torch.nn.Module):
         inv_map = {v: k for k, v in mapper.items()}
         return mapper, inv_map
 
-    def create_graph(self, mapper, inv_map):
+    def create_graph(self, inv_map):
         inv_mapper_list = list(inv_map.keys())
         feats = []
         labs = []
@@ -62,6 +57,8 @@ class GraphSAGEEmbedder(torch.nn.Module):
             feats.append(self.features[int(i)])
             labs.append(self.train_df[self.train_df.id == i]['label'].values[0])
         x = torch.Tensor(np.array(feats))
+        mean = x.mean(dim=0)
+        std = x.std(dim=0)
         edgelist = []
         with open(self.edg_dir, 'r') as f:
             for l in f.readlines():
@@ -70,13 +67,14 @@ class GraphSAGEEmbedder(torch.nn.Module):
         edges = list(zip(*edgelist))
         edge_index = torch.tensor(np.array(edges), dtype=torch.long)
         graph = Data(x=x, edge_index=edge_index, y=torch.tensor(labs))
+        self.graph = graph
         return graph
 
     def reset_parameters(self):
         for conv in self.convs:
             conv.reset_parameters()
 
-    def forward(self, x, adjs):
+    def forward_l(self, x, adjs):
         # `train_loader` computes the k-hop neighborhood of a batch of nodes and returns, for each layer, a bipartite
         # graph object, holding the bipartite edges `edge_index`, the index `e_id` of the original edges, and the
         # size/shape `size` of the bipartite graph. Target nodes are also included in the source nodes so that one can
@@ -101,21 +99,26 @@ class GraphSAGEEmbedder(torch.nn.Module):
                 layer_3_embeddings = x_all
         return layer_1_embeddings, layer_2_embeddings, layer_3_embeddings
 
-    def train_sage(self, train_loader, optimizer, x, y):
+    def train_sage(self, train_loader, optimizer, mapper):
+        self.model.train()
+        total_loss = 0
+        for batch in train_loader:
+            batch = batch.to(self.device)
+            optimizer.zero_grad()
+            h = self.model(batch.x, batch.edge_index)
+            h_src = h[batch.edge_label_index[0]]
+            h_dst = h[batch.edge_label_index[1]]
+            pred = (h_src * h_dst).sum(dim=-1)
+            loss = F.binary_cross_entropy_with_logits(pred, batch.edge_label)
+            loss.backward()
+            optimizer.step()
+            total_loss += float(loss) * pred.size(0)
+        return total_loss / self.graph.num_nodes
+
+    def train_sage1(self, train_loader, optimizer, x, y):
         self.train()
         total_loss = 0
         for batch_size, n_id, adjs in tqdm(train_loader):
-            # `adjs` holds a list of `(edge_index, e_id, size)` tuples.
-            # batch_size = batch size; n_id = list of node ids in the current minibatch. These node ids make a subgraph.
-            # adjs is a list containing two edge index elements. Each edge index has an edge_index attribute, which is a
-            # tensor having two rows and a number of column that depends on how many edges are in current subgraph. If
-            # there is an edge that goes from node A to B, then in the nth column, on the first row there will be the
-            # index of node A's ID in the e_id list. On the second row there will be the index of node B. For instance,
-            # suppose that n_id = [10, 31, 40, 54] and that there is an edge from 10 to 31, an edge from 40 to 10 and an
-            # edge from 31 to 10, then the adj matrix will be:
-            # [[0, 2, 1],
-            #  [1, 0, 0]].
-            # The edge index object also has the e_id attribute, a tensor with the ids of the edges in the subgraph.
             adjs = [adj.to(self.device) for adj in adjs]
             optimizer.zero_grad()
             feats = x[n_id]  # Node features for the current minibatch
@@ -126,18 +129,17 @@ class GraphSAGEEmbedder(torch.nn.Module):
             optimizer.step()
 
             total_loss += float(loss)
-            # pbar.update(batch_size)
         loss = total_loss / len(train_loader)
         return loss
 
-    def inference(self, x_all, subgraph_loader):
-        pbar = tqdm(total=x_all.size(0) * self.num_layers)
+    def inference1(self, x_all, subgraph_loader):
+        pbar = tqdm(total=x_all.size(0) * self.model.num_layers)
         pbar.set_description('Evaluating')
         # Compute representations of nodes layer by layer, using *all*
         # available edges. This leads to faster computation in contrast to
         # immediately computing the final representations of each batch.
         total_edges = 0
-        for i in range(self.num_layers):
+        for i in range(self.model.num_layers):
             xs = []
             for batch_size, n_id, adjs in subgraph_loader:
                 for adj in adjs:
@@ -156,14 +158,31 @@ class GraphSAGEEmbedder(torch.nn.Module):
             elif i == 1:
                 x_all = torch.cat(xs, dim=0)
                 layer_2_embeddings = x_all
+            elif i == 2:
+                x_all = torch.cat(xs, dim=0)
+                layer_3_embeddings = x_all
 
         pbar.close()
-        return layer_2_embeddings
+        return layer_2_embeddings, layer_3_embeddings
+
+    def inference(self, x_all, subgraph_loader):
+        pbar = tqdm(total=x_all.size(0) * self.model.num_layers)
+        pbar.set_description('Evaluating')
+        # Compute representations of nodes layer by layer, using *all*
+        # available edges. This leads to faster computation in contrast to
+        # immediately computing the final representations of each batch.
+        total_edges = 0
+        embs = []
+        for batch in subgraph_loader:
+            embs.append(self.model(batch.x, batch.edge_index))
+        pbar.close()
+        return embs
 
 #df_dir = "dataset/tweets_labeled.csv"
 #map_dir = "node_classification/graph_embeddings/stuff/sn_labeled_nodes_mapping.pkl"
 #edg_dir = "node_classification/graph_embeddings/stuff/sn_labeled_nodes.edg"
-"""if __name__ == "__main__":
+"""
+if __name__ == "__main__":
     df_dir = "../../dataset/tweets_labeled.csv"
     map_dir = "stuff/sn_labeled_nodes_mapping.pkl"
     edg_dir = "stuff/sn_labeled_nodes.edg"

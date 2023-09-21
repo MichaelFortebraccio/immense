@@ -4,9 +4,11 @@ import pickle
 import torch
 from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from node_classification.graph_embeddings.sage_torch import GraphSAGEEmbedder
+from node_classification.graph_embeddings.sage_torch_1 import GraphSAGEEmbedder
 from sklearn.decomposition import PCA
-from torch_geometric.loader import NeighborSampler
+from torch_geometric.loader import NeighborSampler, LinkNeighborLoader
+from torch_geometric.sampler import NegativeSampling
+from torch_geometric.nn import GraphSAGE
 from utils import is_square, load_from_pickle, save_to_pickle
 
 
@@ -63,33 +65,39 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         model_path = os.path.join(model_dir, "graphsage.h5")
         weighted = False
         directed = True
-        sizes = [-1, -1, -1]
-        batch_size = 64
+        sizes = [15, 10, 5]
+        batch_size = 32
         map_dir = "stuff/sn_labeled_nodes_mapping.pkl"
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
         in_channels = len(features_dict[first_key])     # Take a random element in features dict in order to know the features dimension
-        sage = GraphSAGEEmbedder(in_channels=in_channels, hidden_channels=node_embedding_size, out_channels=2,
-                                 num_hidden_layers=len(sizes), edg_dir=edge_path, train_df=train_df, features=features_dict)
+        sage = GraphSAGEEmbedder(in_channels=in_channels, hidden_channels=node_embedding_size, norm=True,
+                                 num_layers=len(sizes), edg_dir=edge_path, train_df=train_df, features=features_dict)
         mapper, inv_map = sage.create_mappers()
-        graph = sage.create_graph(mapper, inv_map)
+        graph = sage.create_graph(inv_map)
         x = graph.x.squeeze().to(device)
-        y = graph.y.squeeze().to(device)
+        #y = graph.y.squeeze().to(device)
         sage = sage.to(device)
 
-        train_loader = NeighborSampler(graph.edge_index, sizes=sizes, batch_size=batch_size, shuffle=True)
+        train_loader = LinkNeighborLoader(graph, num_neighbors=sizes, batch_size=batch_size,
+                                          neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
 
-        optimizer = torch.optim.Adam(lr=.003, params=sage.parameters())
-        for i in range(20):
-            print(i)
-            loss = sage.train_sage(train_loader, optimizer=optimizer, x=x, y=y)
+        optimizer = torch.optim.Adam(lr=.005, params=sage.parameters())
+        for i in range(10):
+            loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper)
+            #loss = sage.train_sage(train_loader, optimizer=optimizer, x=x, y=y)
             #train(train_loader, optimizer=optimizer, model=sage, device=device)
             if i % 5 == 0:
                 print(loss)
-        sage.eval()
+        #sage.eval()
+        test_loader = LinkNeighborLoader(graph, num_neighbors=[5], batch_size=batch_size,
+                                          neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
         with torch.no_grad():
-            e2 = sage.inference(x, train_loader)
-            e4 = sage.inference(x, train_loader)
+            edge_index = test_loader.data.edge_index.to(device)
+            e2 = sage.model(x, edge_index)
+            print(e2)
+            """e2, e22 = sage.inference(x, train_loader)
+            e4, e44 = sage.inference(x, train_loader)"""
         torch.save(sage, model_path)
 
         if lab == "spat":
