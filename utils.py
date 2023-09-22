@@ -5,6 +5,7 @@ from keras.models import load_model
 from os.path import exists, join
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
+from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import seaborn as sn
 from tqdm import tqdm
@@ -29,6 +30,7 @@ def prepare_for_decision_tree(df, mod: Word2Vec):
             continue
     X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
     return X_train, X_test, y_train, y_test
+
 
 def is_square(m):
     return m.shape[0] == m.shape[1]
@@ -113,6 +115,21 @@ def get_ne_models(rel_technique, spat_technique, mod_dir_rel, mod_dir_spat, adj_
         id2idx_spat = load_from_pickle(id2idx_spat_path)
 
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
+
+
+def embeddings_pca(path_to_embs, emb_technique):
+    if emb_technique == "node2vec":
+        emb_model = Word2Vec.load(path_to_embs)
+        vectors = emb_model.wv.vectors
+        k2i = emb_model.wv.key_to_index
+    pca = PCA(n_components=2, random_state=42)
+    pca_embs = pca.fit_transform(vectors)
+    d = {}
+    for k in k2i:
+        d[k] = pca_embs[k2i[k]]
+    save_to_pickle()        # TODO SALVARE QUESTO DIZIONARIO NELLA CARTELLA IN CUI è SALVATO IL MODELLO EMBEDDING DA CUI è GENERATO
+
+
 
 
 ########### UTILITY FUNCTIONS NOT USED IN THE API ###########
