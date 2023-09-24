@@ -221,7 +221,7 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, window, w2v_epo
     else:
         n2v_spat = None
         id2idx_spat = load_from_pickle(id2idx_spat_path)
-    list_content_embs = list(users_embeddings_dict.values())
+    list_content_embs = np.array(list(users_embeddings_dict.values()))
     mlp = learn_mlp(train_df=train_df, content_embs=list_content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
                     rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
                     n2v_rel=n2v_rel, n2v_spat=n2v_spat)
