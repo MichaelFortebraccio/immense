@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 from torch_geometric.loader import NeighborSampler, LinkNeighborLoader
 from torch_geometric.sampler import NegativeSampling
 from torch_geometric.nn import GraphSAGE
-from utils import is_square, load_from_pickle, save_to_pickle
+from utils import is_square, load_from_pickle, embeddings_pca
 
 
 def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
@@ -55,6 +55,7 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
                                epochs=n2v_epochs, model_path=model_path).learn_n2v_embeddings()
+        embeddings_pca(n2v, "node2vec", dst_dir=model_dir)
         mod = n2v.wv
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]  # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
         train_set = []

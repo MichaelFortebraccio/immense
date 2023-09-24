@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import pickle
 from gensim.models import Word2Vec
@@ -117,9 +119,8 @@ def get_ne_models(rel_technique, spat_technique, mod_dir_rel, mod_dir_spat, adj_
     return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
 
 
-def embeddings_pca(path_to_embs, emb_technique):
+def embeddings_pca(emb_model, emb_technique, dst_dir):
     if emb_technique == "node2vec":
-        emb_model = Word2Vec.load(path_to_embs)
         vectors = emb_model.wv.vectors
         k2i = emb_model.wv.key_to_index
     pca = PCA(n_components=2, random_state=42)
@@ -127,7 +128,7 @@ def embeddings_pca(path_to_embs, emb_technique):
     d = {}
     for k in k2i:
         d[k] = pca_embs[k2i[k]]
-    save_to_pickle()        # TODO SALVARE QUESTO DIZIONARIO NELLA CARTELLA IN CUI è SALVATO IL MODELLO EMBEDDING DA CUI è GENERATO
+    save_to_pickle(os.path.join(dst_dir, "reduced_embs.pkl"), d)
 
 
 
