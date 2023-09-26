@@ -1,8 +1,17 @@
-from flask import Flask, request, jsonify
+import base64
+import io
+import matplotlib.pyplot as plt
+from IPython.display import display
+import os.path
+import numpy as np
+from flask import Flask, request, jsonify, render_template, send_file
 from flask_restx import Api, Resource, reqparse, abort
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from modelling.sairus import classify_users
+from utils import load_from_pickle
+
 #from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
-from os.path import exists, join
+
 
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
 application = Flask(__name__)
@@ -183,6 +192,39 @@ class Neighbourhood(Resource):
                 edgelist.append((n1.strip(), n2.strip()))
         result = dfs(edgelist, id, depth, [], [])
         return result
+
+
+node_display_parser = reqparse.RequestParser()
+node_display_parser.add_argument("node_ids", required=True, help="ID of the node")
+node_display_parser.add_argument("model_directory", required=True, help="Path to the directory containing the node embedding model")
+@api.route("/node_classification/plotting", methods=["POST"])
+class Plotting(Resource):
+    @api.expect(node_display_parser)
+    def post(self):
+        params = node_display_parser.parse_args(request)
+        ids = params["node_ids"].split(",")
+        ids = [el.strip() for el in ids]
+        model_directory = params["model_directory"]
+
+        dict_reduced_embeddings = load_from_pickle(os.path.join(model_directory, "reduced_embs.pkl"))
+        emb_d = {v: dict_reduced_embeddings[v] for v in ids if v in dict_reduced_embeddings}
+        l = []
+        for k in emb_d:
+            l.append(emb_d[k])
+        ar = np.array(l)
+        fig, ax = plt.subplots()
+        x1 = ar[:, 0]
+        x2 = ar[:, 1]
+        ax.scatter(x1, x2)
+        for i, txt in enumerate(emb_d):
+            ax.annotate(txt, (x1[i], x2[i]))
+        plt.savefig(os.path.join(model_directory, "img.png"), format="png")
+        return send_file(os.path.join(model_directory, "img.png"), mimetype="image/png")
+
+@api.route("/node_classification/plot_img")
+class Plot(Resource):
+    def plot(self):
+        return render_template("template.html")
 
 
 if __name__ == '__main__':

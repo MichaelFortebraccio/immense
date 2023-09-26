@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 from os.path import exists
@@ -48,18 +50,21 @@ def main_train(args=None):
     dataset_dir = "dataset"
     val = 20
     models_dir = "dataset/models/{}".format(val)
-
-    textual_content_path = "dataset/tweets_labeled_089_{}.csv".format(val)
-    train_path = "{}/train_089_{}.csv".format(dataset_dir, val)
-    test_path = "{}/test_089_{}.csv".format(dataset_dir, val)
-
-    rel_technique = spat_technique = "graphsage"
+    if not exists(models_dir):
+        os.makedirs(models_dir)
+    #textual_content_path = "dataset/tweets_labeled_089_{}.csv".format(val)
+    #train_path = "{}/train_089_{}.csv".format(dataset_dir, val)
+    #test_path = "{}/test_089_{}.csv".format(dataset_dir, val)
+    textual_content_path = "dataset/tweets_labeled.csv"
+    train_path = "dataset/train.csv"
+    test_path = "dataset/test.csv"
+    rel_technique = spat_technique = "node2vec"
     rel_adj_mat_path = id2idx_rel_path = id2idx_spat_path = spat_adj_mat_path = None
-    social_net_path = "dataset/graph/sn_labeled_089_20_train.edg"     #.format(models_dir)
-    spatial_net_path = "dataset/graph/closeness_network.edg"     #.format(models_dir)
+    social_net_path = "dataset/graph/social_network.edg"     #.format(models_dir)
+    spatial_net_path = "dataset/graph/spatial_network.edg"     #.format(models_dir)
     n_of_walks_spat = n_of_walks_rel = walk_length_spat = walk_length_rel = 10
     spat_node_embedding_size = rel_node_embedding_size = 128
-    word_embedding_size = 512
+    word_embedding_size = 256
     window = 10
     w2v_epochs = 15
     p_spat = p_rel = 1
