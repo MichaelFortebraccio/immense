@@ -49,7 +49,9 @@ def train_w2v_model(train_df, embedding_size, window, epochs, model_dir, dataset
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]
     safe_posts = train_df.loc[train_df['label'] == 0]
-    dang_users_embeddings = w2v_model.text_to_vec(users=tok.token_list(dang_posts), path=join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size)))
+    users = tok.token_list(dang_posts)
+    path = join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size))
+    dang_users_embeddings = w2v_model.text_to_vec(users=users, path=path)
     safe_users_embeddings = w2v_model.text_to_vec(users=tok.token_list(safe_posts), path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)))
     dang_posts_array = np.array(list(dang_users_embeddings.values()))
     safe_posts_array = np.array(list(safe_users_embeddings.values()))

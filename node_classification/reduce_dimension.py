@@ -63,50 +63,50 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
             train_set.append(mod[str(i)])
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif node_emb_technique == "graphsage":
-        model_path = os.path.join(model_dir, "graphsage.h5")
-        weighted = False
-        directed = True
         sizes = [15, 10]
         batch_size = 64
-        map_dir = "stuff/sn_labeled_nodes_mapping.pkl"
+        model_path = os.path.join(model_dir, "graphsage_{}.h5".format(lab))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        map_dir = "stuff/sn_labeled_nodes_mapping.pkl"
+
         first_key = list(features_dict.keys())[0]
-        in_channels = len(features_dict[first_key])     # Take a random element in features dict in order to know the features dimension
-        #sage = GraphSAGEEmbedder(in_channels=in_channels, hidden_channels=node_embedding_size,
+        in_channels = len(
+            features_dict[first_key])  # Take a random element in features dict in order to know the features dimension
+        # sage = GraphSAGEEmbedder(in_channels=in_channels, hidden_channels=node_embedding_size,
         #                         num_layers=len(sizes), edg_dir=edge_path, train_df=train_df, features=features_dict)
+        weighted = False
+        directed = True
+        if lab == "spat":
+            weighted = True
+            directed = False
         sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), edg_dir=edge_path,
-                    features=features_dict)
+                    features=features_dict, weighted=weighted, directed=directed)
         mapper, inv_map = sage.create_mappers()
-        graph = sage.create_graph(inv_map)
-        x = graph.x.squeeze().to(device)
-        #y = graph.y.squeeze().to(device)
+        graph = sage.create_graph(inv_map, weighted=weighted)
         sage = sage.to(device)
 
         train_loader = LinkNeighborLoader(graph, num_neighbors=sizes, batch_size=batch_size,
                                           neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
 
-        optimizer = torch.optim.Adam(lr=.01, params=sage.parameters())
+        optimizer = torch.optim.Adam(lr=.03, params=sage.parameters(), weight_decay=1e-4)
+        #TODO PROVARE ALTRI OPTIMIZER
         for i in range(15):
             loss = sage.train_sage(train_loader, optimizer=optimizer)
-            #loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper)
-            #loss = sage.train_sage(train_loader, optimizer=optimizer, x=x, y=y)
-            #train(train_loader, optimizer=optimizer, model=sage, device=device)
+            # loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper)
+            # loss = sage.train_sage(train_loader, optimizer=optimizer, x=x, y=y)
+            # train(train_loader, optimizer=optimizer, model=sage, device=device)
             print(loss)
-        #sage.eval()
+        # sage.eval()
         test_loader = LinkNeighborLoader(graph, num_neighbors=sizes, batch_size=batch_size,
-                                          neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
+                                         neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
         with torch.no_grad():
             for batch in test_loader:
                 batch = batch.to(sage.device)
                 e2 = sage(batch)
                 e3 = sage(batch)
-                """e2, e22 = sage.inference(x, train_loader)
-                e4, e44 = sage.inference(x, train_loader)"""
         torch.save(sage, model_path)
+        graph = sage.create_graph(inv_map, weighted=weighted)
 
-        if lab == "spat":
-            weighted = True
-            directed = False
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):

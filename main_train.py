@@ -56,7 +56,7 @@ def main_train(args=None):
     rel_technique = spat_technique = "graphsage"
     rel_adj_mat_path = id2idx_rel_path = id2idx_spat_path = spat_adj_mat_path = None
     social_net_path = "dataset/graph/sn_labeled_089_20_train.edg"     #.format(models_dir)
-    spatial_net_path = "dataset/graph/closeness_network.edg"     #.format(models_dir)
+    spatial_net_path = "dataset/graph/closeness_network_only_usersindataset.edg"     #.format(models_dir)
     n_of_walks_spat = n_of_walks_rel = walk_length_spat = walk_length_rel = 10
     spat_node_embedding_size = rel_node_embedding_size = 128
     word_embedding_size = 512
