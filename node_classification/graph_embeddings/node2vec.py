@@ -1,11 +1,11 @@
-import os.path
 from gensim.models import Word2Vec
 from pecanpy import pecanpy as node2vec
-from os.path import exists
+from os.path import exists, join
 
 
 class Node2VecEmbedder():
-    def __init__(self, path_to_edges, weighted, directed, n_of_walks, walk_length, embedding_size, p, q, epochs, model_path):
+    def __init__(self, path_to_edges, weighted, directed, embedding_size,epochs, model_path, p=1, q=4, n_of_walks=10,
+                 walk_length=10):
         """
         Args:
             path_to_edges:
@@ -13,7 +13,7 @@ class Node2VecEmbedder():
             walk_length:
             embedding_size:
             p: Defines probability, 1/p, of returning to source node
-            q: Defines probability, 1/q, for moving to a node away from the source node. An high value of q will bias
+            q: Defines probability, 1/q, for moving to a node away from the source node. A high value of q will bias
             the model in learning similar representations for nodes that share structure similarity. A low value will
             produce similar representations for nodes in the same neighborhoods
             model_path: Path where the n2v model will be saved
@@ -34,7 +34,7 @@ class Node2VecEmbedder():
         Args:
             workers: How many threads to use. Set this to 0 for using all the available threads
         """
-        if not exists(os.path.join(self._model_path)):
+        if not exists(join(self._model_path)):
             print("Learning node2vec")
             g = node2vec.SparseOTF(p=self.p, q=self.q, workers=workers, verbose=True)
             g.read_edg(self.path_to_edges, weighted=self.weighted, directed=self.directed)
