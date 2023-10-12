@@ -39,7 +39,9 @@ def main_train(args=None):
     test_path = join(dataset_dir, "test.csv")
 
     rel_technique = spat_technique = "graphsage"
-    rel_adj_mat_path = id2idx_rel_path = id2idx_spat_path = spat_adj_mat_path = None
+    rel_adj_mat_path = spat_adj_mat_path = None
+    id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
+    id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
     social_net_path = join(dataset_dir, "social_network.edg")
     spatial_net_path = join(dataset_dir, "spatial_network.edg")
 
@@ -48,7 +50,7 @@ def main_train(args=None):
     w2v_epochs = 15
     # node emb parameters
     spat_node_embedding_size = rel_node_embedding_size = 512
-    epochs_spat = epochs_rel = 100
+    epochs_spat = epochs_rel = 10
 
     if not exists(dataset_dir):
         makedirs(dataset_dir)
