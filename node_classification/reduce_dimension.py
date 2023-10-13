@@ -12,11 +12,11 @@ from utils import is_square, load_from_pickle, save_to_pickle
 
 
 def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
-                     edge_path_test_gs=None, n_of_walks=10, walk_length=10, p=1, q=4, batch_size=None, epochs=None,
+                     n_of_walks=10, walk_length=10, p=1, q=4, batch_size=None, epochs=None,
                      features_dict=None, adj_matrix_path=None, sizes=None, id2idx_path=None):
     """
-    This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
-    the decision tree.
+    This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
+    training the decision tree.
     Args:
         :param node_emb_technique: Can be either "node2vec", "graphsage", "pca", "autoencoder" or "none"
         (uses the whole adjacency matrix rows as feature vectors)
@@ -31,7 +31,6 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         :param p: (node2vec) n2v's hyperparameter p.
         :param q: (node2vec) n2v's hyperparameter q.
         :param edge_path_train_gs: (graphsage) Path to the edgelist for training the graphsage model
-        :param edge_path_test_gs: (graphsage) Path to the edgelist for testing the graphsage model
         :param batch_size: (graphsage) Batch size to use during training.
         :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
         :param features_dict: (graphsage) Dictionary having as keys the IDs of the users and as values the sum of the

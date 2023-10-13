@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sn
+from exceptions import Id2IdxException, AdjMatException
 from gensim.models import Word2Vec
 from keras.models import load_model
 from os.path import exists, join
@@ -37,85 +38,34 @@ def is_square(m):
     return m.shape[0] == m.shape[1]
 
 
-def get_ne_models(rel_technique, spat_technique, mod_dir_rel, mod_dir_spat, adj_mat_rel_path=None,
-                  id2idx_rel_path=None, adj_mat_spat_path=None, id2idx_spat_path=None):
+def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_path=None):
     """
-    Depending on the chosen node embedding techniques, loads and returns the corresponding models needed for doing inference
-    Args:
-        models_dir: Directory containing the models
-        rel_technique:
-        spat_technique:
-        mod_dir_rel: directory where the relational node embedding model can be found
-        mod_dir_spat:  directory where the spatial node embedding model can be found
-        adj_mat_rel_path: path to the relational adj matrix (ignore it if rel_technique=="node2vec")
-        id2idx_rel_path: path to the relational id2idx file (ignore it if rel_technique=="node2vec")
-        adj_mat_spat_path: path to the spatial adj matrix (ignore it if spat_technique=="node2vec")
-        id2idx_spat_path: path to the spatial id2idx file (ignore it if spat_technique=="node2vec")
+    Depending on the node embedding technique, loads and returns the models needed for inference
+    :param technique: either be 'node2vec', 'graphsage', 'autoencoder', 'pca', 'none'
+    :param mod_dir: Directory containing the models
+    :param lab: type of node embedding
+    :param node_emb_dim: Node embedding dimension
+    :param adj_mat_path: path to the adj matrix (ignore it if technique=='node2vec' or 'graphsage')
+    :param id2idx_path: path to the id2idx file (ignore it if rel_technique=='node2vec' or 'graphsage')
+    :return:
     """
-
-    n2v_rel = None
-    n2v_spat = None
-    pca_rel = None
-    pca_spat = None
-    ae_rel = None
-    ae_spat = None
-    adj_mat_rel = None
-    adj_mat_spat = None
-    id2idx_rel = None
-    id2idx_spat = None
-    if rel_technique == "node2vec":
-        n2v_rel = Word2Vec.load(join(mod_dir_rel, "n2v.h5"))
-    elif rel_technique == "autoencoder":
-        ae_rel = load_model(join(mod_dir_rel, "encoder_rel.h5"))
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-    elif rel_technique == "pca":
-        pca_rel = load_from_pickle(join(mod_dir_rel, "pca_rel.pkl"))
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=",")
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-    elif rel_technique == "none":
-        if not adj_mat_rel_path:
-            raise Exception("You need to provide the path to the relational adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the relational adjacency matrix")
-        adj_mat_rel = np.genfromtxt(adj_mat_rel_path, delimiter=',')
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-
-    if spat_technique == "node2vec":
-        n2v_spat = Word2Vec.load(join(mod_dir_spat, "n2v.h5"))
-    elif spat_technique == "autoencoder":
-        ae_spat = load_model(join(mod_dir_spat, "encoder_spat.h5"))
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-    elif spat_technique == "pca":
-        pca_spat = load_from_pickle(join(mod_dir_spat, "pca_spat.pkl"))
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=",")
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-    elif spat_technique == "none":
-        if not adj_mat_spat_path:
-            raise Exception("You need to provide the path to the spatial adjacency matrix")
-        if not id2idx_rel_path:
-            raise Exception("You need to provide the path to the file with the matchings between node IDs and the index of their row in the spatial adjacency matrix")
-        adj_mat_spat = np.genfromtxt(adj_mat_spat_path, delimiter=',')
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-
-    return n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat
+    mod = pca = ae = adj_mat = id2idx = None
+    if technique == "node2vec":
+        mod = Word2Vec.load(join(mod_dir, "n2v.h5"))
+    elif technique == "graphsage":
+        mod = load_from_pickle(join(mod_dir, "graphsage_{}.pkl".format(ne_dim)))
+    elif technique in ["autoencoder", "pca", "none"]:
+        if not adj_mat_path:
+            raise AdjMatException(lab)
+        if not id2idx_path:
+            raise Id2IdxException(lab)
+        adj_mat = np.genfromtxt(adj_mat_path, delimiter=",")
+        id2idx = load_from_pickle(id2idx_path)
+        if technique == "autoencoder":
+            ae = load_model(join(mod_dir, "encoder_{}.h5".format(lab)))
+        elif technique == "pca":
+            pca = load_from_pickle(join(mod_dir, "pca_{}.pkl".format(lab)))
+    return mod, pca, ae, adj_mat, id2idx
 
 
 def embeddings_pca(emb_model, emb_technique, dst_dir):
