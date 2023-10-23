@@ -2,15 +2,21 @@ import os.path
 
 import numpy as np
 import pickle
+import matplotlib.pyplot as plt
+import seaborn as sn
 from gensim.models import Word2Vec
 from keras.models import load_model
 from os.path import exists, join
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
+<<<<<<< HEAD
 import matplotlib.pyplot as plt
 import seaborn as sn
+=======
+>>>>>>> 3f0191ecefe6c3aa143d42206eaf0b5ecb9f4d32
 from tqdm import tqdm
+
 
 def save_to_pickle(name, c):
     with open(name, 'wb') as f:
@@ -128,6 +134,7 @@ def embeddings_pca(emb_model, emb_technique, dst_dir):
     d = {}
     for k in k2i:
         d[k] = pca_embs[k2i[k]]
+<<<<<<< HEAD
     save_to_pickle(os.path.join(dst_dir, "reduced_embs.pkl"), d)
 
 
@@ -146,6 +153,40 @@ def read_edg_file(path):
             id1, id2 = l.split("\t")
             edgelist.append((id1.strip(), id2.strip()))
     return edgelist
+=======
+    save_to_pickle(join(dst_dir, "reduced_embs.pkl"), d)
+
+
+def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="graphsage"):
+    """
+    Given a dataframe and an edge list, create a new edge list containing only the idf in the dataframe, and write it to
+    a new file. This function is used for creating the training and testing social networks from the training and testing dataframes
+    """
+    ids = list(df.id)
+    ids = [int(id) for id in ids]
+    edgs_to_keep = []
+    with open(path_to_src_edg, 'r') as f:
+        for l in tqdm(f.readlines()):
+            if not spatial:
+                id1, id2 = l.split("\t")
+            else:
+                id1, id2, weight = l.split("\t")
+                if mode == "graphsage" and weight == 0.0:
+                    continue
+            id1 = int(id1.strip())
+            id2 = int(id2.strip())
+            if id1 in ids and id2 in ids:
+                if not spatial:
+                    edgs_to_keep.append((id1, id2))
+                else:
+                    edgs_to_keep.append((id1, id2, float(weight.strip())))
+    with open(path_to_dst_edg, 'w') as f:
+        for l in edgs_to_keep:
+            if not spatial:
+                f.write("{}\t{}\n".format(l[0], l[1]))
+            else:
+                f.write("{}\t{}\t{}\n".format(l[0], l[1], l[2]))
+>>>>>>> 3f0191ecefe6c3aa143d42206eaf0b5ecb9f4d32
 
 
 

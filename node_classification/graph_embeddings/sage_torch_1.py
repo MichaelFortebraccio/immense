@@ -8,8 +8,10 @@ from tqdm import tqdm
 from utils import load_from_pickle
 from torch_geometric.nn import GraphSAGE
 from torch_geometric.nn.norm import LayerNorm
+
+
 class GraphSAGEEmbedder(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, edg_dir, features, train_df, norm=False, num_layers=3):
+    def __init__(self, in_channels, hidden_channels, edg_dir, features, train_df, num_layers=3):
         """
         Class for creating a Pytorch graph and training an inductive graph embedding model with graphsage
         :param in_channels: Dimension of input features
@@ -21,9 +23,8 @@ class GraphSAGEEmbedder(torch.nn.Module):
         """
         super(GraphSAGEEmbedder, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.norm = LayerNorm(in_channels=hidden_channels) if norm else None
         self.model = GraphSAGE(in_channels=in_channels, num_layers=num_layers, hidden_channels=hidden_channels,
-                               norm=self.norm).to(self.device)
+                               norm=LayerNorm(in_channels=hidden_channels)).to(self.device)
         self.edg_dir = edg_dir
         self.features = features
         self.train_df = train_df
@@ -57,8 +58,6 @@ class GraphSAGEEmbedder(torch.nn.Module):
             feats.append(self.features[int(i)])
             labs.append(self.train_df[self.train_df.id == i]['label'].values[0])
         x = torch.Tensor(np.array(feats))
-        mean = x.mean(dim=0)
-        std = x.std(dim=0)
         edgelist = []
         with open(self.edg_dir, 'r') as f:
             for l in f.readlines():

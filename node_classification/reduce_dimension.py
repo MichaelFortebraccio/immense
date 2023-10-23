@@ -1,52 +1,52 @@
 import numpy as np
-import os
+from os.path import join, exists
 import pickle
 import torch
+from tqdm import tqdm
+import torch_geometric.transforms as T
 from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from node_classification.graph_embeddings.sage_torch_1 import GraphSAGEEmbedder
-from node_classification.graph_embeddings.sage_torch_2 import SAGE
-from sklearn.decomposition import PCA
 from torch_geometric.loader import NeighborSampler, LinkNeighborLoader
-from torch_geometric.sampler import NegativeSampling
-from torch_geometric.nn import GraphSAGE
-from utils import is_square, load_from_pickle, embeddings_pca
+from node_classification.graph_embeddings.sage import SAGE, create_loader, create_mappers, create_graph
+from sklearn.decomposition import PCA
+from utils import is_square, load_from_pickle, save_to_pickle, embeddings_pca
 
 
-def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
-                             n_of_walks=None, walk_length=None, p=None, q=None, n2v_epochs=None, adj_matrix_path=None,
-                             id2idx_path=None, epochs=None, features_dict=None):
+def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
+                     n_of_walks=10, walk_length=10, p=1, q=4, batch_size=None, epochs=None,
+                     features_dict=None, adj_matrix_path=None, sizes=None, id2idx_path=None):
     """
     This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
     the decision tree.
     Args:
-        :param node_emb_technique: Can be either "node2vec", "pca", "autoencoder" or "none" (uses the whole adjacency
-            matrix rows as feature vectors)
-        :param model_dir: Directory where the models will be saved
-        :param train_df: Dataframe with the training data. The IDs will be used
-        :param node_embedding_size: Dimension of the embeddings to create
-        :param lab: Label, can be either "spat" or "rel"
-        :param edge_path: Path to the list of edges used by node2vec. Ignored if node_emb_technique != 'node2vec'
-        :param n_of_walks: Number of walks that the n2v model will do. Ignored if node_emb_technique != 'node2vec'
-        :param walk_length: Length of the walks that the n2v model will do. Ignored if node_emb_technique != 'node2vec'
-        :param p: n2v's hyperparameter p. Ignored if node_emb_technique != 'node2vec'
-        :param q: n2v's hyperparameter q. Ignored if node_emb_technique != 'node2vec'
-        :param n2v_epochs: for how many epochs the n2v model will be trained. Ignored if node_emb_technique != 'node2vec'
-        :param adj_matrix_path: Adjacency matrix. Used only if node_emb_technique in ["pca", "autoencoder", "none"]
-        :param id2idx_path: Mapping between the node IDs and the rows in the adj matrix. If you are using a technique
-            different from node2vec, and the user IDs are not the index of the position of the users into the adjacency
-            matrix, this parameter must be set. Otherwise, it can be left to none
-        :param epochs: Epochs for training the autoencoder, if it is chosen as embedding technique. If another technique is
-            chosen, this parameter can be ignored
-        :param features_dict: dictionary having as keys the IDs of the users and as values the sum of the embeddings of
-            their posts. Used only if node_emb_technique == "graphsage"
+        :param node_emb_technique: Can be either "node2vec", "graphsage", "pca", "autoencoder" or "none"
+        (uses the whole adjacency matrix rows as feature vectors)
+        :param model_dir: Directory where the models will be saved.
+        :param train_df: Dataframe with the training data. The IDs will be used.
+        :param node_embedding_size: Dimension of the embeddings to create.
+        :param lab: Label, can be either "spat" or "rel".
+        :param edge_path: (graphsage, node2vec) Path to the list of edges used by the node embedding technique
+        :param epochs: (graphsage, node2vec) Epochs for training the node embedding model.
+        :param n_of_walks: (node2vec) Number of walks that the n2v model will do.
+        :param walk_length: (node2vec) Length of the walks that the n2v model will do.
+        :param p: (node2vec) n2v's hyperparameter p.
+        :param q: (node2vec) n2v's hyperparameter q.
+        :param edge_path_train_gs: (graphsage) Path to the edgelist for training the graphsage model
+        :param batch_size: (graphsage) Batch size to use during training.
+        :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
+        :param features_dict: (graphsage) Dictionary having as keys the IDs of the users and as values the sum of the
+        embeddings of their posts.
+        :param adj_matrix_path: (pca, autoencoder, none) Adjacency matrix.
+        :param id2idx_path: (pca, autoencoder, none) Mapping between the node IDs and the rows in the adj matrix.
     Returns:
-        train_set: Array containing the node embeddings, which will be used for training the decision tree
-        train_set_labels: Labels of the training vectors
+        train_set: Array containing the node embeddings, which will be used for training the decision tree.
+        train_set_labels: Labels of the training vectors.
     """
+    train_set = []
+    train_set_labels = []
     node_emb_technique = node_emb_technique.lower()
     if node_emb_technique == "node2vec":
-        model_path = os.path.join(model_dir, "n2v.h5")
+        model_path = join(model_dir, "n2v.h5")
         weighted = False
         directed = True
         if lab == "spat":
@@ -54,67 +54,66 @@ def dimensionality_reduction(node_emb_technique: str, model_dir, train_df, node_
             directed = False
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
-                               epochs=n2v_epochs, model_path=model_path).learn_n2v_embeddings()
+                               epochs=epochs, model_path=model_path).learn_n2v_embeddings()
         embeddings_pca(n2v, "node2vec", dst_dir=model_dir)
         mod = n2v.wv
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]  # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
-        train_set = []
-        train_set_labels = []
         for i in train_set_ids:
             train_set.append(mod[str(i)])
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif node_emb_technique == "graphsage":
-        model_path = os.path.join(model_dir, "graphsage.h5")
-        weighted = False
-        directed = True
-        sizes = [15, 10]
-        batch_size = 64
-        map_dir = "stuff/sn_labeled_nodes_mapping.pkl"
+        weights_path = join(model_dir, "graphsage_{}.h5".format(node_embedding_size))
+        model_path = join(model_dir, "graphsage_{}.pkl".format(node_embedding_size))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
-        in_channels = len(features_dict[first_key])     # Take a random element in features dict in order to know the features dimension
-        #sage = GraphSAGEEmbedder(in_channels=in_channels, hidden_channels=node_embedding_size,
-        #                         num_layers=len(sizes), edg_dir=edge_path, train_df=train_df, features=features_dict)
-        sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), edg_dir=edge_path,
-                    features=features_dict)
-        mapper, inv_map = sage.create_mappers()
-        graph = sage.create_graph(inv_map)
-        x = graph.x.squeeze().to(device)
-        #y = graph.y.squeeze().to(device)
-        sage = sage.to(device)
-
-        train_loader = LinkNeighborLoader(graph, num_neighbors=sizes, batch_size=batch_size,
-                                          neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
-
-        optimizer = torch.optim.Adam(lr=.01, params=sage.parameters())
-        for i in range(15):
-            loss = sage.train_sage(train_loader, optimizer=optimizer)
-            #loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper)
-            #loss = sage.train_sage(train_loader, optimizer=optimizer, x=x, y=y)
-            #train(train_loader, optimizer=optimizer, model=sage, device=device)
-            print(loss)
-        #sage.eval()
-        test_loader = LinkNeighborLoader(graph, num_neighbors=sizes, batch_size=batch_size,
-                                          neg_sampling_ratio=1.0, edge_label_index=graph.edge_index)
-        with torch.no_grad():
-            for batch in test_loader:
-                batch = batch.to(sage.device)
-                e2 = sage(batch)
-                e3 = sage(batch)
-                """e2, e22 = sage.inference(x, train_loader)
-                e4, e44 = sage.inference(x, train_loader)"""
-        torch.save(sage, model_path)
-
+        in_channels = len(features_dict[first_key])
+        weighted = False
+        directed = True
         if lab == "spat":
             weighted = True
             directed = False
+
+        mapper_train, inv_map_train = create_mappers(features_dict)
+        graph = create_graph(inv_map=inv_map_train, weighted=False, features=features_dict, edg_dir=edge_path)
+        split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=False, add_negative_train_samples=False,
+                                  neg_sampling_ratio=1.0)
+        train_data, valid_data, _ = split(graph)
+        sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
+                    directed=directed)
+        sage = sage.to(device)
+        train_loader = create_loader(train_data, batch_size=batch_size, num_neighbors=sizes)
+        if not exists(weights_path):
+            optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
+            best_loss = 99999
+            for i in range(epochs):
+                loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper_train)
+                val_loss = sage.test(valid_data)
+                if loss < best_loss:
+                    best_loss = loss
+                    print("New best model found at epoch {}. Loss: {}, val_loss: {}".format(i, loss, val_loss))
+                    torch.save(sage.state_dict(), weights_path)
+                if i%5 == 0:
+                    print("Epoch {}: train loss {}, val loss: {}".format(i, loss, val_loss))
+        else:
+            sage.load_state_dict(torch.load(weights_path))
+        save_to_pickle(model_path, sage)
+        print("model saved")
+        with torch.no_grad():
+            d = train_data.to(sage.device)
+            train_set = sage(d)
+            train_set = train_set.to('cpu').numpy()
+            for k in tqdm(mapper_train):
+                try:
+                    train_set_labels.append(train_df[train_df.id==mapper_train[k]]['label'].values[0])
+                except:
+                    pass
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):
             raise Exception("The {} adjacency matrix is not square".format(lab))
         id2idx = load_from_pickle(id2idx_path)
         if node_emb_technique == "pca":
-            if not os.path.exists("{}/pca_{}.pkl".format(model_dir, lab)):
+            if not exists("{}/pca_{}.pkl".format(model_dir, lab)):
                 print("Learning PCA")
                 pca = PCA(n_components=node_embedding_size)
                 pca.fit(adj_matrix)

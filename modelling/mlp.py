@@ -27,7 +27,7 @@ class MLP:
         mod = Model(input_layer, output)
         opt = Adam(learning_rate=self.lr)
         mod.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
-        mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2, verbose=0)
+        mod.fit(self.X_train, y=self.y_train, batch_size=self.batch_size, epochs=self.epochs, validation_split=0.2, verbose=1)
         self.model = mod
 
     def test(self, X_test, y_test):
