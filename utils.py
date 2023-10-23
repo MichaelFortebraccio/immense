@@ -131,6 +131,22 @@ def embeddings_pca(emb_model, emb_technique, dst_dir):
     save_to_pickle(os.path.join(dst_dir, "reduced_embs.pkl"), d)
 
 
+def read_edg_file(path):
+    """
+    Read the content of an .edg file and return a list of tuples representing the edges
+    Args:
+        path: path to the edge file
+
+    Returns:
+
+    """
+    edgelist = []
+    with open(path, 'r') as f:
+        for l in f.readlines():
+            id1, id2 = l.split("\t")
+            edgelist.append((id1.strip(), id2.strip()))
+    return edgelist
+
 
 
 ########### UTILITY FUNCTIONS NOT USED IN THE API ###########
