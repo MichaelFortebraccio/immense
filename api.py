@@ -1,13 +1,9 @@
-import base64
-import io
-import matplotlib.pyplot as plt
-from IPython.display import display
-import os.path
 import numpy as np
+import matplotlib.pyplot as plt
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_restx import Api, Resource, reqparse, abort
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from modelling.sairus import classify_users
+from os.path import exists, join
 from utils import load_from_pickle
 
 #from task_manager.tasks import train_task, preprocess_task, CONTENT_FILENAME, JOBS_DIR, ID2IDX_REL_FILENAME, ID2IDX_SPAT_FILENAME, REL_ADJ_MAT_FILENAME, SPAT_ADJ_MAT_FILENAME
@@ -16,13 +12,13 @@ from utils import load_from_pickle
 api = Api(title="SNA spatial and textual API", version="0.1", description="Social Network Analysis API with spatial and textual information")
 application = Flask(__name__)
 api.init_app(application)
-preprocess_parser = reqparse.RequestParser()
+"""preprocess_parser = reqparse.RequestParser()
 preprocess_parser.add_argument('content_url', type=str, required=True, help="Path to the file containing the unprocessed content")
 preprocess_parser.add_argument('rel_url', type=str, help="Path to the file containing the social relationships among users")
 preprocess_parser.add_argument('id_field_name', type=str, help="Name of the field containing the user ids")
 preprocess_parser.add_argument('text_field_name', type=str, help="Name of the field containing the text")
 
-"""
+
 @api.route("/node_classification/preprocess", methods=['POST'])
 class Preprocess(Resource):
     #Preprocess the posts, concatenate and aggregate them
@@ -158,8 +154,8 @@ class TaskStatus(Resource):
         if task.info:
             response['info'] = task.info
         return jsonify(response)
-"""
 
+"""
 neighbourhood_parser = reqparse.RequestParser()
 neighbourhood_parser.add_argument("node_id", required=True, help="ID of the node")
 neighbourhood_parser.add_argument("depth", required=True, type=int, choices=(1, 2), help="Depth of the neighbourhood (can either be 1 or 2)")
@@ -185,7 +181,7 @@ class Neighbourhood(Resource):
                             nodes_to_ignore.append(id)
                             nodes = dfs(edgelist, other_node, d - 1, nodes, nodes_to_ignore)
             return nodes
-
+        #sostituire con funzione in utils
         with open(edge_path, 'r') as f:
             for line in f.readlines():
                 n1, n2 = line.split("\t")
@@ -206,7 +202,7 @@ class Plotting(Resource):
         ids = [el.strip() for el in ids]
         model_directory = params["model_directory"]
 
-        dict_reduced_embeddings = load_from_pickle(os.path.join(model_directory, "reduced_embs.pkl"))
+        dict_reduced_embeddings = load_from_pickle(join(model_directory, "reduced_embs.pkl"))
         emb_d = {v: dict_reduced_embeddings[v] for v in ids if v in dict_reduced_embeddings}
         l = []
         for k in emb_d:
@@ -218,8 +214,8 @@ class Plotting(Resource):
         ax.scatter(x1, x2)
         for i, txt in enumerate(emb_d):
             ax.annotate(txt, (x1[i], x2[i]))
-        plt.savefig(os.path.join(model_directory, "img.png"), format="png")
-        return send_file(os.path.join(model_directory, "img.png"), mimetype="image/png")
+        plt.savefig(join(model_directory, "img.png"), format="png")
+        return send_file(join(model_directory, "img.png"), mimetype="image/png")
 
 @api.route("/node_classification/plot_img")
 class Plot(Resource):
