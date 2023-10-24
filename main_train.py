@@ -1,12 +1,10 @@
-import os
-
-import pandas as pd
+import argparse
+from modelling.sairus import train
 import numpy as np
+import pandas as pd
 from os.path import exists, join
 from os import makedirs
-from modelling.sairus import train
 from utils import adj_list_from_df
-import argparse
 seed = 123
 np.random.seed(seed)
 
