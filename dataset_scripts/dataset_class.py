@@ -45,7 +45,7 @@ class Dataset:
     def preprocess_content(self, id_field_name, text_field_name):
         users = self.posts_dict
         l = []
-        for k in users.keys():
+        for k in tqdm(users.keys()):
             if users[k]:
                 for tk in users[k].keys():
                     l.append({id_field_name: k, "tweet_id": tk, text_field_name: users[k][tk]['text'].replace("\n", " ")})

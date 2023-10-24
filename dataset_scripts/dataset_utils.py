@@ -1,9 +1,11 @@
+import json
 import nltk
 import pandas as pd
 import re
 nltk.download("stopwords")
 from nltk.corpus import stopwords
 from tqdm import tqdm
+
 
 def tweets_with_position_amount(d):
     """How many tweets have geographical information available"""

@@ -35,8 +35,8 @@ class WordEmb:
     def load_model(self):
         return Word2Vec.load(self._model_dir)
 
-    def text_to_vec(self, users, path):
-        if exists(path):
+    def text_to_vec(self, users, path=None):
+        if path and exists(path):
             d = load_from_pickle(path)
         else:
             self.load_dict()
@@ -52,6 +52,7 @@ class WordEmb:
                 list_temp = np.array(list_temp)
                 list_temp = np.sum(list_temp, axis=0)
                 d[u] = list_temp
-            save_to_pickle(path, d)
+            if path:
+                save_to_pickle(path, d)
             #list_tot = np.asarray(list_tot)
         return d
