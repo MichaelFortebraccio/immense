@@ -57,8 +57,8 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
     return dang_posts_array, safe_posts_array, safe_users_embeddings
 
 
-def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_node_embs,
-              id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel=None, n2v_spat=None):
+def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_tec, spat_tec,
+              rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel=None, n2v_spat=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -88,40 +88,15 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     dataset[:, 0] = prediction_loss_dang
     dataset[:, 1] = prediction_loss_safe
     dataset[:, 2] = np.array(labels)
-    for index, row in tqdm(train_df.iterrows()):
-        id = row['id']
-        if n2v_rel:
-            try:
-                dtree_input = np.expand_dims(n2v_rel.wv[str(id)], axis=0)
-                pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
-            except KeyError:
-                pr_rel, conf_rel = row['label'], 1.0
-        else:
-            if id in id2idx_rel.keys():
-                idx = id2idx_rel[id]
-                dtree_input = np.expand_dims(rel_node_embs[idx], axis=0)
-                pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
-            else:
-                pr_rel, conf_rel = row['label'], 1.0
-        """if n2v_spat:
-            try:
-                pass
-                #dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
-                #pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
-            except KeyError:
-                pr_spat, conf_spat = row['label'], 1.0
-        else:
-            if id in id2idx_spat.keys():
-                idx = id2idx_spat[id]
-                pr_spat, conf_spat = test_decision_tree(test_set=np.expand_dims(spat_node_embs[idx], axis=0), cls=tree_spat)
-            else:
-                pr_spat, conf_spat = row['label'], 1.0"""
-        pr_spat = conf_spat = 1
-        #pr_rel = conf_rel = 1
-        dataset[index, 3] = pr_rel
-        dataset[index, 4] = conf_rel
-        dataset[index, 5] = pr_spat
-        dataset[index, 6] = conf_spat
+
+    cmi = 1.0
+    rel_part = get_relational_preds(technique=rel_tec, df=train_df, l=len(content_embs), node_embs=rel_node_embs,
+                                    tree=tree_rel, id2idx=id2idx_rel, n2v=n2v_rel, cmi=cmi)
+    spat_part = get_relational_preds(technique=spat_tec, df=train_df, l=len(content_embs), node_embs=spat_node_embs,
+                                     tree=tree_spat, id2idx=id2idx_spat, n2v=n2v_spat, cmi=cmi)
+    dataset[:, 3], dataset[:, 4] = rel_part[:, 0], rel_part[:, 1]
+    dataset[:, 5], dataset[:, 6] = spat_part[:, 0], spat_part[:, 1]
+
     #############   IMPORTANTE  #############
     #### STO TRAINANDO IL MODELLO 3%      ###
     #### CONSIDERANDO SOLO IL TESTO       ###
@@ -129,6 +104,40 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     mlp = MLP(X_train=dataset, y_train=np.array(train_df['label']), model_dir=model_dir)
     mlp.train()
     return mlp
+
+
+def get_relational_preds(technique, df, l, tree, node_embs, id2idx: dict, n2v, cmi, pmi=None):
+    dataset = np.zeros((l, 2))
+    if technique == "graphsage":
+        pr, conf = test_decision_tree(test_set=node_embs, cls=tree)
+        for index, row in tqdm(df.iterrows()):
+            dataset[index, 0] = pr[index]
+            dataset[index, 1] = conf[index]
+    else:
+        for index, row in tqdm(df.iterrows()):
+            id = row['id']
+            if technique == "node2vec":
+                try:
+                    dtree_input = np.expand_dims(n2v.wv[str(id)], axis=0)
+                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                except KeyError:
+                    if not pmi:
+                        pmi = row['label']
+                    pr, conf = pmi, cmi
+            else:
+                if id in id2idx.keys():
+                    idx = id2idx[id]
+                    dtree_input = np.expand_dims(node_embs[idx], axis=0)
+                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                else:
+                    if not pmi:
+                        pmi = row['label']
+                    pr, conf = pmi, cmi
+            dataset[index, 3] = pr
+            dataset[index, 4] = conf
+            dataset[index, 5] = pr
+            dataset[index, 6] = conf
+    return dataset
 
 
 def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, rel_node_emb_technique:str,
@@ -334,17 +343,17 @@ def classify_users(preprocess_job_id, train_job_id, user_ids, content_filename, 
 
 
 # THESE FUNCTIONS ARE NOT USED IN THE API #
-def test(rel_ne_technique, spat_ne_technique, test_df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat,
+def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat,
          mlp: MLP, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None, pca_spat=None,
          ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None, rel_net_path=None, spat_net_path=None):
-    test_set = np.zeros(shape=(len(test_df), 7))
+    test_set = np.zeros(shape=(len(df), 7))
     tok = TextPreprocessing()
-    posts = tok.token_list(test_df)
-    test_posts_embs_dict = w2v_model.text_to_vec(posts)
-    test_posts_embs = np.array(list(test_posts_embs_dict.values()))
-    pred_dang = dang_ae.predict(test_posts_embs)
-    pred_safe = safe_ae.predict(test_posts_embs)
-    test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(test_posts_embs, dtype=tf.float32)).numpy()
+    posts = tok.token_list(df)
+    posts_embs_dict = w2v_model.text_to_vec(posts)
+    posts_embs = np.array(list(posts_embs_dict.values()))
+    pred_dang = dang_ae.predict(posts_embs)
+    pred_safe = safe_ae.predict(posts_embs)
+    test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(posts_embs, dtype=tf.float32)).numpy()
     pred_loss_dang = tf.keras.losses.mse(pred_dang, test_posts_sigmoid).numpy()
     pred_loss_safe = tf.keras.losses.mse(pred_safe, test_posts_sigmoid).numpy()
     labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
@@ -359,21 +368,37 @@ def test(rel_ne_technique, spat_ne_technique, test_df, train_df, w2v_model, dang
     #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
 
+    sage_rel_embs = sage_spat_embs = inv_map_rel = inv_map_sp = None
+    if rel_ne_technique == "graphsage":
+        mapper, inv_map_rel = create_mappers(posts_embs_dict)
+        graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
+        with torch.no_grad():
+            graph = graph.to(mod_rel.device)
+            sage_rel_embs = mod_rel(graph).to("cpu").numpy
+    if spat_ne_technique == "graphsage":
+        mapper, inv_map_sp = create_mappers(posts_embs_dict)
+        graph = create_graph(inv_map=inv_map_sp, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
+        with torch.no_grad():
+            graph = graph.to(mod_rel.device)
+            sage_spat_embs = mod_rel(graph).to("cpu").numpy
+
     # Social part
-    test_set = obtain_graph_based_predictions(test_df, pred_missing_info, conf_missing_info, rel_ne_technique, tree_rel,
-                                              test_set, "rel", mod_rel, adj_matrix_rel, pca_rel, ae_rel,
-                                              id2idx_rel, test_posts_embs_dict, net_path=rel_net_path)
+    test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_rel,
+                                              ne_technique=rel_ne_technique, test_set=test_set, mode="rel",
+                                              model=mod_rel, adj_mat=adj_matrix_rel, pca=pca_rel, ae=ae_rel,
+                                              id2idx=id2idx_rel, inv_mapper=inv_map_rel, node_embs=sage_rel_embs)
 
     # Spatial part
-    test_set = obtain_graph_based_predictions(test_df, pred_missing_info, conf_missing_info, rel_ne_technique, tree_spat,
-                                              test_set, "spat", mod_spat, adj_matrix_spat, pca_spat, ae_spat,
-                                              id2idx_spat, test_posts_embs_dict, net_path=spat_net_path)
+    test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_spat,
+                                              ne_technique=rel_ne_technique, test_set=test_set, mode="spat",
+                                              model=mod_spat, adj_mat=adj_matrix_spat, pca=pca_spat, ae=ae_spat,
+                                              id2idx=id2idx_spat, inv_mapper=inv_map_sp, node_embs=sage_spat_embs)
 
-    print(mlp.test(test_set, np.array(test_df['label'])))
+    print(mlp.test(test_set, np.array(df['label'])))
 
 
 def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None,
-                                   pca=None, ae=None, id2idx=None, embs=None, net_path=None):
+                                   pca=None, ae=None, id2idx=None, inv_mapper=None, node_embs=None):
     """
     This function takes care of making the predictions based on the graphs. If the predictions concern the relational
     component, it fills the 3rd and 4th columns of the test set. If the predictions concern the spatial component, the
@@ -399,23 +424,19 @@ def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_s
         i1, i2, weighted = 5, 6, True
 
     if ne_technique == "graphsage":
-        if not net_path:
-            raise MissingParamException(ne_technique, "path to the edgelist")
-        if not model:
-            raise MissingParamException(ne_technique, "model")
-        if not embs:
-            raise MissingParamException(ne_technique, "user embeddings")
-        mapper, inv_mapper = create_mappers(embs)
-        graph = create_graph(inv_map=inv_mapper, weighted=weighted, features=embs, edg_dir=net_path)
-        with torch.no_grad():
-            graph = graph.to(model.device)
-            preds = model(graph)
-            preds = preds.to("cpu").numpy
-            for index, row in test_df.iterrows():
-                id = row.id
-                dtree_input = preds[inv_mapper[id]]
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
-                # TODO PROSEGUIRE
+        if not inv_mapper:
+            MissingMapperException
+
+        for index, row in test_df.iterrows():
+            id = row.id
+            dtree_input = node_embs[inv_mapper[id]]
+            pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+            for index, row in tqdm(test_df.iterrows()):
+                id = row['id']
+                if id in id2idx.keys():
+                    idx = id2idx[id]
+                    test_df[index, i1] = pr[idx]
+                    test_df[index, i2] = conf[idx]
     else:
         for index, row in tqdm(test_df.iterrows()):
             id = row['id']
@@ -432,7 +453,6 @@ def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_s
                     raise Id2IdxException(mode)
                 if id in id2idx.keys():
                     idx = id2idx[id]
-                    #TODO BISOGNA MODIFICARE GET TEST SET DTREE VISTO CHE ORA IL MODELLO NON è SOLO N2V
                     dtree_input = get_testset_dtree(ne_technique, idx, adj_matrix=adj_mat, n2v=model, pca=pca, ae=ae)
                     pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
                 else:
@@ -453,7 +473,7 @@ def cross_validation(dataset_path, n_folds):
     l = []
     for k, (train_idx, test_idx) in enumerate(folds):
         dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp = train(df.iloc[train_idx], k)
-        p, r, f1, s = test(test_df=df.iloc[test_idx], train_df=df.iloc[train_idx], dang_ae=dang_ae, safe_ae=safe_ae,
+        p, r, f1, s = test(df=df.iloc[test_idx], train_df=df.iloc[train_idx], dang_ae=dang_ae, safe_ae=safe_ae,
                            tree_rel=tree_rel, tree_spat=tree_spat, mod_rel=n2v_rel, mod_spat=n2v_spat, mlp=mlp,
                            w2v_model=w2v_model)
         l.append((p, r, f1, s))

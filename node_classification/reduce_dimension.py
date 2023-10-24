@@ -30,7 +30,6 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         :param walk_length: (node2vec) Length of the walks that the n2v model will do.
         :param p: (node2vec) n2v's hyperparameter p.
         :param q: (node2vec) n2v's hyperparameter q.
-        :param edge_path_train_gs: (graphsage) Path to the edgelist for training the graphsage model
         :param batch_size: (graphsage) Batch size to use during training.
         :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
         :param features_dict: (graphsage) Dictionary having as keys the IDs of the users and as values the sum of the
@@ -73,39 +72,33 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
             directed = False
 
         mapper_train, inv_map_train = create_mappers(features_dict)
-        graph = create_graph(inv_map=inv_map_train, weighted=False, features=features_dict, edg_dir=edge_path)
+        graph = create_graph(inv_map=inv_map_train, weighted=False, features=features_dict, edg_dir=edge_path, df=train_df)
         split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=False, add_negative_train_samples=False,
                                   neg_sampling_ratio=1.0)
         train_data, valid_data, _ = split(graph)
         sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
                     directed=directed)
         sage = sage.to(device)
-        train_loader = create_loader(train_data, batch_size=batch_size, num_neighbors=sizes)
-        if not exists(weights_path):
+        train_loader = create_loader(train_data, batch_size=batch_size, sizes=sizes)
+        if not exists(model_path):
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
             best_loss = 99999
             for i in range(epochs):
-                loss = sage.train_sage(train_loader, optimizer=optimizer, mapper=mapper_train)
+                loss = sage.train_sage(train_loader, optimizer=optimizer)
                 val_loss = sage.test(valid_data)
                 if loss < best_loss:
                     best_loss = loss
                     print("New best model found at epoch {}. Loss: {}, val_loss: {}".format(i, loss, val_loss))
                     torch.save(sage.state_dict(), weights_path)
-                if i%5 == 0:
+                if i % 5 == 0:
                     print("Epoch {}: train loss {}, val loss: {}".format(i, loss, val_loss))
-        else:
             sage.load_state_dict(torch.load(weights_path))
-        save_to_pickle(model_path, sage)
-        print("model saved")
-        with torch.no_grad():
-            d = train_data.to(sage.device)
-            train_set = sage(d)
-            train_set = train_set.to('cpu').numpy()
-            for k in tqdm(mapper_train):
-                try:
-                    train_set_labels.append(train_df[train_df.id==mapper_train[k]]['label'].values[0])
-                except:
-                    pass
+            save_to_pickle(model_path, sage)
+        else:
+            sage = load_from_pickle(model_path)
+        train_set = sage(graph, inference=True)
+        for k in features_dict:
+            train_set_labels.append(train_df[train_df.id == k].values[0])
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):

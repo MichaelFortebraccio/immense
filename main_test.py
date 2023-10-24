@@ -22,10 +22,6 @@ def main_test(args=None):
 
     # For testing purposes
     spat_technique = rel_technique = "graphsage"
-    """
-    dataset_dir = "dataset/anthony"
-    models_dir = "dataset/anthony/models"
-    """
     dataset_dir = "dataset/definitive_prova"
     models_dir = "dataset/definitive_prova/models"
 
@@ -33,7 +29,7 @@ def main_test(args=None):
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
     word_embedding_size = 512
-    spat_ne_dim = rel_ne_dim = 512
+    spat_ne_dim = rel_ne_dim = 256
     rel_net_path = join(dataset_dir, "social_network_test.edg")
     spat_net_path = join(dataset_dir, "spatial_network_test.edg")
     """
@@ -75,7 +71,7 @@ def main_test(args=None):
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
     else:"""
-    test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
+    test(train_df=train_df, df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, rel_ne_technique=rel_technique,
          spat_ne_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
          adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,

@@ -81,8 +81,9 @@ class SAGE(torch.nn.Module):
             self.convs.append(SAGEConv(in_dim, hidden_dim, aggr="mean", normalize=True))
             for _ in range(num_layers-1):
                 self.convs.append(SAGEConv(hidden_dim, hidden_dim, aggr="mean", normalize=True))
+        self.output = SAGEConv(hidden_dim, 2, aggr="mean", normalize=True)
 
-    def forward(self, batch):
+    def forward(self, batch, inference=False):
         x = batch.x
         for i in range(len(self.convs)):
             if self.weighted:
@@ -90,6 +91,9 @@ class SAGE(torch.nn.Module):
             else:
                 x = self.convs[i](x, batch.edge_index)
             x = F.relu(x)
+        if not inference:
+            x = self.output(x, batch.edge_index)
+            x = torch.log_softmax(x, dim=-1)
         return x
 
     def train_sage(self, train_loader, optimizer):
@@ -100,10 +104,13 @@ class SAGE(torch.nn.Module):
             optimizer.zero_grad()
             batch = batch.to(self.device)
             out = self(batch)
+            """
             out_src = out[batch.edge_label_index[0]]
             out_dst = out[batch.edge_label_index[1]]
             link_pred = (out_src * out_dst).sum(-1)
             loss = F.binary_cross_entropy_with_logits(link_pred, batch.edge_label)
+            """
+            loss = F.nll_loss(out, target=batch.y)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

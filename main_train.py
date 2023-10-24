@@ -1,4 +1,5 @@
 import argparse
+from exceptions import *
 from modelling.sairus import train
 import numpy as np
 import pandas as pd
@@ -82,14 +83,14 @@ def main_train(args=None):
 
     if rel_technique.lower() in ["autoencoder", "pca", "none"]:
         if not rel_adj_mat_path:
-            raise Exception("You need to provide a path to the relational adjacency matrix")
+            raise AdjMatException(lab="rel")
         if not id2idx_rel_path:
-            raise Exception("You need to provide a path to the pkl file with the matching between the IDs and the relational matrix rows")
+            raise Id2IdxException(lab="rel")
     if spat_technique.lower() in ["autoencoder", "pca", "none"]:
         if not spat_adj_mat_path:
-            raise Exception("You need to provide a path to the spatial adjacency matrix")
+            raise AdjMatException(lab="spat")
         if not id2idx_spat_path:
-            raise Exception("You need to provide a path to the pkl file with the matching between the IDs and the spatial matrix rows")
+            raise Id2IdxException(lab="spat")
 
     train(train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, w2v_epochs=w2v_epochs,
           rel_path="{}/social_network_train.edg".format(dataset_dir), word_embedding_size=word_embedding_size,
