@@ -16,8 +16,8 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
                      n_of_walks=10, walk_length=10, p=1, q=4, batch_size=None, epochs=None,
                      features_dict=None, adj_matrix_path=None, sizes=None, id2idx_path=None):
     """
-    This function applies one of the node dimensionality reduction techniques in order to generate the feature vectors that will be used for training
-    the decision tree.
+    This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
+    training the decision tree.
     Args:
         :param node_emb_technique: Can be either "node2vec", "graphsage", "pca", "autoencoder" or "none"
         (uses the whole adjacency matrix rows as feature vectors)

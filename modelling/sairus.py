@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import torch
+from exceptions import Id2IdxException, MissingParamException
 from gensim.models import Word2Vec
 from keras.models import load_model
 from modelling.ae import AE
@@ -176,7 +177,6 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, rel
     rel_tree_path = join(model_dir_rel, "dtree_{}_{}.h5".format(rel_node_emb_technique, rel_node_embedding_size))
     spat_tree_path = join(model_dir_spat, "dtree_{}_{}.h5".format(rel_node_emb_technique, rel_node_embedding_size))
 
-
     x_rel, y_rel = reduce_dimension(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path, lab="rel",
                                     id2idx_path=id2idx_rel_path, node_embedding_size=rel_node_embedding_size,
                                     train_df=train_df, epochs=epochs_rel_nembs, adj_matrix_path=adj_matrix_rel_path,
@@ -208,13 +208,13 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, rel
         n2v_spat = None
         id2idx_spat = load_from_pickle(id2idx_spat_path)
     content_embs = np.array(list(users_embeddings_dict.values()))
-    mlp = learn_mlp(train_df=train_df, content_embs=content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
-                    rel_node_embs=x_rel, spat_node_embs=x_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
-                    n2v_rel=n2v_rel, n2v_spat=n2v_spat)
+    mlp = learn_mlp(train_df=train_df, content_embs=content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
+                    tree_spat=tree_spat, rel_node_embs=x_rel, spat_node_embs=x_spat, model_dir=model_dir,
+                    id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat)
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: modelling.mlp.MLP, rel_node_emb_technique, spat_node_emb_technique,
+def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: MLP, rel_node_emb_technique, spat_node_emb_technique,
                  id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
     test_array = np.zeros(shape=(1, 7))
     posts = user['text_cleaned'].values[0].split(" ")
@@ -339,9 +339,9 @@ def test(rel_ne_technique, spat_ne_technique, test_df, train_df, w2v_model, dang
          ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None, rel_net_path=None, spat_net_path=None):
     test_set = np.zeros(shape=(len(test_df), 7))
     tok = TextPreprocessing()
-    posts = tok.token_list(test_df['text_cleaned'].tolist())
-    test_posts_embs = w2v_model.text_to_vec(posts)
-    test_posts_embs = np.array(list(test_posts_embs.values())[0])
+    posts = tok.token_list(test_df)
+    test_posts_embs_dict = w2v_model.text_to_vec(posts)
+    test_posts_embs = np.array(list(test_posts_embs_dict.values()))
     pred_dang = dang_ae.predict(test_posts_embs)
     pred_safe = safe_ae.predict(test_posts_embs)
     test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(test_posts_embs, dtype=tf.float32)).numpy()
@@ -358,21 +358,28 @@ def test(rel_ne_technique, spat_ne_technique, test_df, train_df, w2v_model, dang
     pred_missing_info = train_df['label'].value_counts().argmax()
     #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
-    k = 0
-    if rel_ne_technique == "graphsage":
-        map_test, inv_map_test = create_mappers(test_posts_embs)
-        rel_test_graph = create_graph(inv_map_test, weighted=False, features=test_posts_embs, edg_dir=rel_net_path)
-        with torch.no_grad():
-            preds = mod_rel(rel_test_graph)
-            # TODO TROVARE UN MODO PER CAPIRE IL MAPPING
+
+    # Social part
+    test_set = obtain_graph_based_predictions(test_df, pred_missing_info, conf_missing_info, rel_ne_technique, tree_rel,
+                                              test_set, "rel", mod_rel, adj_matrix_rel, pca_rel, ae_rel,
+                                              id2idx_rel, test_posts_embs_dict, net_path=rel_net_path)
+
+    # Spatial part
+    test_set = obtain_graph_based_predictions(test_df, pred_missing_info, conf_missing_info, rel_ne_technique, tree_spat,
+                                              test_set, "spat", mod_spat, adj_matrix_spat, pca_spat, ae_spat,
+                                              id2idx_spat, test_posts_embs_dict, net_path=spat_net_path)
+
     print(mlp.test(test_set, np.array(test_df['label'])))
 
 
-def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None, pca=None, ae=None, id2idx=None):
+def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None,
+                                   pca=None, ae=None, id2idx=None, embs=None, net_path=None):
     """
     This function takes care of making the predictions based on the graphs. If the predictions concern the relational
     component, it fills the 3rd and 4th columns of the test set. If the predictions concern the spatial component, the
     5th and 6th columns are filled
+    :param net_path: Path to the edgelist containing the test network (graphsage)
+    :param embs: User embeddings (graphsage)
     :param test_df:
     :param pmi: What prediction to give in case we don't have relational (or spatial) information for a node
     :param cmi: What confidence to give in case we don't have relational (or spatial) information for a node
@@ -387,28 +394,52 @@ def obtain_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_s
     :param id2idx:
     :return:
     """
-    i1, i2 = 3, 4
+    i1, i2, weighted = 3, 4, False
     if mode == "spat":
-        i1, i2 = 5, 6
-    for index, row in tqdm(test_df.iterrows()):
-        id = row['id']
-        if ne_technique == "node2vec":
-            try:
-                dtree_input = np.expand_dims(model.wv[str(id)], axis=0)
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
-            except KeyError:
-                pr, conf = pmi, cmi
-        else:
-            if id in id2idx.keys():
-                idx = id2idx[id]
-                #TODO BISOGNA MODIFICARE GET TEST SET DTREE VISTO CHE ORA IL MODELLO NON è SOLO N2V
-                dtree_input = get_testset_dtree(ne_technique, idx, adj_matrix=adj_mat, n2v=model, pca=pca, ae=ae)
-                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
-            else:
-                pr, conf = pmi, cmi
-        test_set[index, i1] = pr
-        test_set[index, i2] = conf
+        i1, i2, weighted = 5, 6, True
 
+    if ne_technique == "graphsage":
+        if not net_path:
+            raise MissingParamException(ne_technique, "path to the edgelist")
+        if not model:
+            raise MissingParamException(ne_technique, "model")
+        if not embs:
+            raise MissingParamException(ne_technique, "user embeddings")
+        mapper, inv_mapper = create_mappers(embs)
+        graph = create_graph(inv_map=inv_mapper, weighted=weighted, features=embs, edg_dir=net_path)
+        with torch.no_grad():
+            graph = graph.to(model.device)
+            preds = model(graph)
+            preds = preds.to("cpu").numpy
+            for index, row in test_df.iterrows():
+                id = row.id
+                dtree_input = preds[inv_mapper[id]]
+                pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                # TODO PROSEGUIRE
+    else:
+        for index, row in tqdm(test_df.iterrows()):
+            id = row['id']
+            if ne_technique == "node2vec":
+                if not model:
+                    raise MissingParamException(ne_technique, "model")
+                try:
+                    dtree_input = np.expand_dims(model.wv[str(id)], axis=0)
+                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                except KeyError:
+                    pr, conf = pmi, cmi
+            else:
+                if not id2idx:
+                    raise Id2IdxException(mode)
+                if id in id2idx.keys():
+                    idx = id2idx[id]
+                    #TODO BISOGNA MODIFICARE GET TEST SET DTREE VISTO CHE ORA IL MODELLO NON è SOLO N2V
+                    dtree_input = get_testset_dtree(ne_technique, idx, adj_matrix=adj_mat, n2v=model, pca=pca, ae=ae)
+                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                else:
+                    pr, conf = pmi, cmi
+            test_set[index, i1] = pr
+            test_set[index, i2] = conf
+    return test_set
     #mlp.test(test_set, np.array(test_df['label']))
 
 

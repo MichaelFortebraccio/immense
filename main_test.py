@@ -27,7 +27,6 @@ def main_test(args=None):
     models_dir = "dataset/anthony/models"
     """
     dataset_dir = "dataset/definitive_prova"
-    val = 20
     models_dir = "dataset/definitive_prova/models"
 
     adj_mat_spat_path = adj_mat_rel_path = None
@@ -35,6 +34,8 @@ def main_test(args=None):
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
     word_embedding_size = 512
     spat_ne_dim = rel_ne_dim = 512
+    rel_net_path = join(dataset_dir, "social_network_test.edg")
+    spat_net_path = join(dataset_dir, "spatial_network_test.edg")
     """
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
@@ -65,10 +66,6 @@ def main_test(args=None):
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
                                                                        id2idx_path=id2idx_spat_path, ne_dim=spat_ne_dim)
 
-    if rel_technique == "graphsage":
-        mapper, inv_map =
-
-
     """if args.user_id:
         df = train_df.append(test_df)
         user = df.loc[df.id==args.user_id]
@@ -81,7 +78,8 @@ def main_test(args=None):
     test(train_df=train_df, test_df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, rel_ne_technique=rel_technique,
          spat_ne_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
-         adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat)
+         adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
+         rel_net_path=rel_net_path, spat_net_path=spat_net_path)
 
 
 if __name__ == "__main__":
