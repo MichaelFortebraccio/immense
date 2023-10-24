@@ -1,15 +1,11 @@
-from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
 import pickle
 
 
 def train_decision_tree(train_set, save_path, train_set_labels, name):
     print("Training {} decision tree".format(name))
-    #cls = DecisionTreeClassifier(criterion="gini", max_depth=40, min_samples_leaf=15)
     cls = RandomForestClassifier(criterion="gini", max_depth=10)
     cls.fit(train_set, train_set_labels)
-    #print(cls.tree_.max_depth)
     pickle.dump(cls, open(save_path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
 
 

@@ -6,7 +6,6 @@ from tqdm import tqdm
 import torch_geometric.transforms as T
 from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from torch_geometric.loader import NeighborSampler, LinkNeighborLoader
 from node_classification.graph_embeddings.sage import SAGE, create_loader, create_mappers, create_graph
 from sklearn.decomposition import PCA
 from utils import is_square, load_from_pickle, save_to_pickle, embeddings_pca

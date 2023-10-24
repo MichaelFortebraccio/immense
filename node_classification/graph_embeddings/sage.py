@@ -4,15 +4,14 @@ import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
 from torch_geometric.data import Data
-from torch_geometric.loader import LinkNeighborLoader
+from torch_geometric.loader import NeighborSampler
 from torch_geometric.nn import SAGEConv, GraphConv
 from tqdm import tqdm
 torch.manual_seed(42)
 
 
-def create_loader(data, batch_size, num_neighbors):
-    return LinkNeighborLoader(data, num_neighbors=num_neighbors, batch_size=batch_size, neg_sampling_ratio=1.0,
-                              edge_label_index=data.edge_index)
+def create_loader(data, batch_size, sizes):
+    return NeighborSampler(data, sizes=sizes, batch_size=batch_size, edge_index=data.edge_index)
 
 
 def create_mappers(features_dict):
@@ -29,7 +28,13 @@ def create_mappers(features_dict):
     return mapper, inv_map
 
 
-def create_graph(inv_map, weighted, features, edg_dir):
+def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_field="label"):
+    """
+    Function to create a graph starting from the features, the edge list, and the node labels.
+    :param: df: Dataframe containing the users. It is used to retrieve the node labels
+    :param: id_field: Name of the id field in the dataframe. Default 'id'
+    :param: label_field: Name of the label field in the dataframe. Default 'label'
+    """
     inv_mapper_list = list(inv_map.keys())
     feats = []
     # Create the graph
@@ -37,6 +42,7 @@ def create_graph(inv_map, weighted, features, edg_dir):
         feats.append(features[int(i)])
     x = torch.Tensor(np.array(feats))
     edgelist = []
+    y = []
     weights = []
     with open(edg_dir, 'r') as f:
         for l in f.readlines():
@@ -48,11 +54,14 @@ def create_graph(inv_map, weighted, features, edg_dir):
             edgelist.append((inv_map[int(e1)], inv_map[int(e2.strip())]))
     edges = list(zip(*edgelist))
     edge_index = torch.tensor(np.array(edges), dtype=torch.long)
+    y = torch.Tensor(np.array(y), dtype=torch.long)
+    for k in features:
+        y.append(df[df[id_field] == k][label_field].values[0])
     if weighted:
         edge_attr = torch.tensor(np.array(weights), dtype=torch.float)
-        graph = Data(x=x, edge_index=edge_index, edge_weight=edge_attr)
+        graph = Data(x=x, y=y, edge_index=edge_index, edge_weight=edge_attr)
     else:
-        graph = Data(x=x, edge_index=edge_index)
+        graph = Data(x=x, y=y, edge_index=edge_index)
     return graph
 
 
@@ -83,7 +92,7 @@ class SAGE(torch.nn.Module):
             x = F.relu(x)
         return x
 
-    def train_sage(self, train_loader, optimizer, mapper):
+    def train_sage(self, train_loader, optimizer):
         self.train()
         total_loss = 0
         # Train on batches

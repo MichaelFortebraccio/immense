@@ -1,21 +1,14 @@
-import os.path
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-import matplotlib.pyplot as plt
 import seaborn as sn
-from exceptions import Id2IdxException, AdjMatException
+from exceptions import AdjMatException, Id2IdxException
 from gensim.models import Word2Vec
 from keras.models import load_model
 from os.path import exists, join
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
-<<<<<<< HEAD
-import matplotlib.pyplot as plt
-import seaborn as sn
-=======
->>>>>>> 3f0191ecefe6c3aa143d42206eaf0b5ecb9f4d32
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 
@@ -84,26 +77,6 @@ def embeddings_pca(emb_model, emb_technique, dst_dir):
     d = {}
     for k in k2i:
         d[k] = pca_embs[k2i[k]]
-<<<<<<< HEAD
-    save_to_pickle(os.path.join(dst_dir, "reduced_embs.pkl"), d)
-
-
-def read_edg_file(path):
-    """
-    Read the content of an .edg file and return a list of tuples representing the edges
-    Args:
-        path: path to the edge file
-
-    Returns:
-
-    """
-    edgelist = []
-    with open(path, 'r') as f:
-        for l in f.readlines():
-            id1, id2 = l.split("\t")
-            edgelist.append((id1.strip(), id2.strip()))
-    return edgelist
-=======
     save_to_pickle(join(dst_dir, "reduced_embs.pkl"), d)
 
 
@@ -136,7 +109,6 @@ def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="
                 f.write("{}\t{}\n".format(l[0], l[1]))
             else:
                 f.write("{}\t{}\t{}\n".format(l[0], l[1], l[2]))
->>>>>>> 3f0191ecefe6c3aa143d42206eaf0b5ecb9f4d32
 
 
 
