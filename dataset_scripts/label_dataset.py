@@ -21,24 +21,31 @@ def cosine_similarity(matrix, vector):
     return similarity
 
 
-def text_to_vec(mod_learned:KeyedVectors, posts):
+def text_to_vec(mod: KeyedVectors, posts):
     """
-    Obtain a vector from a textual content. This function is needed even if it alrady exists in the WordEmb class, because
-    this function works using a pretrained word embedding model"""
+    Obtain a vector from a textual content. This function is needed even if it already exists in the WordEmb class,
+    because this function works using a pretrained word embedding model. Also, this function returns a list and a number
+    while the function in WordEmb returns a dictionary
+    :param mod: Word2Vec model
+    :param posts: List of posts
+    :return list_tot: A list having the same length of posts. The elements are arrays containing the sum of the
+    embeddings of the words in that post
+    :return a: Number of words found in the posts list that are not included in the w2v model
+    """
     list_tot = []
     a = 0
     i = 0
-    e = {w.lower(): w for w in mod_learned.key_to_index.keys() if not w.islower()}
+    e = {w.lower(): w for w in mod.key_to_index.keys() if not w.islower()}
     for tw in posts:
         list_temp = []
         if tw:
             for t in tw:
                 try:
-                    learned_embedding = mod_learned[t]
+                    learned_embedding = mod[t]
                     f_l = True
                 except KeyError:
                     try:
-                        learned_embedding = mod_learned[e[t]]
+                        learned_embedding = mod[e[t]]
                         f_l = True
                     except KeyError:
                         a += 1
@@ -58,13 +65,14 @@ def text_to_vec(mod_learned:KeyedVectors, posts):
     return list_tot, a
 
 
-def text_to_vec_w2v(mod_learned:Word2Vec, posts):
+def text_to_vec_w2v(mod: Word2Vec, posts):
     """
     Obtain a vector from a textual content. This function is needed even if it already exists in the WordEmb class, because
-    this function works using a pretrained word embedding model while the other works on list"""
+    this function works using a pretrained word embedding model while the other works on list
+    """
     list_tot = []
     a = 0
-    wv = mod_learned.wv
+    wv = mod.wv
     for tw in posts:
         list_temp = []
         if tw:
@@ -171,12 +179,12 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
         train_tl = posts_content_negative[:cur_idx] + posts_content_negative[next_idx:]     # Token list of the posts that will be used as reference for measuring how risky a post is
         test_tl = posts_content_negative[cur_idx:next_idx]      # Token list of the posts that are known to be negative and that will be compared to those in train_tl
 
-        t2v_negative, _ = text_to_vec(posts=train_tl, mod_learned=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
+        t2v_negative, _ = text_to_vec(posts=train_tl, mod=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
         l_negative = np.zeros(shape=(1, len(test_tl)))
         sim_evil = np.zeros(len(test_tl))
-        t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod_learned=model_negative)
+        t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod=model_negative)
         print(a)
-        t2v_test_negative, _ = text_to_vec(posts=test_tl, mod_learned=model_negative)
+        t2v_test_negative, _ = text_to_vec(posts=test_tl, mod=model_negative)
         for j in tqdm(range(t2v_tolabel.shape[0])):
             sim = cosine_similarity(t2v_negative, t2v_tolabel[j, :])
             sim_tolabel[j] = np.nanmax(sim)
@@ -203,9 +211,9 @@ def main_whole(dataset_negative_path, dataset_to_label_path, model_path, n):
     print("model loaded")
     sim_tolabel = {}
     l_tolabel = np.zeros(shape=(1, len(posts_content_tolabel)))
-    t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod_learned=model_negative)
+    t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod=model_negative)
     t2v_negative, _ = text_to_vec(posts=posts_content_negative,
-                                  mod_learned=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
+                                  mod=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
 
     i=0
     for j in tqdm(range(t2v_tolabel.shape[0])):

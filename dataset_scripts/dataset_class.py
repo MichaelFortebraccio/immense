@@ -30,8 +30,9 @@ def normalize_closeness(d, file_name):
 
     with open(file_name, "w") as f:
         for t in l:
-            f.write(str(t[0]) + "\t" + str(t[1]) + "\t" + str(t[2]))
-            f.write("\n")
+            if str(t[2]) != 0.0:
+                f.write(str(t[0]) + "\t" + str(t[1]) + "\t" + str(t[2]))
+                f.write("\n")
 
 
 class Dataset:
