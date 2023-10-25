@@ -1,11 +1,11 @@
-from gensim.models import KeyedVectors, Word2Vec
-from tqdm import tqdm
-from modelling.text_preprocessing import TextPreprocessing
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from utils import save_to_pickle, load_from_pickle
-from utils import kfold
+import numpy as np
+import pandas as pd
+from gensim.models import KeyedVectors, Word2Vec
+from modelling.text_preprocessing import TextPreprocessing
+from os.path import join
+from tqdm import tqdm
+from utils import save_to_pickle, load_from_pickle, kfold
 
 
 def cosine_similarity(matrix, vector):
@@ -60,6 +60,8 @@ def text_to_vec(mod: KeyedVectors, posts):
             list_temp = np.array(list_temp)
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)
+        else:
+            print("bb")
         i += 1
     list_tot = np.asarray(list_tot)
     return list_tot, a
@@ -155,23 +157,23 @@ def plot_single_values(sorted_values, type, l):
     plt.show()
 
 
-def main(dataset_negative_path, dataset_to_label_path, model_path, n):
+def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
     # effettua kfold sul set di tweet malevoli
     df_negative = pd.read_csv(dataset_negative_path)
-    df_tolabel = pd.read_csv(dataset_to_label_path)        # Dataframe that has to be labeled
+    df_to_label = pd.read_csv(dataset_to_label_path)        # Dataframe that has to be labeled
     #df_evil = df_evil.sample(frac=1).reset_index()  # Shuffle
 
     tok = TextPreprocessing()
-    posts_content_negative = tok.token_list(df_negative["text"].values.tolist())
-    posts_content_tolabel = tok.token_list(df_tolabel["text"].values.tolist())
+    posts_content_negative = tok.token_dict(df_negative["text"].values.tolist())
+    posts_content_to_label = tok.token_dict(df_to_label["text"].values.tolist())
     model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
     ### UNCOMMENT THE NEXT TWO LINES FOR USING THE LEARNED WWV MODEL
     #model_negative = load_from_pickle("w2v_model_300.pkl")
     #model_negative = model_negative.model
 
-    folds_idx = kfold(len(df_negative), 5)
-    sim_tolabel = np.zeros(len(posts_content_tolabel))
-    l_tolabel = np.zeros(shape=(1, len(posts_content_tolabel)))
+    folds_idx = kfold(len(df_negative), splits)
+    sim_to_label = np.zeros(len(posts_content_to_label))
+    l_to_label = np.zeros(shape=(1, len(posts_content_to_label)))
     for i in range(len(folds_idx)-1):
         # The rows going from cur_idx to next_idx will be used as test fold
         cur_idx = folds_idx[i]
@@ -182,71 +184,80 @@ def main(dataset_negative_path, dataset_to_label_path, model_path, n):
         t2v_negative, _ = text_to_vec(posts=train_tl, mod=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
         l_negative = np.zeros(shape=(1, len(test_tl)))
         sim_evil = np.zeros(len(test_tl))
-        t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod=model_negative)
+        t2v_to_label, a = text_to_vec(posts=posts_content_to_label, mod=model_negative)
         print(a)
         t2v_test_negative, _ = text_to_vec(posts=test_tl, mod=model_negative)
-        for j in tqdm(range(t2v_tolabel.shape[0])):
-            sim = cosine_similarity(t2v_negative, t2v_tolabel[j, :])
-            sim_tolabel[j] = np.nanmax(sim)
+        for j in tqdm(range(t2v_to_label.shape[0])):
+            sim = cosine_similarity(t2v_negative, t2v_to_label[j, :])
+            sim_to_label[j] = np.nanmax(sim)
         for j in range(t2v_test_negative.shape[0]):
             sim = cosine_similarity(t2v_negative, t2v_test_negative[j, :])
             sim_evil[j] = np.nanmax(sim)
         l_negative[0, :] = sim_evil
-        l_tolabel[0, :] = sim_tolabel
-        save_to_pickle("sim_2l.pkl", l_tolabel)
+        l_to_label[0, :] = sim_to_label
+        save_to_pickle("sim_2l.pkl", l_to_label)
         save_to_pickle("sim_neg.pkl", l_negative)
-        plot_values([l_tolabel, l_negative], type="cosine", l=n)
+        plot_values([l_to_label, l_negative], type="cosine", l=n)
     # return l_positive, l_evil"""
 
 
-def main_whole(dataset_negative_path, dataset_to_label_path, model_path, n):
-    """considera l'intero insieme di tweet malevoli"""
+def main_whole(dataset_negative_path, dataset_to_label_path, model_path, sim2label_fname):
+    """consider the whole set of malicious tweets instead of doing k-fold"""
     df_negative = pd.read_csv(dataset_negative_path)
-    df_tolabel = pd.read_csv(dataset_to_label_path)
+    df_to_label = pd.read_csv(dataset_to_label_path)
 
     tok = TextPreprocessing()
-    posts_content_negative = tok.token_list(df_negative["text"].values.tolist())
-    posts_content_tolabel = tok.token_list(df_tolabel["text"].values.tolist())
+    """posts_content_negative = tok.token_list(df_negative, text_field_name="text")
+    posts_content_to_label = tok.token_list(df_to_label, text_field_name="text_cleaned")
+    save_to_pickle("posts_content_negative.pkl", posts_content_negative)
+    save_to_pickle("posts_content_to_label.pkl", posts_content_to_label)"""
+    posts_content_negative = load_from_pickle("posts_content_negative.pkl")
+    posts_content_to_label = load_from_pickle("posts_content_to_label.pkl")
     model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
     print("model loaded")
-    sim_tolabel = {}
-    l_tolabel = np.zeros(shape=(1, len(posts_content_tolabel)))
-    t2v_tolabel, a = text_to_vec(posts=posts_content_tolabel, mod=model_negative)
-    t2v_negative, _ = text_to_vec(posts=posts_content_negative,
-                                  mod=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
+    sim_to_label = {}
+    l_to_label = np.zeros(shape=(1, len(posts_content_to_label)))
+    t2v_to_label, a = text_to_vec(posts=posts_content_to_label, mod=model_negative)
+    t2v_negative, _ = text_to_vec(posts=posts_content_negative, mod=model_negative)
 
-    i=0
-    for j in tqdm(range(t2v_tolabel.shape[0])):
-        sim = cosine_similarity(t2v_negative, t2v_tolabel[j, :])
-        sim_tolabel[j] = np.nanmax(sim)
-        i+=1
-    l_tolabel[0, :] = sim_tolabel
-    save_to_pickle(name="sim_to_label_official.pkl", c=sim_tolabel)
-    plot_single_values([l_tolabel], type="cosine", l=n)
+    i = 0
+    for j in tqdm(range(t2v_to_label.shape[0])):
+        sim = cosine_similarity(t2v_negative, t2v_to_label[j, :])
+        sim_to_label[j] = np.nanmax(sim)
+        i += 1
+    l_to_label[0, :] = sim_to_label
+    save_to_pickle(name=sim2label_fname, c=sim_to_label)
+    plot_single_values([l_to_label], type="cosine", l="bob")
 
 
-def add_label(df, sim_array):
-    l = [0 if sim_array[i]<0.89 else 1 for i in range(len(sim_array))]
+def add_label(df, ratio, sim_array):
+    # If sim(user_emb, negative_emb) > ratio, then user = risky else user = safe
+    l = [0 if sim_array[i] < ratio else 1 for i in range(len(sim_array))]
     df['label'] = l
     return df
 
 
 if __name__ == "__main__":
-    """main_whole(dataset_negative_path="../evil/no_aff_preproc_nolow.csv", dataset_to_label_path="cose/concatenated_tweets.csv", model_path="../evil/google_w2v.bin",
-        n="bo")"""
+    dataset_dir = join("..", "dataset", "big_dataset")
+    negative_ds = join(dataset_dir, "no_affiliations_preprocessed_nolow.csv")
+    ds_to_label = join(dataset_dir, "textual_content.csv")
+    model_path = "../google_w2v.bin"
+    sim2label_fname = "sim_to_label.pkl"
+    main_whole(dataset_negative_path=negative_ds, dataset_to_label_path=ds_to_label, model_path=model_path,
+               sim2label_fname=sim2label_fname)
 
-    ## ADD LABEL COLUMN TO THE DATASET
-    df = pd.read_csv("cose/concatenated_tweets.csv")
-    ar = load_from_pickle("sim_to_label_official.pkl")
-    df = add_label(df, sim_array=ar)
-    factors = [0.03, 0.05, 0.1, 0.15, 0.2]
+    print("Adding label column to the dataset")
+    df = pd.read_csv(ds_to_label)
+    ar = load_from_pickle(sim2label_fname)
+    df = add_label(df, ratio=0.89, sim_array=ar)
+    factors = [0.2]
     for factor in factors:
         neg = label_based_on_relationships(df=df, factor=factor)
         neg_idxs = []
         for index, r in df.iterrows():
             if r.id in neg:
                 neg_idxs.append(index)
-        #df.to_csv("../dataset/tweets_labeled09.csv")
+        df.to_csv(join(dataset_dir, "tweets_labeled89_full.csv"))
 
         ## THE DATASET WILL CONTAIN THE TOP 2% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 25% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
         sorted_indexes = ar.argsort()[::-1]
@@ -257,6 +268,4 @@ if __name__ == "__main__":
         indexes = list(set(l1 + l2 + neg_idxs))
         dataset = df.iloc[indexes]
         dataset = dataset.drop(columns=["Unnamed: 0"])
-        dataset.to_csv("tweets_labeled_089_{}.csv".format(int(factor*100)))
-#todo prova con dataset contenente solo utenti con informazione spaziale
-# [3067, 1311, 312, 142, 70]
+        dataset.to_csv(join(dataset_dir, "tweets_labeled_089_{}_27perc.csv".format(int(factor*100))))

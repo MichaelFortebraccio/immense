@@ -19,17 +19,28 @@ class TextPreprocessing:
             list_sentences.append(new_string)
         return list_sentences
 
-    def token_list(self, df) -> dict:
+    def token_dict(self, df, text_field_name, id_field_name) -> dict:
         d = {}
         #list_sentences = []
         for i, r in df.iterrows():
             try:
-                splitted = r['text_cleaned'].split(' ')
+                splitted = r[text_field_name].split(' ')
                 splitted = self.remove_nonalpha(splitted)
-                d[r['id']] = splitted
+                d[r[id_field_name]] = splitted
             except AttributeError:
                 print("met nan. skipping")
         return d
+
+    def token_list(self, df, text_field_name) -> list:
+        list_sentences = []
+        for i, r in df.iterrows():
+            try:
+                splitted = r[text_field_name].split(' ')
+                splitted = self.remove_nonalpha(splitted)
+                list_sentences.append(splitted)
+            except AttributeError:
+                print("met nan. skipping")
+        return list_sentences
 
     def remove_nonalpha(self, tl):
         to_pop = []

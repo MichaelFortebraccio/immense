@@ -35,7 +35,7 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
         users' IDs and, for each of them, the embedding array given by the sum of the words in their posts
     """
     tok = TextPreprocessing()
-    posts_content = tok.token_list(train_df)
+    posts_content = tok.token_dict(train_df)
     if not exists(join(model_dir, name)):
         print("Training word2vec model")
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=10, epochs=epochs, model_dir=model_dir)
@@ -47,10 +47,10 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
     # split content in safe and dangerous
     dang_posts = train_df.loc[train_df['label'] == 1]
     safe_posts = train_df.loc[train_df['label'] == 0]
-    users = tok.token_list(dang_posts)
+    users = tok.token_dict(dang_posts)
     path = join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size))
     dang_users_embeddings = w2v_model.text_to_vec(users=users, path=path)
-    safe_users_embeddings = w2v_model.text_to_vec(users=tok.token_list(safe_posts), path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)))
+    safe_users_embeddings = w2v_model.text_to_vec(users=tok.token_dict(safe_posts), path=join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size)))
     dang_posts_array = np.array(list(dang_users_embeddings.values()))
     safe_posts_array = np.array(list(safe_users_embeddings.values()))
     safe_users_embeddings.update(dang_users_embeddings)     # merge dang_users_embeddings and safe_users_embeddings, so we have a dict with all the users. Doing dang_users_embeddings.update(safe_users_embeddings) has the same output. Ugly but effective
@@ -348,7 +348,7 @@ def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, 
          ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None, rel_net_path=None, spat_net_path=None):
     test_set = np.zeros(shape=(len(df), 7))
     tok = TextPreprocessing()
-    posts = tok.token_list(df)
+    posts = tok.token_dict(df)
     posts_embs_dict = w2v_model.text_to_vec(posts)
     posts_embs = np.array(list(posts_embs_dict.values()))
     pred_dang = dang_ae.predict(posts_embs)
