@@ -20,11 +20,12 @@ with open(rel_path, 'r') as f:
 print("Loaded rel json")
 
 ds = Dataset(posts_dict=d_content, rel_dict=d_rel)
-"""print("Preprocessing...")
+print("Preprocessing...")
 df_proc = ds.preprocess_content(id_field_name=id_field, text_field_name=text_field)
 print("Preprocessing completed. Saving files...")
-df_proc.to_csv(os.path.join(dataset_dir, "textual_content.csv"))
-print("Positions...")
+df_proc = df_proc.dropna()
+df_proc.to_csv(os.path.join(dataset_dir, "unlabelled_dataset.csv"))
+"""print("Positions...")
 ds.users_with_pos()
 for us in ds.users_with_position:
     us.position_mode()      # Set, for each user, the mode of the locations as its location

@@ -39,7 +39,7 @@ class TextPreprocessing:
                 splitted = self.remove_nonalpha(splitted)
                 list_sentences.append(splitted)
             except AttributeError:
-                print("met nan. skipping")
+                print("Met nan row. Skipping")
         return list_sentences
 
     def remove_nonalpha(self, tl):

@@ -33,10 +33,10 @@ def text_to_vec(mod: KeyedVectors, posts):
     :return a: Number of words found in the posts list that are not included in the w2v model
     """
     list_tot = []
-    a = 0
+    null_idxs = []       # List containing the indexes of the elements containing empty posts
     i = 0
-    e = {w.lower(): w for w in mod.key_to_index.keys() if not w.islower()}
-    for tw in posts:
+    e = {w.lower(): w for w in mod.key_to_index.keys() if w.isalpha() and not w.islower()}
+    for tw in tqdm(posts):
         list_temp = []
         if tw:
             for t in tw:
@@ -48,23 +48,20 @@ def text_to_vec(mod: KeyedVectors, posts):
                         learned_embedding = mod[e[t]]
                         f_l = True
                     except KeyError:
-                        a += 1
                         f_l = False
                 if f_l:
                     list_temp.append(learned_embedding)
                 else:
                     list_temp.append(np.zeros(shape=(300,)))
         else:
-            continue
+            null_idxs.append(i)
         if list_temp:
             list_temp = np.array(list_temp)
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)
-        else:
-            print("bb")
         i += 1
     list_tot = np.asarray(list_tot)
-    return list_tot, a
+    return list_tot, null_idxs
 
 
 def text_to_vec_w2v(mod: Word2Vec, posts):
@@ -156,8 +153,14 @@ def plot_single_values(sorted_values, type, l):
     plt.legend()
     plt.show()
 
+"""
+l_to_label[0, :] = sim_to_label
+save_to_pickle(name=sim2label_fname, c=sim_to_label)
+plot_single_values([l_to_label], type="cosine", l="bob")
+"""
+#TODO FIXARE PLOTSINGLEVALUES
 
-def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
+"""def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
     # effettua kfold sul set di tweet malevoli
     df_negative = pd.read_csv(dataset_negative_path)
     df_to_label = pd.read_csv(dataset_to_label_path)        # Dataframe that has to be labeled
@@ -201,33 +204,38 @@ def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, spli
     # return l_positive, l_evil"""
 
 
-def main_whole(dataset_negative_path, dataset_to_label_path, model_path, sim2label_fname):
-    """consider the whole set of malicious tweets instead of doing k-fold"""
-    df_negative = pd.read_csv(dataset_negative_path)
+def main_whole(risky_ds_path, dataset_to_label_path, model_path, sim_fname):
+    """
+    consider the whole set of malicious tweets instead of doing k-fold
+    :param risky_ds_path: Path to the dataset containing posts that are known to be risky
+    :param dataset_to_label_path: Path to the dataset that has to be labeled
+    :param model_path: Path to the word embedding model
+    :param sim_fname: Name of the file where we will serialize an array that, for each user, will contain the
+    value of the highest similarity among that user embeddings and each of the risky posts
+    """
+    df_negative = pd.read_csv(risky_ds_path)
     df_to_label = pd.read_csv(dataset_to_label_path)
 
     tok = TextPreprocessing()
-    """posts_content_negative = tok.token_list(df_negative, text_field_name="text")
+    posts_content_negative = tok.token_list(df_negative, text_field_name="text")
     posts_content_to_label = tok.token_list(df_to_label, text_field_name="text_cleaned")
-    save_to_pickle("posts_content_negative.pkl", posts_content_negative)
-    save_to_pickle("posts_content_to_label.pkl", posts_content_to_label)"""
-    posts_content_negative = load_from_pickle("posts_content_negative.pkl")
-    posts_content_to_label = load_from_pickle("posts_content_to_label.pkl")
     model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
     print("model loaded")
-    sim_to_label = {}
-    l_to_label = np.zeros(shape=(1, len(posts_content_to_label)))
-    t2v_to_label, a = text_to_vec(posts=posts_content_to_label, mod=model_negative)
+    similarities = {}
+    t2v_to_label, idxs = text_to_vec(posts=posts_content_to_label, mod=model_negative)
+    if idxs:
+        df_to_label = df_to_label.drop(idxs)
+        df_to_label = df_to_label.drop(columns=[c for c in df_to_label.columns if c not in ['id', 'text_cleaned']])
+        df_to_label.to_csv(dataset_to_label_path)
+    #t2v_to_label = load_from_pickle("t2vtl.pkl")
     t2v_negative, _ = text_to_vec(posts=posts_content_negative, mod=model_negative)
-
     i = 0
     for j in tqdm(range(t2v_to_label.shape[0])):
         sim = cosine_similarity(t2v_negative, t2v_to_label[j, :])
-        sim_to_label[j] = np.nanmax(sim)
+        similarities[j] = np.nanmax(sim)
         i += 1
-    l_to_label[0, :] = sim_to_label
-    save_to_pickle(name=sim2label_fname, c=sim_to_label)
-    plot_single_values([l_to_label], type="cosine", l="bob")
+    save_to_pickle(name=sim_fname, c=np.array(list(similarities.values())))
+    #plot_single_values(np.array(list(sim_to_label.values())), type="cosine", l="bob")
 
 
 def add_label(df, ratio, sim_array):
@@ -239,33 +247,37 @@ def add_label(df, ratio, sim_array):
 
 if __name__ == "__main__":
     dataset_dir = join("..", "dataset", "big_dataset")
-    negative_ds = join(dataset_dir, "no_affiliations_preprocessed_nolow.csv")
-    ds_to_label = join(dataset_dir, "textual_content.csv")
+
+    allowed_columns = ['id', 'text_cleaned', 'label']   # Used when deleting columns named 'Unnamed: 0' and so on
+    risky_ds = join(dataset_dir, "no_affiliations_preprocessed_nolow.csv")
+    to_label = join(dataset_dir, "unlabelled_dataset.csv")
+    path_to_rel = join(dataset_dir, "graph", "social_network.edg")
     model_path = "../google_w2v.bin"
     sim2label_fname = "sim_to_label.pkl"
-    main_whole(dataset_negative_path=negative_ds, dataset_to_label_path=ds_to_label, model_path=model_path,
-               sim2label_fname=sim2label_fname)
+
+    main_whole(risky_ds_path=risky_ds, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim_fname)
 
     print("Adding label column to the dataset")
-    df = pd.read_csv(ds_to_label)
+    df = pd.read_csv(to_label)
     ar = load_from_pickle(sim2label_fname)
     df = add_label(df, ratio=0.89, sim_array=ar)
     factors = [0.2]
     for factor in factors:
-        neg = label_based_on_relationships(df=df, factor=factor)
+        neg = label_based_on_relationships(df=df, factor=factor, path_to_rel=path_to_rel)
         neg_idxs = []
         for index, r in df.iterrows():
             if r.id in neg:
                 neg_idxs.append(index)
-        df.to_csv(join(dataset_dir, "tweets_labeled89_full.csv"))
+        df = df.drop(columns=[c for c in df.columns if c not in allowed_columns])
+        df.to_csv(join(dataset_dir, "dataset_labeled89_full.csv"))
 
-        ## THE DATASET WILL CONTAIN THE TOP 2% ELEMENTS, WITH HIGHEST SIMILARITY, AS POSITIVE (RISKY) POINTS, AND THE BOTTOM 25% AS NEGATIVE (SAFE USERS) POINTS. THE REMAINING 79% IS IGNORED
+        ## THE REDUCED DATASET CONTAINS THE TOP 2% ELEMENTS WITH HIGHEST SIMILARITY, AS RISKY (=1) POINTS, AND THE BOTTOM 25% AS SAFE (=0) POINTS. THE REMAINING IS IGNORED
         sorted_indexes = ar.argsort()[::-1]
         twoperc = int(np.ceil(len(ar)*2/100))
         twperc = int(np.ceil(len(ar)*25/100))
         l1 = sorted_indexes[:twoperc].tolist()
         l2 = sorted_indexes[-twperc:].tolist()
         indexes = list(set(l1 + l2 + neg_idxs))
-        dataset = df.iloc[indexes]
-        dataset = dataset.drop(columns=["Unnamed: 0"])
-        dataset.to_csv(join(dataset_dir, "tweets_labeled_089_{}_27perc.csv".format(int(factor*100))))
+        reduced_dataset = df.iloc[indexes]
+        reduced_dataset = reduced_dataset.drop(columns=[c for c in reduced_dataset.columns if c not in allowed_columns])
+        reduced_dataset.to_csv(join(dataset_dir, "tweets_labeled_089_{}_27perc.csv".format(int(factor * 100))))
