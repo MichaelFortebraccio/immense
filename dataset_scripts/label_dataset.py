@@ -139,28 +139,34 @@ def plot_values(sorted_values, type, l):
     plt.show()
 
 
-def plot_single_values(sorted_values, type, l):
-    # Create a list of indices for the elements
+def plot_single_values(values, type="cosine", l="safe"):
+    # Compare the points of safe posts to the points of risky posts
     fig = plt.figure()
     ax1 = fig.add_subplot(111)
     plt.xlabel('Index')
     plt.ylabel(type)
     plt.title('{} to Base Array'.format(type))
     labels = [l, "risky"]
-    vals_unknown = sorted_values[0][0]
-    indices = list(range(len(vals_unknown)))
+    vals_unknown = values[0][0]
+    indices = np.arange(len(vals_unknown))
     ax1.scatter(indices[:len(vals_unknown)], vals_unknown, label=labels[0])
     plt.legend()
     plt.show()
 
-"""
-l_to_label[0, :] = sim_to_label
-save_to_pickle(name=sim2label_fname, c=sim_to_label)
-plot_single_values([l_to_label], type="cosine", l="bob")
-"""
-#TODO FIXARE PLOTSINGLEVALUES
 
-"""def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
+def plot_sim(values: list, type="cosine"):
+    # Display the points in a plot
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    plt.xlabel('Index')
+    plt.ylabel(type)
+    plt.title('{} to Base Array'.format(type))
+    ax1.scatter(np.arange(len(values)), values)
+    plt.legend()
+    plt.show()
+
+
+def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
     # effettua kfold sul set di tweet malevoli
     df_negative = pd.read_csv(dataset_negative_path)
     df_to_label = pd.read_csv(dataset_to_label_path)        # Dataframe that has to be labeled
@@ -201,7 +207,6 @@ plot_single_values([l_to_label], type="cosine", l="bob")
         save_to_pickle("sim_2l.pkl", l_to_label)
         save_to_pickle("sim_neg.pkl", l_negative)
         plot_values([l_to_label, l_negative], type="cosine", l=n)
-    # return l_positive, l_evil"""
 
 
 def main_whole(risky_ds_path, dataset_to_label_path, model_path, sim_fname):
@@ -227,7 +232,7 @@ def main_whole(risky_ds_path, dataset_to_label_path, model_path, sim_fname):
         df_to_label = df_to_label.drop(idxs)
         df_to_label = df_to_label.drop(columns=[c for c in df_to_label.columns if c not in ['id', 'text_cleaned']])
         df_to_label.to_csv(dataset_to_label_path)
-    #t2v_to_label = load_from_pickle("t2vtl.pkl")
+    # t2v_to_label = load_from_pickle("t2vtl.pkl")
     t2v_negative, _ = text_to_vec(posts=posts_content_negative, mod=model_negative)
     i = 0
     for j in tqdm(range(t2v_to_label.shape[0])):
@@ -235,7 +240,7 @@ def main_whole(risky_ds_path, dataset_to_label_path, model_path, sim_fname):
         similarities[j] = np.nanmax(sim)
         i += 1
     save_to_pickle(name=sim_fname, c=np.array(list(similarities.values())))
-    #plot_single_values(np.array(list(sim_to_label.values())), type="cosine", l="bob")
+    plot_sim(list(similarities.values()))
 
 
 def add_label(df, ratio, sim_array):
@@ -255,7 +260,7 @@ if __name__ == "__main__":
     model_path = "../google_w2v.bin"
     sim2label_fname = "sim_to_label.pkl"
 
-    main_whole(risky_ds_path=risky_ds, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim_fname)
+    main_whole(risky_ds_path=risky_ds, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim2label_fname)
 
     print("Adding label column to the dataset")
     df = pd.read_csv(to_label)
