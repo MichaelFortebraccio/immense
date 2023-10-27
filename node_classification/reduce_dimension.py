@@ -6,9 +6,10 @@ from tqdm import tqdm
 import torch_geometric.transforms as T
 from modelling.ae import AE
 from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from node_classification.graph_embeddings.sage import SAGE, create_loader, create_mappers, create_graph
+from node_classification.graph_embeddings.sage import SAGE, create_mappers, create_graph
 from sklearn.decomposition import PCA
-from utils import is_square, load_from_pickle, save_to_pickle, embeddings_pca
+from torch_geometric.loader import NeighborLoader
+from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 
 def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
@@ -79,7 +80,7 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
                     directed=directed)
         sage = sage.to(device)
-        train_loader = create_loader(train_data, batch_size=batch_size, sizes=sizes)
+        train_loader = NeighborLoader(train_data, sizes=sizes, batch_size=batch_size)
         if not exists(model_path):
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
             best_loss = 99999

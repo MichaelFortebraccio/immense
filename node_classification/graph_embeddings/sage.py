@@ -1,17 +1,11 @@
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
 from torch_geometric.data import Data
-from torch_geometric.loader import NeighborSampler
 from torch_geometric.nn import SAGEConv, GraphConv
 from tqdm import tqdm
 torch.manual_seed(42)
-
-
-def create_loader(data, batch_size, sizes):
-    return NeighborSampler(data, sizes=sizes, batch_size=batch_size, edge_index=data.edge_index)
 
 
 def create_mappers(features_dict):
@@ -54,9 +48,9 @@ def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_
             edgelist.append((inv_map[int(e1)], inv_map[int(e2.strip())]))
     edges = list(zip(*edgelist))
     edge_index = torch.tensor(np.array(edges), dtype=torch.long)
-    y = torch.Tensor(np.array(y), dtype=torch.long)
     for k in features:
         y.append(df[df[id_field] == k][label_field].values[0])
+    y = torch.Tensor(np.array(y))
     if weighted:
         edge_attr = torch.tensor(np.array(weights), dtype=torch.float)
         graph = Data(x=x, y=y, edge_index=edge_index, edge_weight=edge_attr)
@@ -102,7 +96,7 @@ class SAGE(torch.nn.Module):
         # Train on batches
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
-            batch = batch.to(self.device)
+            batch = batch[1].to(self.device)
             out = self(batch)
             """
             out_src = out[batch.edge_label_index[0]]

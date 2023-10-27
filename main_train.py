@@ -32,10 +32,13 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = "dataset/definitive_prova"
-    models_dir = "dataset/definitive_prova/models/"
+    dataset_dir = join("dataset", "big_dataset")
+    graph_dir = join(dataset_dir, "graph")
+    models_dir = join(dataset_dir, "models")
+    id_field_name = "id"
+    text_field_name = "text_cleaned"
 
-    textual_content_path = join(dataset_dir, "da88.csv")
+    textual_content_path = join(dataset_dir, "tweets_labeled_089_20_27perc.csv")
     train_path = join(dataset_dir, "train.csv")
     test_path = join(dataset_dir, "test.csv")
 
@@ -43,8 +46,8 @@ def main_train(args=None):
     rel_adj_mat_path = spat_adj_mat_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    social_net_path = join(dataset_dir, "social_network.edg")
-    spatial_net_path = join(dataset_dir, "spatial_network.edg")
+    social_net_path = join(graph_dir, "social_network.edg")
+    spatial_net_path = join(graph_dir, "spatial_network.edg")
 
     # w2v parameters
     word_embedding_size = 512
@@ -74,10 +77,10 @@ def main_train(args=None):
         test_df = test_df.drop(columns=[col for col in test_df.columns if col not in cols])
         train_df.to_csv(train_path)
         test_df.to_csv(test_path)
-        adj_list_from_df(train_df, social_net_path, join(dataset_dir, "social_network_train.edg"))
-        adj_list_from_df(test_df, social_net_path, join(dataset_dir, "social_network_test.edg"))
-        adj_list_from_df(train_df, spatial_net_path, "{}/spatial_network_train.edg".format(dataset_dir))
-        adj_list_from_df(test_df, spatial_net_path, "{}/spatial_network_test.edg".format(dataset_dir))
+        adj_list_from_df(train_df, social_net_path, join(graph_dir, "social_network_train.edg"))
+        adj_list_from_df(test_df, social_net_path, join(graph_dir, "social_network_test.edg"))
+        adj_list_from_df(train_df, spatial_net_path, join(graph_dir, "spatial_network_train.edg"), spatial=True)
+        adj_list_from_df(test_df, spatial_net_path, join(graph_dir, "spatial_network_test.edg"), spatial=True)
     else:
         train_df = pd.read_csv(train_path)
 
@@ -92,13 +95,14 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Id2IdxException(lab="spat")
 
-    train(train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, w2v_epochs=w2v_epochs,
-          rel_path="{}/social_network_train.edg".format(dataset_dir), word_embedding_size=word_embedding_size,
-          spatial_path="{}/spatial_network_train.edg".format(dataset_dir), spat_node_emb_technique=spat_technique,
+    train(train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64,
+          id_field_name=id_field_name, text_field_name=text_field_name, id2idx_spat_path=id2idx_spat_path,
+          rel_path=join(graph_dir, "social_network_train.edg"), word_embedding_size=word_embedding_size,
+          spatial_path=join(graph_dir, "spatial_network_train.edg"), spat_node_emb_technique=spat_technique,
           rel_node_emb_technique=rel_technique, spat_node_embedding_size=spat_node_embedding_size,
-          rel_node_embedding_size=rel_node_embedding_size, epochs_spat_nembs=epochs_spat, epochs_rel_nembs=epochs_rel,
+          rel_node_embedding_size=rel_node_embedding_size, spat_nembs_eps=epochs_spat, rel_nembs_eps=epochs_rel,
           adj_matrix_spat_path=spat_adj_mat_path, adj_matrix_rel_path=rel_adj_mat_path, id2idx_rel_path=id2idx_rel_path,
-          id2idx_spat_path=id2idx_spat_path, we_model_name="w2v_{}.pkl".format(word_embedding_size), batch_size=64)
+          we_model_name="w2v_{}.pkl".format(word_embedding_size))
 
 
 if __name__ == "__main__":
