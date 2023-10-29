@@ -50,7 +50,7 @@ def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_
     edge_index = torch.tensor(np.array(edges), dtype=torch.long)
     for k in features:
         y.append(df[df[id_field] == k][label_field].values[0])
-    y = torch.Tensor(np.array(y))
+    y = torch.tensor(np.array(y), dtype=torch.long)
     if weighted:
         edge_attr = torch.tensor(np.array(weights), dtype=torch.float)
         graph = Data(x=x, y=y, edge_index=edge_index, edge_weight=edge_attr)
@@ -96,7 +96,7 @@ class SAGE(torch.nn.Module):
         # Train on batches
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
-            batch = batch[1].to(self.device)
+            batch = batch.to(self.device)
             out = self(batch)
             """
             out_src = out[batch.edge_label_index[0]]

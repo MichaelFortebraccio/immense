@@ -82,7 +82,7 @@ def embeddings_pca(emb_model, emb_technique, dst_dir):
 
 def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="graphsage"):
     """
-    Given a dataframe and an edge list, create a new edge list containing only the idf in the dataframe, and write it to
+    Given a dataframe and an edge list, create a new edge list containing only the ids in the dataframe, and write it to
     a new file. This function is used for creating the training and testing social networks from the training and testing dataframes
     """
     ids = list(df.id)
