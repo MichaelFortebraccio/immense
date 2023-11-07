@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import torch
+from torch.optim import SGD, Adam
 from exceptions import Id2IdxException, MissingParamException
 from gensim.models import Word2Vec
 from keras.models import load_model
@@ -12,7 +12,9 @@ from modelling.word_embedding import WordEmb
 from node_classification.decision_tree import *
 from node_classification.graph_embeddings.sage import create_graph, create_mappers
 from node_classification.reduce_dimension import reduce_dimension
+from torch.nn import MSELoss
 from os.path import exists, join
+import torch
 from os import makedirs
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
@@ -49,17 +51,19 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
     safe_posts = train_df.loc[train_df['label'] == 0]
     users_dang = tok.token_dict(dang_posts, text_field_name=text_field_name, id_field_name=id_field_name)
     users_safe = tok.token_dict(safe_posts, text_field_name=text_field_name, id_field_name=id_field_name)
+    all_users = tok.token_dict(train_df, text_field_name=text_field_name, id_field_name=id_field_name)
+    #TODO VOGLIO OTTENERE UN DIZIONARIO DI TUTTI GLI UTENTI SENZA SMINCHIARE LE CHIAVI
     path_dang = join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size))
     path_safe = join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size))
-    dang_users_embeddings = w2v_model.text_to_vec(users=users_dang, path=path_dang)
-    safe_users_embeddings = w2v_model.text_to_vec(users=users_safe, path=path_safe)
+    dang_users_embeddings = w2v_model.text_to_vec(users=users_dang)
+    safe_users_embeddings = w2v_model.text_to_vec(users=users_safe)
     dang_posts_array = np.array(list(dang_users_embeddings.values()))
     safe_posts_array = np.array(list(safe_users_embeddings.values()))
     safe_users_embeddings.update(dang_users_embeddings)     # merge dang_users_embeddings and safe_users_embeddings, so we have a dict with all the users. Doing dang_users_embeddings.update(safe_users_embeddings) has the same output. Ugly but effective
     return dang_posts_array, safe_posts_array, safe_users_embeddings
 
 
-def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spat_node_embs, rel_tec, spat_tec,
+def learn_mlp(content_embs, dang_ae, safe_ae, y_train, tree_rel, tree_spat, spat_node_embs, rel_tec, spat_tec,
               rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel=None, n2v_spat=None):
     """
     Train the MLP aimed at fusing the models
@@ -79,17 +83,21 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
         n2v_rel: relational node2vec model
     Returns: The learned MLP
     """
-    dataset = np.zeros((len(train_df), 7))
+    dataset = torch.zeros((content_embs.shape[0], 7))
+    content_embs = torch.tensor((content_embs - content_embs.mean())/content_embs.std(), dtype=torch.float32)
     prediction_dang = dang_ae.predict(content_embs)
     prediction_safe = safe_ae.predict(content_embs)
 
-    posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(content_embs, dtype=tf.float32)).numpy()      # Apply the sigmoid to the posts and make them comparable with the autoencoder predictions (the autoencoder uses the sigmoid activation function)
-    prediction_loss_dang = tf.keras.losses.mse(prediction_dang, posts_sigmoid).numpy()
-    prediction_loss_safe = tf.keras.losses.mse(prediction_safe, posts_sigmoid).numpy().tolist()
+    loss = MSELoss()
+    prediction_loss_dang = []
+    prediction_loss_safe = []
+    for i in range(content_embs.shape[0]):
+        prediction_loss_dang.append(loss(content_embs[i], prediction_dang[i]))
+        prediction_loss_safe.append(loss(content_embs[i], prediction_safe[i]))
     labels = [1 if i < j else 0 for i, j in zip(prediction_loss_dang, prediction_loss_safe)]
-    dataset[:, 0] = prediction_loss_dang
-    dataset[:, 1] = prediction_loss_safe
-    dataset[:, 2] = np.array(labels)
+    dataset[:, 0] = torch.tensor(prediction_loss_dang, dtype=torch.float32)
+    dataset[:, 1] = torch.tensor(prediction_loss_safe, dtype=torch.float32)
+    dataset[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
     cmi = 1.0
     rel_part = get_relational_preds(technique=rel_tec, df=train_df, l=len(content_embs), node_embs=rel_node_embs,
@@ -103,8 +111,9 @@ def learn_mlp(train_df, content_embs, dang_ae, safe_ae, tree_rel, tree_spat, spa
     #### STO TRAINANDO IL MODELLO 3%      ###
     #### CONSIDERANDO SOLO IL TESTO       ###
     #########################################
-    mlp = MLP(X_train=dataset, y_train=np.array(train_df['label']), model_dir=model_dir)
-    mlp.train()
+    mlp = MLP(X_train=dataset, y_train=y_train, model_dir=model_dir)
+    optim = Adam(mlp.parameters(), lr=0.001)
+    mlp.train_mlp(optim)
     return mlp
 
 
@@ -176,13 +185,29 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, tex
                                                                     embedding_size=word_embedding_size,
                                                                     name=we_model_name, id_field_name=id_field_name,
                                                                     text_field_name=text_field_name, dataset_dir=dataset_dir)
-
+    together = np.vstack((dang_users_ar, safe_users_ar))
+    normalized = (together - together.mean())/together.std()
+    dang_users_ar = normalized[:dang_users_ar.shape[0]]
+    safe_users_ar = normalized[dang_users_ar.shape[0]:]
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
-    dang_ae = AE(X_train=dang_users_ar, name='autoencoderdang', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
-    safe_ae = AE(X_train=safe_users_ar, name='autoencodersafe', model_dir=model_dir, epochs=100, batch_size=128, lr=0.05).train_autoencoder_content()
+    dang_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_embedding_size))
+    safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_embedding_size))
+    #content_embs = np.array(list(users_embs_dict.values()))
+
+    if not exists(dang_ae_name):
+        dang_ae = AE(X_train=dang_users_ar, epochs=100, batch_size=64, lr=0.002, name=dang_ae_name)
+        dang_ae.train_autoencoder_content()
+    else:
+        dang_ae = load_from_pickle(dang_ae_name)
+    if not exists(safe_ae_name):
+        safe_ae = AE(X_train=safe_users_ar, epochs=100, batch_size=128, lr=0.002, name=safe_ae_name)
+        safe_ae.train_autoencoder_content()
+    else:
+        safe_ae = load_from_pickle(safe_ae_name)
+
     ################# TRAIN OR LOAD DECISION TREES ####################
-    model_dir_rel = join(model_dir, "node_embeddings", "rel")
+    """model_dir_rel = join(model_dir, "node_embeddings", "rel")
     model_dir_spat = join(model_dir, "node_embeddings", "spat")
     try:
         makedirs(model_dir_rel, exist_ok=False)
@@ -221,11 +246,13 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, tex
         id2idx_spat = None
     else:
         n2v_spat = None
-        id2idx_spat = load_from_pickle(id2idx_spat_path)
-    content_embs = np.array(list(users_embs_dict.values()))
-    mlp = learn_mlp(train_df=train_df, content_embs=content_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
+        id2idx_spat = load_from_pickle(id2idx_spat_path)"""
+    tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
+    labels = [1]*dang_users_ar.shape[0] + [0]*safe_users_ar.shape[0]
+    mlp = learn_mlp(content_embs=normalized, y_train=labels, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
                     tree_spat=tree_spat, rel_node_embs=x_rel, spat_node_embs=x_spat, model_dir=model_dir,
-                    id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat)
+                    id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat,
+                    rel_tec=rel_node_emb_technique, spat_tec=spat_node_emb_technique)
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
 
@@ -350,11 +377,12 @@ def classify_users(preprocess_job_id, train_job_id, user_ids, content_filename, 
 
 # THESE FUNCTIONS ARE NOT USED IN THE API #
 def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat,
-         mlp: MLP, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None, pca_spat=None,
-         ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None, rel_net_path=None, spat_net_path=None):
+         mlp: MLP, text_field_name, id_field_name, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None,
+         pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None,
+         rel_net_path=None, spat_net_path=None):
     test_set = np.zeros(shape=(len(df), 7))
     tok = TextPreprocessing()
-    posts = tok.token_dict(df)
+    posts = tok.token_dict(df, text_field_name=text_field_name, id_field_name=id_field_name)
     posts_embs_dict = w2v_model.text_to_vec(posts)
     posts_embs = np.array(list(posts_embs_dict.values()))
     pred_dang = dang_ae.predict(posts_embs)
@@ -375,7 +403,7 @@ def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, 
     conf_missing_info = 0.5
 
     sage_rel_embs = sage_spat_embs = inv_map_rel = inv_map_sp = None
-    if rel_ne_technique == "graphsage":
+    """if rel_ne_technique == "graphsage":
         mapper, inv_map_rel = create_mappers(posts_embs_dict)
         graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
         with torch.no_grad():
@@ -398,7 +426,7 @@ def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, 
     test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_spat,
                                               ne_technique=rel_ne_technique, test_set=test_set, mode="spat",
                                               model=mod_spat, adj_mat=adj_matrix_spat, pca=pca_spat, ae=ae_spat,
-                                              id2idx=id2idx_spat, inv_mapper=inv_map_sp, node_embs=sage_spat_embs)
+                                              id2idx=id2idx_spat, inv_mapper=inv_map_sp, node_embs=sage_spat_embs)"""
 
     print(mlp.test(test_set, np.array(df['label'])))
 

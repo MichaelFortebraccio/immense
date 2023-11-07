@@ -21,7 +21,6 @@ class TextPreprocessing:
 
     def token_dict(self, df, text_field_name, id_field_name) -> dict:
         d = {}
-        #list_sentences = []
         for i, r in df.iterrows():
             try:
                 splitted = r[text_field_name].split(' ')

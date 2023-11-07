@@ -1,56 +1,82 @@
+import torch.nn
 from keras.layers import Dense, Input
 from keras import Model
-from keras.optimizers import Adam
+#from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from torch.utils.data import TensorDataset, DataLoader
 from keras.models import load_model
-from keras.activations import sigmoid
+from torch.nn import Sequential, Linear, ReLU, MSELoss, Tanh
+from torch.optim import Adam
+from utils import save_to_pickle
 import numpy as np
 import tensorflow as tf
-from os.path import exists, join
+from os.path import exists
 
 seed = 123
 np.random.seed(seed)
 tf.random.set_seed(seed)
 
 
-class AE:
-    def __init__(self, X_train, name, model_dir, epochs, batch_size, lr):
-        self._X_train = X_train
-        self._input_len = self._X_train.shape[1]
-        self._model_dir = join(model_dir, "{}_{}.h5".format(name, X_train.shape[1]))
+class AE(torch.nn.Module):
+    def __init__(self, X_train, epochs, batch_size, lr, name):
+        super(AE, self).__init__()
+        self._X_train = torch.tensor(X_train, dtype=torch.float32)
         self.epochs = epochs
         self.batch_size = batch_size
         self.lr = lr
+        self.name = name
+        input_dim = X_train.shape[1]
+        self.encoder = Sequential(
+            Linear(in_features=input_dim, out_features=int(input_dim/2)),
+            ReLU(),
+            Linear(in_features=int(input_dim/2), out_features=int(input_dim/4)),
+            ReLU(),
+            #Linear(in_features=int(input_dim/4), out_features=int(input_dim/8)),
+            #ReLU(),
+        )
+        self.decoder = Sequential(
+            #Linear(in_features=int(input_dim/8), out_features=int(input_dim/4)),
+            #Tanh(),
+            Linear(in_features=int(input_dim/4), out_features=int(input_dim/2)),
+            Tanh(),
+            Linear(in_features=int(input_dim/2), out_features=input_dim)
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        out = self.decoder(encoded)
+        return out
 
     def train_autoencoder_content(self):
         """
         Method that builds and trains the autoencoder that processes the textual content
         """
-        if exists(self._model_dir):
-            autoencoder = load_model(self._model_dir)
-        else:
-            print("Training autoencoder")
-            input_features = Input(shape=(self._input_len,))
-            # encoder
-            encoded = Dense(units=int(self._input_len/2), activation='sigmoid')(input_features)
-            encoded = Dense(units=int(self._input_len/4), activation='sigmoid')(encoded)
-            # latent-space
-            encoded = Dense(units=int(self._input_len/8), activation='sigmoid')(encoded)
-            # decoded
-            decoded = Dense(units=int(self._input_len/4), activation='sigmoid')(encoded)
-            decoded = Dense(units=int(self._input_len/2), activation='sigmoid')(decoded)
-            decoded = Dense(units=self._input_len, activation='sigmoid')(decoded)
-            autoencoder = Model(input_features, decoded)
-            opt = Adam(learning_rate=0.05)
-            early_stopping = EarlyStopping(monitor='val_loss', patience=20)
-            lr_reducer = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, verbose=0, mode='auto')
+        print("\nTraining autoencoder")
+        loss_function = MSELoss()
+        opt = Adam(self.parameters(), self.lr)
+        ds = TensorDataset(self._X_train)
+        dl = DataLoader(ds, batch_size=self.batch_size)
+        best_loss = 9999
+        for _ in range(self.epochs):
+            self.train()
+            total_loss = 0
+            for batch in dl:
+                out = self(batch[0])
+                loss = loss_function(out, batch[0])
+                opt.zero_grad()
+                loss.backward()
+                total_loss += loss
+                opt.step()
+            loss = loss/len(dl)
+            print(loss)
+            if loss < best_loss:
+                save_to_pickle(self.name, self)
+            #lr_reducer = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, verbose=0, mode='auto')
 
-            autoencoder.compile(optimizer=opt, loss='mse', metrics=['mse'])
-            x_train_sigmoid = sigmoid(tf.constant(self._X_train, dtype=tf.float32)).numpy()
-            autoencoder.fit(self._X_train, x_train_sigmoid, epochs=self.epochs, batch_size=self.batch_size,
-                            validation_split=0.2, callbacks=[early_stopping, lr_reducer], verbose=0)
-            autoencoder.save(self._model_dir)
-        return autoencoder
+    def predict(self, x):
+        self.eval()
+        return self(x)
+
 
     def train_autoencoder_node(self, embedding_size):
         """

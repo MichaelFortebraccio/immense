@@ -35,24 +35,19 @@ class WordEmb:
     def load_model(self):
         return Word2Vec.load(self._model_dir)
 
-    def text_to_vec(self, users, path=None):
-        if path and exists(path):
-            d = load_from_pickle(path)
-        else:
-            self.load_dict()
-            d = {}
-            for u in users:
-                list_temp = []
-                for w in users[u]:
-                    embed_vector = self._word_vec_dict.get(w)
-                    if embed_vector is not None:  # word is in the vocabulary learned by the w2v model
-                        list_temp.append(embed_vector)
-                    else:
-                        list_temp.append(np.zeros(shape=(self.embedding_size)))
-                list_temp = np.array(list_temp)
-                list_temp = np.sum(list_temp, axis=0)
-                d[u] = list_temp
-            if path:
-                save_to_pickle(path, d)
-            #list_tot = np.asarray(list_tot)
+    def text_to_vec(self, users):
+        self.load_dict()
+        d = {}
+        for u in users:
+            list_temp = []
+            for w in users[u]:
+                embed_vector = self._word_vec_dict.get(w)
+                if embed_vector is not None:  # word is in the vocabulary learned by the w2v model
+                    list_temp.append(embed_vector)
+                else:
+                    list_temp.append(np.zeros(shape=(self.embedding_size)))
+            list_temp = np.array(list_temp)
+            list_temp = np.sum(list_temp, axis=0)
+            d[u] = list_temp
+        #list_tot = np.asarray(list_tot)
         return d

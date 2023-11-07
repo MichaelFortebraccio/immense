@@ -93,7 +93,7 @@ def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="
             if not spatial:
                 id1, id2 = l.split("\t")
             else:
-                id1, id2, weight = l.split("\t")
+                id1, id2, weight, _ = l.split("\t")
                 if mode == "graphsage" and weight == 0.0:
                     continue
             id1 = int(id1.strip())
