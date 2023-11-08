@@ -32,13 +32,13 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = join("dataset", "big_dataset")
+    dataset_dir = join("dataset", "anthony")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join(dataset_dir, "models")
     id_field_name = "id"
     text_field_name = "text_cleaned"
 
-    textual_content_path = join(dataset_dir, "tweets_labeled_089_20_27perc.csv")
+    textual_content_path = join(dataset_dir, "tweet_labeled_full.csv")
     train_path = join(dataset_dir, "train.csv")
     test_path = join(dataset_dir, "test.csv")
 
@@ -50,10 +50,10 @@ def main_train(args=None):
     spatial_net_path = join(graph_dir, "spatial_network.edg")
 
     # w2v parameters
-    word_embedding_size = 512
+    word_embedding_size = 256
     w2v_epochs = 15
     # node emb parameters
-    spat_node_embedding_size = rel_node_embedding_size = 512
+    spat_node_embedding_size = rel_node_embedding_size = 256
     epochs_spat = epochs_rel = 10
 
     if not exists(dataset_dir):
@@ -61,12 +61,19 @@ def main_train(args=None):
     if not exists(models_dir):
         makedirs(models_dir)
 
-    df = pd.read_csv(textual_content_path, sep=',')
-
-    cols = ['index', 'label', 'id', 'text_cleaned']
     if not exists(train_path) or not exists(test_path):
-        df = df.sample(frac=1, random_state=1).reset_index()  # Shuffle the dataframe
+        df = pd.read_csv(textual_content_path, sep=',')
+        ids = list(df[id_field_name])
+        if len(ids) != len(set(ids)):
+            print("Found non univocal IDs. I am now resetting them")
+            ld = []
+            for index, row in df.iterrows():
+                d = {id_field_name: index, text_field_name: row[text_field_name], 'label': row['label']}
+                ld.append(d)
+            df = pd.DataFrame(ld)
+        cols = ['index', 'label', id_field_name, text_field_name]
         df = df.drop(columns=[col for col in df.columns if col not in cols])
+        df = df.sample(frac=1, random_state=1).reset_index()  # Shuffle the dataframe
         df.to_csv(join(dataset_dir, "shuffled_content.csv"))
         idx = round(len(df)*0.8)
         train_df = df[:idx]
@@ -95,14 +102,13 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Id2IdxException(lab="spat")
 
-    train(train_df=train_df, dataset_dir=dataset_dir, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64,
-          id_field_name=id_field_name, text_field_name=text_field_name, id2idx_spat_path=id2idx_spat_path,
-          rel_path=join(graph_dir, "social_network_train.edg"), word_embedding_size=word_embedding_size,
-          spatial_path=join(graph_dir, "spatial_network_train.edg"), spat_node_emb_technique=spat_technique,
-          rel_node_emb_technique=rel_technique, spat_node_embedding_size=spat_node_embedding_size,
-          rel_node_embedding_size=rel_node_embedding_size, spat_nembs_eps=epochs_spat, rel_nembs_eps=epochs_rel,
-          adj_matrix_spat_path=spat_adj_mat_path, adj_matrix_rel_path=rel_adj_mat_path, id2idx_rel_path=id2idx_rel_path,
-          we_model_name="w2v_{}.pkl".format(word_embedding_size))
+    train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=id_field_name,
+          field_name_text=text_field_name, id2idx_path_spat=id2idx_spat_path,
+          path_rel=join(graph_dir, "social_network_train.edg"), word_emb_size=word_embedding_size,
+          path_spat=join(graph_dir, "spatial_network_train.edg"), node_emb_technique_spat=spat_technique,
+          node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
+          node_emb_size_rel=rel_node_embedding_size, eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
+          adj_matrix_path_spat=spat_adj_mat_path, adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path)
 
 
 if __name__ == "__main__":

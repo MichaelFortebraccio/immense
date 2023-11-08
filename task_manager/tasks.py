@@ -159,8 +159,8 @@ def train_task(self, job_id, word_embedding_size, window, w2v_epochs, rel_node_e
     else:
         n2v_spat = None
         id2idx_spat = load_from_pickle(id2idx_spat_path)
-    mlp = learn_mlp(train_df=train_df, content_embs=list_embs, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
-                    rel_node_embs=train_set_rel, spat_node_embs=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+    mlp = learn_mlp(train_df=train_df, content_embs=list_embs, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel, tree_spat=tree_spat,
+                    node_embs_rel=train_set_rel, node_embs_spat=train_set_spat, model_dir=model_dir, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
                     n2v_rel=n2v_rel, n2v_spat=n2v_spat)
     save_to_pickle(os.path.join(model_dir, "mlp.pkl"), mlp)
 

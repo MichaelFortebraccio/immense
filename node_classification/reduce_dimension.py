@@ -12,39 +12,40 @@ from torch_geometric.loader import NeighborLoader
 from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 
-def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embedding_size, lab, edge_path=None,
-                     n_of_walks=10, walk_length=10, p=1, q=4, batch_size=None, epochs=None,
-                     features_dict=None, adj_matrix_path=None, sizes=None, id2idx_path=None):
+def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, train_df, adj_matrix_path=None,
+                     batch_size=None, edge_path=None, epochs=None, features_dict=None, id2idx_path=None,
+                     n_of_walks=10, p=1, q=4, sizes=None, walk_length=10):
     """
     This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
     training the decision tree.
     Args:
-        :param node_emb_technique: Can be either "node2vec", "graphsage", "pca", "autoencoder" or "none"
+        :param emb_technique: Can be either "node2vec", "graphsage", "pca", "autoencoder" or "none"
         (uses the whole adjacency matrix rows as feature vectors)
-        :param model_dir: Directory where the models will be saved.
-        :param train_df: Dataframe with the training data. The IDs will be used.
-        :param node_embedding_size: Dimension of the embeddings to create.
         :param lab: Label, can be either "spat" or "rel".
+        :param model_dir: Directory where the models will be saved.
+        :param node_embedding_size: Dimension of the embeddings to create.
+        :param train_df: Dataframe with the training data. The IDs will be used.
+        :param adj_matrix_path: (pca, autoencoder, none) Adjacency matrix.
+        :param batch_size: (graphsage) Batch size to use during training.
         :param edge_path: (graphsage, node2vec) Path to the list of edges used by the node embedding technique
         :param epochs: (graphsage, node2vec) Epochs for training the node embedding model.
-        :param n_of_walks: (node2vec) Number of walks that the n2v model will do.
-        :param walk_length: (node2vec) Length of the walks that the n2v model will do.
-        :param p: (node2vec) n2v's hyperparameter p.
-        :param q: (node2vec) n2v's hyperparameter q.
-        :param batch_size: (graphsage) Batch size to use during training.
-        :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
         :param features_dict: (graphsage) Dictionary having as keys the IDs of the users and as values the sum of the
         embeddings of their posts.
-        :param adj_matrix_path: (pca, autoencoder, none) Adjacency matrix.
         :param id2idx_path: (pca, autoencoder, none) Mapping between the node IDs and the rows in the adj matrix.
+        :param n_of_walks: (node2vec) Number of walks that the n2v model will do.
+        :param p: (node2vec) n2v's hyperparameter p.
+        :param q: (node2vec) n2v's hyperparameter q.
+        :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
+        :param walk_length: (node2vec) Length of the walks that the n2v model will do.
+
     Returns:
         train_set: Array containing the node embeddings, which will be used for training the decision tree.
         train_set_labels: Labels of the training vectors.
     """
     train_set = []
     train_set_labels = []
-    node_emb_technique = node_emb_technique.lower()
-    if node_emb_technique == "node2vec":
+    emb_technique = emb_technique.lower()
+    if emb_technique == "node2vec":
         model_path = join(model_dir, "n2v.h5")
         weighted = False
         directed = True
@@ -60,7 +61,7 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         for i in train_set_ids:
             train_set.append(mod[str(i)])
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
-    elif node_emb_technique == "graphsage":
+    elif emb_technique == "graphsage":
         weights_path = join(model_dir, "graphsage_{}.h5".format(node_embedding_size))
         model_path = join(model_dir, "graphsage_{}.pkl".format(node_embedding_size))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -83,7 +84,7 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         train_loader = NeighborLoader(train_data, num_neighbors=sizes, batch_size=batch_size)
         if not exists(model_path):
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
-            best_loss = 99999
+            best_loss = 9999
             for i in range(epochs):
                 loss = sage.train_sage(train_loader, optimizer=optimizer)
                 val_loss = sage.test(valid_data)
@@ -98,14 +99,15 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
         else:
             sage = load_from_pickle(model_path)
         train_set = sage(graph, inference=True)
+        train_set = train_set.detach().numpy()
         for k in features_dict:
-            train_set_labels.append(train_df[train_df.id == k].values[0])
+            train_set_labels.append(train_df[train_df.id == k]['label'].values[0])
     else:
         adj_matrix = np.genfromtxt(adj_matrix_path, delimiter=',')
         if not is_square(adj_matrix):
             raise Exception("The {} adjacency matrix is not square".format(lab))
         id2idx = load_from_pickle(id2idx_path)
-        if node_emb_technique == "pca":
+        if emb_technique == "pca":
             if not exists("{}/pca_{}.pkl".format(model_dir, lab)):
                 print("Learning PCA")
                 pca = PCA(n_components=node_embedding_size)
@@ -116,10 +118,10 @@ def reduce_dimension(node_emb_technique: str, model_dir, train_df, node_embeddin
                 with open("{}/pca_{}.pkl".format(model_dir, lab), 'rb') as f:
                     pca = pickle.load(f)
             train_set = pca.transform(adj_matrix)
-        elif node_emb_technique == "autoencoder":
+        elif emb_technique == "autoencoder":
             ae = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=epochs, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
             train_set = ae.predict(adj_matrix)
-        elif node_emb_technique == "none":
+        elif emb_technique == "none":
             train_set = adj_matrix
         train_set_labels = [train_df[train_df['id'] == k]['label'].values[0] for k in id2idx.keys()]
     return train_set, train_set_labels

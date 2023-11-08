@@ -22,16 +22,17 @@ def main_test(args=None):
 
     # For testing purposes
     spat_technique = rel_technique = "graphsage"
-    dataset_dir = "dataset/definitive_prova"
-    models_dir = "dataset/definitive_prova/models"
+    dataset_dir = "dataset/big_dataset"
+    models_dir = "dataset/big_dataset/models"
+    graph_dir = join(dataset_dir, "graph")
 
     adj_mat_spat_path = adj_mat_rel_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
     word_embedding_size = 512
     spat_ne_dim = rel_ne_dim = 256
-    rel_net_path = join(dataset_dir, "social_network_test.edg")
-    spat_net_path = join(dataset_dir, "spatial_network_test.edg")
+    rel_net_path = join(graph_dir, "social_network_test.edg")
+    spat_net_path = join(graph_dir, "spatial_network_test.edg")
     """
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
@@ -51,7 +52,7 @@ def main_test(args=None):
 
     mod_dir_rel = join(models_dir, "node_embeddings", "rel")
     mod_dir_spat = join(models_dir, "node_embeddings", "spat")
-    tree_rel = load_decision_tree(join(mod_dir_rel, "dtree_{}_{}.h5".format(rel_technique, rel_ne_dim)))
+    """tree_rel = load_decision_tree(join(mod_dir_rel, "dtree_{}_{}.h5".format(rel_technique, rel_ne_dim)))
     tree_spat = load_decision_tree(join(mod_dir_spat, "dtree_{}_{}.h5".format(spat_technique, spat_ne_dim)))
 
     mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=rel_technique, mod_dir=mod_dir_rel,
@@ -60,7 +61,8 @@ def main_test(args=None):
 
     mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=spat_technique, mod_dir=mod_dir_spat,
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
-                                                                       id2idx_path=id2idx_spat_path, ne_dim=spat_ne_dim)
+                                                                       id2idx_path=id2idx_spat_path, ne_dim=spat_ne_dim)"""
+    tree_rel = tree_spat = ae_rel = ae_spat = id2idx_rel = id2idx_spat = adj_mat_rel = adj_mat_spat = mod_rel = mod_spat = pca_rel = pca_spat = None
 
     """if args.user_id:
         df = train_df.append(test_df)
@@ -75,7 +77,7 @@ def main_test(args=None):
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, rel_ne_technique=rel_technique,
          spat_ne_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
          adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
-         rel_net_path=rel_net_path, spat_net_path=spat_net_path)
+         rel_net_path=rel_net_path, spat_net_path=spat_net_path, text_field_name="text_cleaned", id_field_name="id")
 
 
 if __name__ == "__main__":

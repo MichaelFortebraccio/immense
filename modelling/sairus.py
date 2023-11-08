@@ -22,15 +22,15 @@ from utils import load_from_pickle, save_to_pickle
 np.random.seed(123)
 
 
-def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, name, text_field_name, id_field_name):
+def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field_name, train_df):
     """
     Train the Word2Vc model that will be used for learning the embeddings of the content.
-    :param train_df: Dataframe with training data
     :param embedding_size:
     :param epochs:
-    :param model_dir:
-    :param dataset_dir:
-    :param name: name of the file containing the word2vec mmodel
+    :param id_field_name: Name of the field containing the ID in the training dataframe
+    :param model_dir: Directory where the word embedding model will be saved
+    :param text_field_name: Name of the field containing the text in the training dataframe
+    :param train_df: training dataframe
     :return: dang_posts_array: Array of shape [n_dang_users, embedding_size] with the embeddings of the dangerous users
     :return: safe_posts_array: Array of shape [n_safe_users, embedding_size] with the embeddings of the safe users
     :return: users_embeddings (although the variable name is safe_users_embeddings): Dictionary having as keys the
@@ -38,6 +38,7 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
     """
     tok = TextPreprocessing()
     posts_content = tok.token_list(text_field_name=text_field_name, df=train_df)
+    name = "w2v_{}.pkl".format(embedding_size)
     if not exists(join(model_dir, name)):
         print("Training word2vec model")
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=10, epochs=epochs, model_dir=model_dir)
@@ -52,41 +53,41 @@ def train_w2v_model(train_df, embedding_size, epochs, model_dir, dataset_dir, na
     users_dang = tok.token_dict(dang_posts, text_field_name=text_field_name, id_field_name=id_field_name)
     users_safe = tok.token_dict(safe_posts, text_field_name=text_field_name, id_field_name=id_field_name)
     all_users = tok.token_dict(train_df, text_field_name=text_field_name, id_field_name=id_field_name)
-    #TODO VOGLIO OTTENERE UN DIZIONARIO DI TUTTI GLI UTENTI SENZA SMINCHIARE LE CHIAVI
-    path_dang = join(dataset_dir, "list_dang_posts_{}.pickle".format(embedding_size))
-    path_safe = join(dataset_dir, "list_safe_posts_{}.pickle".format(embedding_size))
     dang_users_embeddings = w2v_model.text_to_vec(users=users_dang)
     safe_users_embeddings = w2v_model.text_to_vec(users=users_safe)
+    all_users_embeddings = w2v_model.text_to_vec(users=all_users)   # Get a dict of all the embeddings of each user, keeping the association with the key
     dang_posts_array = np.array(list(dang_users_embeddings.values()))
     safe_posts_array = np.array(list(safe_users_embeddings.values()))
-    safe_users_embeddings.update(dang_users_embeddings)     # merge dang_users_embeddings and safe_users_embeddings, so we have a dict with all the users. Doing dang_users_embeddings.update(safe_users_embeddings) has the same output. Ugly but effective
-    return dang_posts_array, safe_posts_array, safe_users_embeddings
+    return dang_posts_array, safe_posts_array, all_users_embeddings
 
 
-def learn_mlp(content_embs, dang_ae, safe_ae, y_train, tree_rel, tree_spat, spat_node_embs, rel_tec, spat_tec,
-              rel_node_embs, id2idx_spat: dict, id2idx_rel: dict, model_dir, n2v_rel=None, n2v_spat=None):
+def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir, node_embs_rel, node_embs_spat,
+              tec_rel, tec_spat, tree_rel, tree_spat, y_train, n2v_rel=None, n2v_spat=None):
     """
     Train the MLP aimed at fusing the models
     Args:
         train_df: Dataframe with the IDs of the users in the training set
+        ae_dang: Dangerous autoencoder model
+        ae_safe: Safe autoencoder model
         content_embs: np array containing the word embeddings of the content posted by the users
-        dang_ae: Dangerous autoencoder model
-        safe_ae: Safe autoencoder model
+        id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
+        id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
+        model_dir:
+        node_embs_rel: Relational node embeddings
+        node_embs_spat: Spatial node embeddings
+        tec_rel: Relational node embedding technique
+        tec_spat: Spatial node embedding technique
         tree_rel: Relational decision tree
         tree_spat: Spatial decision tree
-        spat_node_embs: Spatial node embeddings
-        rel_node_embs: Relational node embeddings
-        id2idx_spat: Dictionary having as keys the user IDs and as value their index in the spatial adjacency matrix
-        id2idx_rel: Dictionary having as keys the user IDs and as value their index in the relational adjacency matrix
-        model_dir:
+        y_train: Train labels
         n2v_spat: spatial node2vec model
         n2v_rel: relational node2vec model
     Returns: The learned MLP
     """
     dataset = torch.zeros((content_embs.shape[0], 7))
     content_embs = torch.tensor((content_embs - content_embs.mean())/content_embs.std(), dtype=torch.float32)
-    prediction_dang = dang_ae.predict(content_embs)
-    prediction_safe = safe_ae.predict(content_embs)
+    prediction_dang = ae_dang.predict(content_embs)
+    prediction_safe = ae_safe.predict(content_embs)
 
     loss = MSELoss()
     prediction_loss_dang = []
@@ -100,20 +101,21 @@ def learn_mlp(content_embs, dang_ae, safe_ae, y_train, tree_rel, tree_spat, spat
     dataset[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
     cmi = 1.0
-    rel_part = get_relational_preds(technique=rel_tec, df=train_df, l=len(content_embs), node_embs=rel_node_embs,
+    rel_part = get_relational_preds(technique=tec_rel, df=train_df, l=len(content_embs), node_embs=node_embs_rel,
                                     tree=tree_rel, id2idx=id2idx_rel, n2v=n2v_rel, cmi=cmi)
-    spat_part = get_relational_preds(technique=spat_tec, df=train_df, l=len(content_embs), node_embs=spat_node_embs,
-                                     tree=tree_spat, id2idx=id2idx_spat, n2v=n2v_spat, cmi=cmi)
+    """spat_part = get_relational_preds(technique=spat_tec, df=train_df, l=len(content_embs), node_embs=spat_node_embs,
+                                     tree=tree_spat, id2idx=id2idx_spat, n2v=n2v_spat, cmi=cmi)"""
     dataset[:, 3], dataset[:, 4] = rel_part[:, 0], rel_part[:, 1]
-    dataset[:, 5], dataset[:, 6] = spat_part[:, 0], spat_part[:, 1]
+    """dataset[:, 5], dataset[:, 6] = spat_part[:, 0], spat_part[:, 1]"""
 
     #############   IMPORTANTE  #############
     #### STO TRAINANDO IL MODELLO 3%      ###
     #### CONSIDERANDO SOLO IL TESTO       ###
     #########################################
     mlp = MLP(X_train=dataset, y_train=y_train, model_dir=model_dir)
-    optim = Adam(mlp.parameters(), lr=0.001)
+    optim = Adam(mlp.parameters(), lr=0.001, weight_decay=1e-4)
     mlp.train_mlp(optim)
+    e = list(mlp(dataset))
     return mlp
 
 
@@ -151,48 +153,46 @@ def get_relational_preds(technique, df, l, tree, node_embs, id2idx: dict, n2v, c
     return dataset
 
 
-def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, text_field_name, id_field_name,
-          rel_node_emb_technique: str, spat_node_emb_technique:str, rel_node_embedding_size, spat_node_embedding_size,
-          we_model_name, rel_path=None, spatial_path=None, spat_nembs_eps=None, rel_nembs_eps=None, batch_size=None,
-          adj_matrix_spat_path=None, adj_matrix_rel_path=None, id2idx_rel_path=None, id2idx_spat_path=None):
+def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
+          node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, adj_matrix_path_rel=None,
+          adj_matrix_path_spat=None, batch_size=None, eps_nembs_rel=None, eps_nembs_spat=None, id2idx_path_rel=None,
+          id2idx_path_spat=None, path_rel=None, path_spat=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
-    :param train_df: Dataframe with the posts used for the MLP training
-    :param dataset_dir: Directory containing the dataset
+    :param field_name_id: Name of the field containing the id
+    :param field_name_text: Name of the field containing the text
     :param model_dir: Directory where the models will be saved
-    :param word_embedding_size: Dimension of the word embeddings to create
+    :param node_emb_technique_rel: Technique to adopt for learning relational node embeddings
+    :param node_emb_technique_spat: Technique to adopt for learning spatial node embeddings
+    :param node_emb_size_rel: Dimension of the relational node embeddings to learn
+    :param node_emb_size_spat: Dimension of the spatial node embeddings to learn
+    :param train_df: Dataframe with the posts used for the MLP training
     :param w2v_epochs:
-    :param text_field_name: Name of the field containing the text
-    :param id_field_name: Name of the field containing the id
-    :param rel_node_emb_technique: Technique to adopt for learning relational node embeddings
-    :param spat_node_emb_technique: Technique to adopt for learning spatial node embeddings
-    :param rel_node_embedding_size: Dimension of the relational node embeddings to learn
-    :param spat_node_embedding_size: Dimension of the spatial node embeddings to learn
-    :param we_model_name: Name of node embedding model
-    :param rel_path: Path to the file stating the social relationships among the users
-    :param spatial_path: Path to the file stating the spatial relationships among the users
-    :param rel_nembs_eps: Epochs for training the relational node embedding model
-    :param spat_nembs_eps: Epochs for training the spatial node embedding model
-    :param adj_matrix_rel_path: Path to the relational adj matrix (pca, none, autoencoder)
-    :param adj_matrix_spat_path: Path to the spatial adj matrix (pca, none, autoencoder)
-    :param id2idx_rel_path: Path to the file containing the dictionary that matches the node IDs to their index in the relational adj matrix (graphsage, pca, autoencoder)
-    :param id2idx_spat_path: Path to the file containing the dictionary that matches the node IDs to their index in the spatial adj matrix (graphsage, pca, autoencoder)
+    :param word_emb_size: Dimension of the word embeddings to create
+    :param adj_matrix_path_rel: Path to the relational adj matrix (pca, none, autoencoder)
+    :param adj_matrix_path_spat: Path to the spatial adj matrix (pca, none, autoencoder)
     :param batch_size:
+    :param eps_nembs_rel: Epochs for training the relational node embedding model
+    :param eps_nembs_spat: Epochs for training the spatial node embedding model
+    :param id2idx_path_rel: Path to the file containing the dictionary that matches the node IDs to their index in the relational adj matrix (graphsage, pca, autoencoder)
+    :param id2idx_path_spat: Path to the file containing the dictionary that matches the node IDs to their index in the spatial adj matrix (graphsage, pca, autoencoder)
+    :param path_rel: Path to the file stating the social relationships among the users
+    :param path_spat: Path to the file stating the spatial relationships among the users
     :return: Nothing, the learned mlp will be saved in the file "mlp.h5" and put in the model directory
     """
-    dang_users_ar, safe_users_ar, users_embs_dict = train_w2v_model(train_df=train_df, epochs=w2v_epochs, model_dir=model_dir,
-                                                                    embedding_size=word_embedding_size,
-                                                                    name=we_model_name, id_field_name=id_field_name,
-                                                                    text_field_name=text_field_name, dataset_dir=dataset_dir)
-    together = np.vstack((dang_users_ar, safe_users_ar))
+    dang_users_ar, safe_users_ar, users_embs_dict = train_w2v_model(embedding_size=word_emb_size,
+                                                                    epochs=w2v_epochs, id_field_name=field_name_id,
+                                                                    model_dir=model_dir,
+                                                                    text_field_name=field_name_text, train_df=train_df)
+    together = np.array(list(users_embs_dict.values()))
     normalized = (together - together.mean())/together.std()
     dang_users_ar = normalized[:dang_users_ar.shape[0]]
     safe_users_ar = normalized[dang_users_ar.shape[0]:]
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
-    dang_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_embedding_size))
-    safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_embedding_size))
+    dang_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_emb_size))
+    safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_emb_size))
     #content_embs = np.array(list(users_embs_dict.values()))
 
     if not exists(dang_ae_name):
@@ -206,53 +206,57 @@ def train(train_df, dataset_dir, model_dir, word_embedding_size, w2v_epochs, tex
     else:
         safe_ae = load_from_pickle(safe_ae_name)
 
+    y_train = []
+    for k in users_embs_dict:
+        y_train.append(train_df.loc[train_df[field_name_id] == k]['label'].values[0])
     ################# TRAIN OR LOAD DECISION TREES ####################
-    """model_dir_rel = join(model_dir, "node_embeddings", "rel")
+    model_dir_rel = join(model_dir, "node_embeddings", "rel")
     model_dir_spat = join(model_dir, "node_embeddings", "spat")
     try:
         makedirs(model_dir_rel, exist_ok=False)
         makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = join(model_dir_rel, "dtree_{}_{}.h5".format(rel_node_emb_technique, rel_node_embedding_size))
-    spat_tree_path = join(model_dir_spat, "dtree_{}_{}.h5".format(rel_node_emb_technique, rel_node_embedding_size))
+    rel_tree_path = join(model_dir_rel, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
+    spat_tree_path = join(model_dir_spat, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
 
-    x_rel, y_rel = reduce_dimension(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_path, lab="rel",
-                                    id2idx_path=id2idx_rel_path, node_embedding_size=rel_node_embedding_size,
-                                    train_df=train_df, epochs=rel_nembs_eps, adj_matrix_path=adj_matrix_rel_path,
+    x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
+                                    id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
+                                    train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
                                     sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)
 
-    x_spat, y_spat = reduce_dimension(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path, lab="spat",
+    """x_spat, y_spat = reduce_dimension(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path, lab="spat",
                                       id2idx_path=id2idx_spat_path, node_embedding_size=spat_node_embedding_size,
                                       train_df=train_df, epochs=spat_nembs_eps, adj_matrix_path=adj_matrix_spat_path,
-                                      sizes=[5, 5], features_dict=users_embs_dict, batch_size=batch_size)
+                                      sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)"""
     if not exists(rel_tree_path):
         train_decision_tree(train_set=x_rel, save_path=rel_tree_path, train_set_labels=y_rel, name="rel")
-    if not exists(spat_tree_path):
-        train_decision_tree(train_set=x_spat, save_path=spat_tree_path, train_set_labels=y_spat, name="spat")
+    """if not exists(spat_tree_path):
+        train_decision_tree(train_set=x_spat, save_path=spat_tree_path, train_set_labels=y_spat, name="spat")"""
 
     tree_rel = load_decision_tree(rel_tree_path)
-    tree_spat = load_decision_tree(spat_tree_path)
+    #tree_spat = load_decision_tree(spat_tree_path)
 
     ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
-    if rel_node_emb_technique == "node2vec":
+    if node_emb_technique_rel == "node2vec":
         n2v_rel = Word2Vec.load(join(model_dir_rel, "n2v.h5"))
         id2idx_rel = None
     else:
         n2v_rel = None
-        id2idx_rel = load_from_pickle(id2idx_rel_path)
-    if spat_node_emb_technique == "node2vec":
+        id2idx_rel = load_from_pickle(id2idx_path_rel)
+    if node_emb_technique_spat == "node2vec":
         n2v_spat = Word2Vec.load(join(model_dir_spat, "n2v.h5"))
         id2idx_spat = None
     else:
         n2v_spat = None
-        id2idx_spat = load_from_pickle(id2idx_spat_path)"""
-    tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
-    labels = [1]*dang_users_ar.shape[0] + [0]*safe_users_ar.shape[0]
-    mlp = learn_mlp(content_embs=normalized, y_train=labels, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
-                    tree_spat=tree_spat, rel_node_embs=x_rel, spat_node_embs=x_spat, model_dir=model_dir,
+        id2idx_spat = load_from_pickle(id2idx_path_spat)
+    #tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
+    tree_spat = x_spat = None
+    mlp = learn_mlp(content_embs=normalized, train_df=train_df, y_train=y_train, ae_dang=dang_ae, ae_safe=safe_ae,
+                    tree_rel=tree_rel, tree_spat=tree_spat, node_embs_rel=x_rel, node_embs_spat=x_spat,
+                    model_dir=model_dir,
                     id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat,
-                    rel_tec=rel_node_emb_technique, spat_tec=spat_node_emb_technique)
+                    tec_rel=node_emb_technique_rel, tec_spat=node_emb_technique_spat)
     save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
 
 
