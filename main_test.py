@@ -1,6 +1,5 @@
 import argparse
 from modelling.sairus import test, predict_user
-from keras.models import load_model
 from node_classification.decision_tree import load_decision_tree
 from os.path import join
 from utils import load_from_pickle, get_model
@@ -21,48 +20,43 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    spat_technique = rel_technique = "graphsage"
-    dataset_dir = "dataset/big_dataset"
-    models_dir = "dataset/big_dataset/models"
+    dataset_dir = join("dataset", "anthony")
+    models_dir = join(dataset_dir, "models")
     graph_dir = join(dataset_dir, "graph")
+    mod_dir_rel = join(models_dir, "node_embeddings", "rel")
+    mod_dir_spat = join(models_dir, "node_embeddings", "spat")
+    technique_spat = technique_rel = "graphsage"
 
     adj_mat_spat_path = adj_mat_rel_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    word_embedding_size = 512
-    spat_ne_dim = rel_ne_dim = 256
     rel_net_path = join(graph_dir, "social_network_test.edg")
     spat_net_path = join(graph_dir, "spatial_network_test.edg")
-    """
-    train_df = pd.read_csv(join(dataset_dir, "train.csv"))
-    test_df = pd.read_csv(join(dataset_dir, "test.csv"))
-    w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
-    
-    train_df = pd.read_csv(join(dataset_dir, "train_089_{}.csv".format(val)))
-    test_df = pd.read_csv(join(dataset_dir, "test_089_{}.csv".format(val)))
-    w2v_model = load_from_pickle(join(models_dir, "w2v_{}_089_{}.pkl".format(word_embedding_size, val)))
-    """
+
+    word_embedding_size = 256
+    ne_dim_spat = ne_dim_rel = 256
+
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
 
-    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(word_embedding_size)))
-    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(word_embedding_size)))
+    dang_ae = load_from_pickle(join(models_dir, "autoencoderdang_{}.pkl".format(word_embedding_size)))
+    safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_embedding_size)))
     mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
 
-    mod_dir_rel = join(models_dir, "node_embeddings", "rel")
-    mod_dir_spat = join(models_dir, "node_embeddings", "spat")
-    """tree_rel = load_decision_tree(join(mod_dir_rel, "dtree_{}_{}.h5".format(rel_technique, rel_ne_dim)))
-    tree_spat = load_decision_tree(join(mod_dir_spat, "dtree_{}_{}.h5".format(spat_technique, spat_ne_dim)))
 
-    mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=rel_technique, mod_dir=mod_dir_rel,
+    tree_rel = load_decision_tree(join(mod_dir_rel, "dtree_{}_{}.h5".format(technique_rel, ne_dim_rel)))
+    #tree_spat = load_decision_tree(join(mod_dir_spat, "dtree_{}_{}.h5".format(technique_spat, ne_dim_spat)))
+
+    mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=technique_rel, mod_dir=mod_dir_rel,
                                                                   lab="rel", adj_mat_path=adj_mat_rel_path,
-                                                                  id2idx_path=id2idx_rel_path, ne_dim=rel_ne_dim)
+                                                                  id2idx_path=id2idx_rel_path, ne_dim=ne_dim_rel)
 
-    mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=spat_technique, mod_dir=mod_dir_spat,
+    """mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=technique_spat, mod_dir=mod_dir_spat,
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
-                                                                       id2idx_path=id2idx_spat_path, ne_dim=spat_ne_dim)"""
-    tree_rel = tree_spat = ae_rel = ae_spat = id2idx_rel = id2idx_spat = adj_mat_rel = adj_mat_spat = mod_rel = mod_spat = pca_rel = pca_spat = None
+                                                                       id2idx_path=id2idx_spat_path, ne_dim=ne_dim_spat)"""
+
+    tree_spat = ae_spat = id2idx_spat = adj_mat_spat = mod_spat = pca_spat = None
 
     """if args.user_id:
         df = train_df.append(test_df)
@@ -73,11 +67,11 @@ def main_test(args=None):
                             adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
         print("The user is: {}".format("risky" if pred == 1 else "safe"))
     else:"""
-    test(train_df=train_df, df=test_df, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, tree_rel=tree_rel,
-         tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, rel_ne_technique=rel_technique,
-         spat_ne_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
+    test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel,
+         tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, ne_technique_rel=technique_rel,
+         ne_technique_spat=technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
          adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
-         rel_net_path=rel_net_path, spat_net_path=spat_net_path, text_field_name="text_cleaned", id_field_name="id")
+         rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_name_text="text_cleaned", field_name_id="id")
 
 
 if __name__ == "__main__":

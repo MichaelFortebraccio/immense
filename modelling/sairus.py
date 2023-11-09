@@ -62,7 +62,7 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
 
 
 def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir, node_embs_rel, node_embs_spat,
-              tec_rel, tec_spat, tree_rel, tree_spat, y_train, n2v_rel=None, n2v_spat=None):
+              tec_rel, tec_spat, train_df, tree_rel, tree_spat, y_train, n2v_rel=None, n2v_spat=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -77,6 +77,8 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
         node_embs_spat: Spatial node embeddings
         tec_rel: Relational node embedding technique
         tec_spat: Spatial node embedding technique
+        train_df: Training dataframe needed to get the predictions for the node embeddings when using n2v since it keeps
+        the mapping between node ID and label
         tree_rel: Relational decision tree
         tree_spat: Spatial decision tree
         y_train: Train labels
@@ -116,14 +118,13 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
     optim = Adam(mlp.parameters(), lr=0.001, weight_decay=1e-4)
     mlp.train_mlp(optim)
     e = list(mlp(dataset))
-    return mlp
 
 
 def get_relational_preds(technique, df, l, tree, node_embs, id2idx: dict, n2v, cmi, pmi=None):
-    dataset = np.zeros((l, 2))
+    dataset = torch.zeros((l, 2))
     if technique == "graphsage":
         pr, conf = test_decision_tree(test_set=node_embs, cls=tree)
-        for index, row in tqdm(df.iterrows()):
+        for index in range(dataset.shape[0]):
             dataset[index, 0] = pr[index]
             dataset[index, 1] = conf[index]
     else:
@@ -185,8 +186,8 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                                                                     epochs=w2v_epochs, id_field_name=field_name_id,
                                                                     model_dir=model_dir,
                                                                     text_field_name=field_name_text, train_df=train_df)
-    together = np.array(list(users_embs_dict.values()))
-    normalized = (together - together.mean())/together.std()
+    together = np.vstack([dang_users_ar, safe_users_ar])
+    normalized = (together - together.mean(axis=0))/together.std(axis=0)
     dang_users_ar = normalized[:dang_users_ar.shape[0]]
     safe_users_ar = normalized[dang_users_ar.shape[0]:]
 
@@ -237,27 +238,25 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     tree_rel = load_decision_tree(rel_tree_path)
     #tree_spat = load_decision_tree(spat_tree_path)
 
-    ################# NOW THAT WE HAVE THE MODELS WE CAN OBTAIN THE TRAINING SET FOR THE MLP #################
+    # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
+    n2v_rel = None
+    n2v_spat = None
+    id2idx_rel = None
+    id2idx_spat = None
     if node_emb_technique_rel == "node2vec":
         n2v_rel = Word2Vec.load(join(model_dir_rel, "n2v.h5"))
-        id2idx_rel = None
-    else:
-        n2v_rel = None
+    elif node_emb_technique_rel != "graphsage":
         id2idx_rel = load_from_pickle(id2idx_path_rel)
     if node_emb_technique_spat == "node2vec":
         n2v_spat = Word2Vec.load(join(model_dir_spat, "n2v.h5"))
-        id2idx_spat = None
-    else:
-        n2v_spat = None
+    elif node_emb_technique_spat != "graphsage":
         id2idx_spat = load_from_pickle(id2idx_path_spat)
     #tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
     tree_spat = x_spat = None
-    mlp = learn_mlp(content_embs=normalized, train_df=train_df, y_train=y_train, ae_dang=dang_ae, ae_safe=safe_ae,
-                    tree_rel=tree_rel, tree_spat=tree_spat, node_embs_rel=x_rel, node_embs_spat=x_spat,
-                    model_dir=model_dir,
-                    id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat,
-                    tec_rel=node_emb_technique_rel, tec_spat=node_emb_technique_spat)
-    save_to_pickle(join(model_dir, "mlp.pkl"), mlp)
+    learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=normalized, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat,
+              model_dir=model_dir, node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
+              tec_spat=node_emb_technique_spat, train_df=train_df, tree_rel=tree_rel, tree_spat=tree_spat,
+              y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat)
 
 
 def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: MLP, rel_node_emb_technique, spat_node_emb_technique,
@@ -380,55 +379,64 @@ def classify_users(preprocess_job_id, train_job_id, user_ids, content_filename, 
 
 
 # THESE FUNCTIONS ARE NOT USED IN THE API #
-def test(rel_ne_technique, spat_ne_technique, df, train_df, w2v_model, dang_ae, safe_ae, tree_rel, tree_spat,
-         mlp: MLP, text_field_name, id_field_name, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None,
-         pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_spat=None, adj_matrix_rel=None,
-         rel_net_path=None, spat_net_path=None):
-    test_set = np.zeros(shape=(len(df), 7))
+def test(ae_dang, ae_safe, df, df_train, field_name_id, field_name_text, mlp: MLP, ne_technique_rel, ne_technique_spat,
+         tree_rel, tree_spat, w2v_model, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None,
+         id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None, pca_spat=None, rel_net_path=None,
+         spat_net_path=None):
+    test_set = torch.zeros(len(df), 7)
     tok = TextPreprocessing()
-    posts = tok.token_dict(df, text_field_name=text_field_name, id_field_name=id_field_name)
+    posts = tok.token_dict(df, text_field_name=field_name_text, id_field_name=field_name_id)
     posts_embs_dict = w2v_model.text_to_vec(posts)
-    posts_embs = np.array(list(posts_embs_dict.values()))
-    pred_dang = dang_ae.predict(posts_embs)
-    pred_safe = safe_ae.predict(posts_embs)
-    test_posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(posts_embs, dtype=tf.float32)).numpy()
-    pred_loss_dang = tf.keras.losses.mse(pred_dang, test_posts_sigmoid).numpy()
-    pred_loss_safe = tf.keras.losses.mse(pred_safe, test_posts_sigmoid).numpy()
-    labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
-    test_set[:, 0] = pred_loss_dang
-    test_set[:, 1] = pred_loss_safe
-    test_set[:, 2] = np.array(labels)
+    posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float)
+    posts_embs_norm = (posts_embs - posts_embs.mean(axis=0))/posts_embs.std(axis=0)
+    pred_dang = ae_dang.predict(posts_embs_norm)
+    pred_safe = ae_safe.predict(posts_embs_norm)
+    loss = MSELoss()
+    pred_loss_dang = []
+    pred_loss_safe = []
+    for i in range(posts_embs.shape[0]):
+        pred_loss_dang.append(loss(posts_embs_norm[i], pred_dang[i]))
+        pred_loss_safe.append(loss(posts_embs_norm[i], pred_safe[i]))
 
+    labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
+    test_set[:, 0] = torch.tensor(pred_loss_dang, dtype=torch.float32)
+    test_set[:, 1] = torch.tensor(pred_loss_safe, dtype=torch.float32)
+    test_set[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
     # At test time, if we meet an instance that doesn't have information about relationships or closeness, we will
     # replace the decision tree prediction with the most frequent label in the training set
-    pred_missing_info = train_df['label'].value_counts().argmax()
+    pred_missing_info = df_train['label'].value_counts().argmax()
     #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
 
-    sage_rel_embs = sage_spat_embs = inv_map_rel = inv_map_sp = None
-    """if rel_ne_technique == "graphsage":
+    sage_rel_embs = None
+    sage_spat_embs = None
+    inv_map_rel = None
+    inv_map_sp = None
+    if ne_technique_rel == "graphsage":
         mapper, inv_map_rel = create_mappers(posts_embs_dict)
         graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
         with torch.no_grad():
             graph = graph.to(mod_rel.device)
-            sage_rel_embs = mod_rel(graph).to("cpu").numpy
-    if spat_ne_technique == "graphsage":
+            sage_rel_embs = mod_rel(graph, inference=True).detach().numpy()
+    """if ne_technique_spat == "graphsage":
         mapper, inv_map_sp = create_mappers(posts_embs_dict)
-        graph = create_graph(inv_map=inv_map_sp, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
+        graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict, edg_dir=spat_net_path, df=df)
         with torch.no_grad():
             graph = graph.to(mod_rel.device)
-            sage_spat_embs = mod_rel(graph).to("cpu").numpy
+            sage_spat_embs = mod_rel(graph).to("cpu").detach().numpy()"""
 
     # Social part
-    test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_rel,
-                                              ne_technique=rel_ne_technique, test_set=test_set, mode="rel",
+    test_set = get_relational_preds()
+    #TODO USARE LA FUNZIONE SOPRA INVECE DI QUELLA SOTTO, CHE FORSE PUò ESSERE RIMOSSA
+    obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_rel,
+                                              ne_technique=ne_technique_rel, test_set=test_set, mode="rel",
                                               model=mod_rel, adj_mat=adj_matrix_rel, pca=pca_rel, ae=ae_rel,
                                               id2idx=id2idx_rel, inv_mapper=inv_map_rel, node_embs=sage_rel_embs)
 
     # Spatial part
-    test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_spat,
-                                              ne_technique=rel_ne_technique, test_set=test_set, mode="spat",
+    """test_set = obtain_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_spat,
+                                              ne_technique=ne_technique_spat, test_set=test_set, mode="spat",
                                               model=mod_spat, adj_mat=adj_matrix_spat, pca=pca_spat, ae=ae_spat,
                                               id2idx=id2idx_spat, inv_mapper=inv_map_sp, node_embs=sage_spat_embs)"""
 
@@ -511,7 +519,7 @@ def cross_validation(dataset_path, n_folds):
     l = []
     for k, (train_idx, test_idx) in enumerate(folds):
         dang_ae, safe_ae, w2v_model, n2v_rel, n2v_spat, tree_rel, tree_spat, mlp = train(df.iloc[train_idx], k)
-        p, r, f1, s = test(df=df.iloc[test_idx], train_df=df.iloc[train_idx], dang_ae=dang_ae, safe_ae=safe_ae,
+        p, r, f1, s = test(df=df.iloc[test_idx], df_train=df.iloc[train_idx], ae_dang=dang_ae, ae_safe=safe_ae,
                            tree_rel=tree_rel, tree_spat=tree_spat, mod_rel=n2v_rel, mod_spat=n2v_spat, mlp=mlp,
                            w2v_model=w2v_model)
         l.append((p, r, f1, s))
