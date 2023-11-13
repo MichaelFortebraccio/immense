@@ -247,6 +247,10 @@ def add_label(df, ratio, sim_array):
     # If sim(user_emb, negative_emb) > ratio, then user = risky else user = safe
     l = [0 if sim_array[i] < ratio else 1 for i in range(len(sim_array))]
     df['label'] = l
+    dang_ids = list(df[df['label'] == 1]['id'])
+    safe_ids = list(df[df['label'] == 0]['id'])
+    save_to_pickle("../dataset/big_dataset/risky_ids.pkl", dang_ids)
+    save_to_pickle("../dataset/big_dataset/safe_ids.pkl", safe_ids)
     return df
 
 
@@ -257,7 +261,7 @@ if __name__ == "__main__":
     risky_ds = join(dataset_dir, "no_affiliations_preprocessed_nolow.csv")
     to_label = join(dataset_dir, "unlabelled_dataset.csv")
     path_to_rel = join(dataset_dir, "graph", "social_network.edg")
-    model_path = "../google_w2v.bin"
+    model_path = "../evil/google_w2v.bin"
     sim2label_fname = "sim_to_label.pkl"
 
     main_whole(risky_ds_path=risky_ds, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim2label_fname)

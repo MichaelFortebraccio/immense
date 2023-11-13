@@ -20,9 +20,12 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    dataset_dir = join("dataset", "anthony")
-    models_dir = join(dataset_dir, "models")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
+    models_dir = join(dataset_dir, "models")
+    id_field = "id"
+    text_field = "text_cleaned"
+
     mod_dir_rel = join(models_dir, "node_embeddings", "rel")
     mod_dir_spat = join(models_dir, "node_embeddings", "spat")
     technique_spat = technique_rel = "graphsage"
@@ -33,7 +36,7 @@ def main_test(args=None):
     rel_net_path = join(graph_dir, "social_network_test.edg")
     spat_net_path = join(graph_dir, "spatial_network_test.edg")
 
-    word_embedding_size = 256
+    word_embedding_size = 512
     ne_dim_spat = ne_dim_rel = 256
 
     train_df = pd.read_csv(join(dataset_dir, "train.csv"))
@@ -71,7 +74,7 @@ def main_test(args=None):
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, ne_technique_rel=technique_rel,
          ne_technique_spat=technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
          adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
-         rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_name_text="text_cleaned", field_name_id="id")
+         rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field)
 
 
 if __name__ == "__main__":

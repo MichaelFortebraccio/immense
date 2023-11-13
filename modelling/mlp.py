@@ -17,7 +17,7 @@ class MLP(torch.nn.Module):
         self.nz = np.count_nonzero(y_train)
         y_train = to_categorical(y_train)
         self.y_train = torch.tensor(y_train, dtype=torch.float)
-        self._model_path = join(model_dir, "mlp.h5")
+        self._model_path = join(model_dir, "mlp.pkl")
         self.batch_size = batch_size
         self.epochs = epochs
         self.input = Linear(in_features=7, out_features=3)
