@@ -20,9 +20,9 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    dataset_dir = join("dataset", "big_dataset")
+    dataset_dir = join("dataset", "anthony")
     graph_dir = join(dataset_dir, "graph")
-    models_dir = join(dataset_dir, "models")
+    models_dir = join("dataset", "big_dataset", "models")
     id_field = "id"
     text_field = "text_cleaned"
 
@@ -74,7 +74,8 @@ def main_test(args=None):
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, ne_technique_rel=technique_rel,
          ne_technique_spat=technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
          adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
-         rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field)
+         rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field,
+         consider_rel=True, consider_spat=False)
 
 
 if __name__ == "__main__":
