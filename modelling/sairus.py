@@ -180,20 +180,15 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     #safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
     dang_posts_ids = load_from_pickle(path_dang_ids)
     safe_posts_ids = load_from_pickle(path_safe_ids)
-    #dang_posts_array, safe_posts_array,
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
                                       model_dir=model_dir, text_field_name=field_name_text, train_df=train_df)
 
     embs = np.array(list(users_embs_dict.values()))
-    mean = embs.mean(axis=0)
-    std = embs.std(axis=0)
     keys = list(users_embs_dict.keys())
-    zscored_embs = {}
-    for k in keys:
-        zscored_embs[k] = (users_embs_dict[k] - mean) / std
 
-    dang_users_ar = np.array([zscored_embs[k] for k in keys if k in dang_posts_ids])
-    safe_users_ar = np.array([zscored_embs[k] for k in keys if k in safe_posts_ids])
+    dang_users_ar = np.array([users_embs_dict[k] for k in keys if k in dang_posts_ids])
+    safe_users_ar = np.array([users_embs_dict[k] for k in keys if k in safe_posts_ids])
+    embs = torch.tensor(embs, dtype=torch.float32)
 
     """together = np.vstack([dang_users_ar, safe_users_ar])
     normalized = (together - together.mean(axis=0))/together.std(axis=0)
@@ -206,15 +201,14 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
     dang_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_emb_size))
     safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_emb_size))
-    #content_embs = np.array(list(users_embs_dict.values()))
 
     if not exists(dang_ae_name):
-        dang_ae = AE(X_train=dang_users_ar, epochs=100, batch_size=64, lr=0.002, name=dang_ae_name)
+        dang_ae = AE(X_train=dang_users_ar, epochs=100, batch_size=32, lr=0.002, name=dang_ae_name)
         dang_ae.train_autoencoder_content()
     else:
         dang_ae = load_from_pickle(dang_ae_name)
     if not exists(safe_ae_name):
-        safe_ae = AE(X_train=safe_users_ar, epochs=100, batch_size=128, lr=0.002, name=safe_ae_name)
+        safe_ae = AE(X_train=safe_users_ar, epochs=100, batch_size=64, lr=0.002, name=safe_ae_name)
         safe_ae.train_autoencoder_content()
     else:
         safe_ae = load_from_pickle(safe_ae_name)
@@ -230,28 +224,27 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     rel_tree_path = join(model_dir_rel, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
     spat_tree_path = join(model_dir_spat, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
 
-    x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
-                                    id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
-                                    train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
-                                    sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)
+    tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
+    if consider_rel:
+        x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
+                                        id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
+                                        train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
+                                        sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)
+        if not exists(rel_tree_path):
+            train_decision_tree(train_set=x_rel, save_path=rel_tree_path, train_set_labels=y_rel, name="rel")
+        tree_rel = load_decision_tree(rel_tree_path)
 
-    """x_spat, y_spat = reduce_dimension(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spatial_path, lab="spat",
-                                      id2idx_path=id2idx_spat_path, node_embedding_size=spat_node_embedding_size,
-                                      train_df=train_df, epochs=spat_nembs_eps, adj_matrix_path=adj_matrix_spat_path,
-                                      sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)"""
-    if not exists(rel_tree_path):
-        train_decision_tree(train_set=x_rel, save_path=rel_tree_path, train_set_labels=y_rel, name="rel")
-    """if not exists(spat_tree_path):
-        train_decision_tree(train_set=x_spat, save_path=spat_tree_path, train_set_labels=y_spat, name="spat")"""
-
-    tree_rel = load_decision_tree(rel_tree_path)
-    #tree_spat = load_decision_tree(spat_tree_path)
+    if consider_spat:
+        x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
+                                          lab="spat", id2idx_path=id2idx_path_spat,
+                                          node_embedding_size=node_emb_size_spat, train_df=train_df,
+                                          epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat, sizes=[2, 3],
+                                          features_dict=users_embs_dict, batch_size=batch_size)
+        if not exists(spat_tree_path):
+            train_decision_tree(train_set=x_spat, save_path=spat_tree_path, train_set_labels=y_spat, name="spat")
+        tree_spat = load_decision_tree(spat_tree_path)
 
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
-    n2v_rel = None
-    n2v_spat = None
-    id2idx_rel = None
-    id2idx_spat = None
     if node_emb_technique_rel == "node2vec":
         n2v_rel = Word2Vec.load(join(model_dir_rel, "n2v.h5"))
     elif node_emb_technique_rel != "graphsage":
@@ -260,11 +253,9 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         n2v_spat = Word2Vec.load(join(model_dir_spat, "n2v.h5"))
     elif node_emb_technique_spat != "graphsage":
         id2idx_spat = load_from_pickle(id2idx_path_spat)
-    #tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
-    tree_spat = x_spat = None
+
     y_train = list(train_df['label'])
-    normalized = torch.tensor(list(zscored_embs.values()), dtype=torch.float32)
-    learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=normalized, consider_rel=consider_rel,
+    learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=embs, consider_rel=consider_rel,
               consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
               node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
               tec_spat=node_emb_technique_spat, train_df=train_df, tree_rel=tree_rel, tree_spat=tree_spat,
@@ -399,16 +390,15 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_text, id_field_name=field_id)
     posts_embs_dict = w2v_model.text_to_vec(posts)
-    posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float)
-    posts_embs_norm = (posts_embs - posts_embs.mean(axis=0))/posts_embs.std(axis=0)
-    pred_dang = ae_dang.predict(posts_embs_norm)
-    pred_safe = ae_safe.predict(posts_embs_norm)
+    posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float32)
+    pred_dang = ae_dang.predict(posts_embs)
+    pred_safe = ae_safe.predict(posts_embs)
     loss = MSELoss()
     pred_loss_dang = []
     pred_loss_safe = []
     for i in range(posts_embs.shape[0]):
-        pred_loss_dang.append(loss(posts_embs_norm[i], pred_dang[i]))
-        pred_loss_safe.append(loss(posts_embs_norm[i], pred_safe[i]))
+        pred_loss_dang.append(loss(posts_embs[i], pred_dang[i]))
+        pred_loss_safe.append(loss(posts_embs[i], pred_safe[i]))
 
     labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
     test_set[:, 0] = torch.tensor(pred_loss_dang, dtype=torch.float32)
@@ -423,8 +413,6 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
 
     sage_rel_embs = None
     sage_spat_embs = None
-    inv_map_rel = None
-    inv_map_sp = None
     if consider_rel:
         if ne_technique_rel == "graphsage":
             mapper, inv_map_rel = create_mappers(posts_embs_dict)

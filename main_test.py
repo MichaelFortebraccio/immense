@@ -20,7 +20,7 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    dataset_dir = join("dataset", "anthony")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join("dataset", "big_dataset", "models")
     id_field = "id"

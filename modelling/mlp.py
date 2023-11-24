@@ -11,7 +11,7 @@ from utils import plot_confusion_matrix, save_to_pickle
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=50):
+    def __init__(self, X_train, y_train, model_dir, batch_size=128, epochs=100):
         super(MLP, self).__init__()
         self.X_train = X_train
         self.nz = np.count_nonzero(y_train)

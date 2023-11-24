@@ -31,14 +31,10 @@ class AE(torch.nn.Module):
             ReLU(),
             Linear(in_features=int(input_dim/2), out_features=int(input_dim/4)),
             ReLU(),
-            #Linear(in_features=int(input_dim/4), out_features=int(input_dim/8)),
-            #ReLU(),
         )
         self.decoder = Sequential(
-            #Linear(in_features=int(input_dim/8), out_features=int(input_dim/4)),
-            #Tanh(),
             Linear(in_features=int(input_dim/4), out_features=int(input_dim/2)),
-            Tanh(),
+            ReLU(),
             Linear(in_features=int(input_dim/2), out_features=input_dim)
         )
 
@@ -57,7 +53,7 @@ class AE(torch.nn.Module):
         ds = TensorDataset(self._X_train)
         dl = DataLoader(ds, batch_size=self.batch_size)
         best_loss = 9999
-        for _ in range(self.epochs):
+        for epoch in range(self.epochs):
             self.train()
             total_loss = 0
             for batch in dl:
@@ -67,9 +63,10 @@ class AE(torch.nn.Module):
                 loss.backward()
                 total_loss += loss
                 opt.step()
-            loss = loss/len(dl)
-            print(loss)
-            if loss < best_loss:
+            loss = total_loss/len(dl)
+            if total_loss < best_loss:
+                best_loss = total_loss
+                print("Found best model at epoch {}. Loss: {}".format(epoch, best_loss))
                 save_to_pickle(self.name, self)
             #lr_reducer = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, verbose=0, mode='auto')
 
