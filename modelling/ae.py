@@ -1,11 +1,10 @@
 import torch.nn
 from keras.layers import Dense, Input
 from keras import Model
-#from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from torch.utils.data import TensorDataset, DataLoader
 from keras.models import load_model
-from torch.nn import Sequential, Linear, ReLU, MSELoss, Tanh
+from torch.nn import Sequential, Linear, ReLU, MSELoss
 from torch.optim import Adam
 from utils import save_to_pickle
 import numpy as np
@@ -63,7 +62,7 @@ class AE(torch.nn.Module):
                 loss.backward()
                 total_loss += loss
                 opt.step()
-            loss = total_loss/len(dl)
+            total_loss = total_loss/len(dl)
             if total_loss < best_loss:
                 best_loss = total_loss
                 print("Found best model at epoch {}. Loss: {}".format(epoch, best_loss))
