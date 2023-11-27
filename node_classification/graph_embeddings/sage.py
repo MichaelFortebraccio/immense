@@ -22,12 +22,14 @@ def create_mappers(features_dict):
     return mapper, inv_map
 
 
-def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_field="label"):
+def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_field="label", edgelist=None, inference=False):
     """
     Function to create a graph starting from the features, the edge list, and the node labels.
     :param: df: Dataframe containing the users. It is used to retrieve the node labels
     :param: id_field: Name of the id field in the dataframe. Default 'id'
     :param: label_field: Name of the label field in the dataframe. Default 'label'
+    :param: edgelist: List of edges. If set to none, the function will create it. It is not set to none only when
+            providing prediction for a specific set of users
     """
     inv_mapper_list = list(inv_map.keys())
     feats = []
@@ -35,22 +37,28 @@ def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_
     for i in inv_mapper_list:
         feats.append(features[int(i)])
     x = torch.Tensor(np.array(feats))
-    edgelist = []
     y = []
-    weights = []
-    with open(edg_dir, 'r') as f:
-        for l in f.readlines():
-            split = l.split("\t")
-            e1, e2 = split[0].strip(), split[1].strip()
-            if len(split) == 3:
-                e3 = split[2].strip()
-                weights.append(float(e3))
-            edgelist.append((inv_map[int(e1)], inv_map[int(e2.strip())]))
-    edges = list(zip(*edgelist))
-    edge_index = torch.tensor(np.array(edges), dtype=torch.long)
-    for k in features:
-        y.append(df[df[id_field] == k][label_field].values[0])
-    y = torch.tensor(np.array(y), dtype=torch.long)
+    if edgelist!=None and len(edgelist) > 0:
+        edgelist = []
+        weights = []
+        with open(edg_dir, 'r') as f:
+            for l in f.readlines():
+                split = l.split("\t")
+                e1, e2 = split[0].strip(), split[1].strip()
+                if len(split) == 3:
+                    e3 = split[2].strip()
+                    weights.append(float(e3))
+                edgelist.append((inv_map[int(e1)], inv_map[int(e2.strip())]))
+    edges = np.array(list(zip(*edgelist)))
+    if len(edges.shape) == 1:
+        edges = np.zeros(shape=(2, 1))
+    edge_index = torch.tensor(edges, dtype=torch.long)
+    if not inference:
+        for k in features:
+            y.append(df[df[id_field] == k][label_field].values[0])
+        y = torch.tensor(np.array(y), dtype=torch.long)
+    else:
+        y = None
     if weighted:
         edge_attr = torch.tensor(np.array(weights), dtype=torch.float)
         graph = Data(x=x, y=y, edge_index=edge_index, edge_weight=edge_attr)
