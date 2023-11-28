@@ -38,7 +38,7 @@ def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_
         feats.append(features[int(i)])
     x = torch.Tensor(np.array(feats))
     y = []
-    if edgelist!=None and len(edgelist) > 0:
+    if edgelist is None:
         edgelist = []
         weights = []
         with open(edg_dir, 'r') as f:

@@ -74,9 +74,9 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             directed = False
 
         mapper_train, inv_map_train = create_mappers(features_dict)
-        graph = create_graph(inv_map=inv_map_train, weighted=False, features=features_dict, edg_dir=edge_path, df=train_df)
-        split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=False, add_negative_train_samples=False,
-                                  neg_sampling_ratio=1.0)
+        graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path, df=train_df)
+        split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
+                                  add_negative_train_samples=False, neg_sampling_ratio=1.0)
         train_data, valid_data, _ = split(graph)
         sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
                     directed=directed)

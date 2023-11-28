@@ -56,6 +56,7 @@ class MLP(torch.nn.Module):
                 print("\nEpoch: {}, Loss: {}".format(epoch, l))
             if l < best_loss:
                 best_loss = l
+                print("New best model found at epoch {}. Loss: {}".format(epoch, best_loss))
                 save_to_pickle(self._model_path, self)
 
     def test(self, X_test, y_test):

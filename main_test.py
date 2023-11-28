@@ -1,5 +1,5 @@
 import argparse
-from modelling.sairus import test, predict_user
+from modelling.sairus import test
 from node_classification.decision_tree import load_decision_tree
 from os.path import join
 from utils import load_from_pickle, get_model
@@ -47,29 +47,19 @@ def main_test(args=None):
     safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_embedding_size)))
     mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
 
-
     tree_rel = load_decision_tree(join(mod_dir_rel, "dtree_{}_{}.h5".format(technique_rel, ne_dim_rel)))
-    #tree_spat = load_decision_tree(join(mod_dir_spat, "dtree_{}_{}.h5".format(technique_spat, ne_dim_spat)))
+    tree_spat = load_decision_tree(join(mod_dir_spat, "dtree_{}_{}.h5".format(technique_spat, ne_dim_spat)))
 
     mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=technique_rel, mod_dir=mod_dir_rel,
                                                                   lab="rel", adj_mat_path=adj_mat_rel_path,
                                                                   id2idx_path=id2idx_rel_path, ne_dim=ne_dim_rel)
 
-    """mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=technique_spat, mod_dir=mod_dir_spat,
+    mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=technique_spat, mod_dir=mod_dir_spat,
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
-                                                                       id2idx_path=id2idx_spat_path, ne_dim=ne_dim_spat)"""
+                                                                       id2idx_path=id2idx_spat_path, ne_dim=ne_dim_spat)
 
-    tree_spat = ae_spat = id2idx_spat = adj_mat_spat = mod_spat = pca_spat = None
+    #tree_spat = ae_spat = id2idx_spat = adj_mat_spat = mod_spat = pca_spat = None
 
-    """if args.user_id:
-        df = train_df.append(test_df)
-        user = df.loc[df.id==args.user_id]
-        pred = predict_user(user=user, w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, df=train_df, tree_rel=tree_rel,
-                            tree_spat=tree_spat, mlp=mlp, rel_node_emb_technique=rel_technique, spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel,
-                            id2idx_spat=id2idx_spat, n2v_rel=n2v_rel, n2v_spat=n2v_spat, pca_rel=pca_rel, pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat,
-                            adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
-        print("The user is: {}".format("risky" if pred == 1 else "safe"))
-    else:"""
     test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel,
          tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, ne_technique_rel=technique_rel,
          ne_technique_spat=technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,

@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_restx import Api, Resource, reqparse, abort
-from modelling.sairus import classify_users
 from os.path import exists, join
 from utils import load_from_pickle
 

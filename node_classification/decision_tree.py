@@ -1,5 +1,5 @@
-from sklearn.ensemble import RandomForestClassifier
 import pickle
+from sklearn.ensemble import RandomForestClassifier
 
 
 def train_decision_tree(train_set, save_path, train_set_labels, name):

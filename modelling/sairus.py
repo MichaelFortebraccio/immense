@@ -1,10 +1,8 @@
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from torch.optim import SGD, Adam
+import torch
 from exceptions import Id2IdxException, MissingParamException
 from gensim.models import Word2Vec
-from keras.models import load_model
 from modelling.ae import AE
 from modelling.mlp import MLP
 from modelling.text_preprocessing import TextPreprocessing
@@ -13,9 +11,9 @@ from node_classification.decision_tree import *
 from node_classification.graph_embeddings.sage import create_graph, create_mappers
 from node_classification.reduce_dimension import reduce_dimension
 from torch.nn import MSELoss
-from os.path import exists, join
-import torch
+from torch.optim import Adam
 from os import makedirs
+from os.path import exists, join
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
 from utils import load_from_pickle, save_to_pickle
@@ -50,7 +48,6 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
     # split content in safe and dangerous
     all_users_tokens = tok.token_dict(train_df, text_field_name=text_field_name, id_field_name=id_field_name)
     all_users_embeddings = w2v_model.text_to_vec(users=all_users_tokens)  # Get a dict of all the embeddings of each user, keeping the association with the key
-    # dang_posts_array, safe_posts_array,
     return all_users_embeddings
 
 
@@ -190,13 +187,6 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     safe_users_ar = np.array([users_embs_dict[k] for k in keys if k in safe_posts_ids])
     embs = torch.tensor(embs, dtype=torch.float32)
 
-    """together = np.vstack([dang_users_ar, safe_users_ar])
-    normalized = (together - together.mean(axis=0))/together.std(axis=0)
-    dang_users_ar = torch.tensor(normalized[:dang_users_ar.shape[0]], dtype=torch.float32)
-    safe_users_ar_norm = torch.tensor(normalized[dang_users_ar_norm.shape[0]:], dtype=torch.float32)
-    normalized = torch.tensor(normalized, dtype=torch.float32)
-    y_train = [1] * dang_users_ar_norm.shape[0] + [0] * safe_users_ar_norm.shape[0]"""
-
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
     dang_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_emb_size))
@@ -262,67 +252,6 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
               y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat)
 
 
-def predict_user(user: pd.DataFrame, w2v_model, dang_ae, safe_ae, df, tree_rel, tree_spat, mlp: MLP, rel_node_emb_technique, spat_node_emb_technique,
-                 id2idx_rel=None, id2idx_spat=None, n2v_rel=None, n2v_spat=None, pca_rel=None, pca_spat=None, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None):
-    test_array = np.zeros(shape=(1, 7))
-    posts = user['text_cleaned'].values[0].split(" ")
-    posts_embs = w2v_model.text_to_vec([posts])
-    posts_embs = list(posts_embs.values())[0]
-    pred_dang = dang_ae.predict(posts_embs)
-    pred_safe = safe_ae.predict(posts_embs)
-    posts_sigmoid = tf.keras.activations.sigmoid(tf.constant(posts_embs, dtype=tf.float32)).numpy()
-    pred_loss_dang = tf.keras.losses.mse(pred_dang, posts_sigmoid).numpy()
-    pred_loss_safe = tf.keras.losses.mse(pred_safe, posts_sigmoid).numpy()
-    label = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
-    test_array[0, 0] = pred_loss_dang
-    test_array[0, 1] = pred_loss_safe
-    test_array[0, 2] = label[0]
-
-    # If the instance doesn't have information about spatial or social relationships, we will replace the decision tree
-    # prediction with the most frequent label in the training set
-    pred_missing_info = df['label'].value_counts().argmax()
-    conf_missing_info = max(df['label'].value_counts()) / len(df)  # ratio
-
-    id = user['id'].values[0]
-    if n2v_rel:
-        try:
-            dtree_input = np.expand_dims(n2v_rel.wv[str(id)], axis=0)
-            pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
-        except KeyError:
-            pr_rel, conf_rel = pred_missing_info, conf_missing_info
-    else:
-        idx = id2idx_rel[id]
-        dtree_input = get_testset_dtree(rel_node_emb_technique, idx, adj_matrix=adj_matrix_rel, n2v=n2v_rel, pca=pca_rel, ae=ae_rel)
-        pr_rel, conf_rel = test_decision_tree(test_set=dtree_input, cls=tree_rel)
-
-    test_array[0, 3] = pr_rel
-    test_array[0, 4] = conf_rel
-    if n2v_spat:
-        try:
-            dtree_input = np.expand_dims(n2v_spat.wv[str(id)], axis=0)
-            pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
-        except KeyError:
-            pr_spat, conf_spat = pred_missing_info, conf_missing_info
-            pass
-    else:
-        if id in id2idx_spat.keys():
-            idx = id2idx_spat[id]
-            dtree_input = get_testset_dtree(spat_node_emb_technique, idx, adj_matrix=adj_matrix_spat, n2v=n2v_spat, pca=pca_spat, ae=ae_spat)
-            pr_spat, conf_spat = test_decision_tree(test_set=dtree_input, cls=tree_spat)
-        else:
-            print("missing")
-            pr_spat, conf_spat = pred_missing_info, conf_missing_info
-    test_array[0, 5] = pr_spat
-    test_array[0, 6] = conf_spat
-    print(test_array)
-
-    pred = mlp.model.predict(test_array, verbose=0)
-    if round(pred[0][0]) == 0:
-        return 1
-    elif round(pred[0][0]) == 1:
-        return 0
-
-
 def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae=None):
     """
     Depending on the node embedding technique adopted, provide the array that will be used by the decision tree
@@ -345,43 +274,6 @@ def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=No
     return test_set
 
 
-def classify_users(preprocess_job_id, train_job_id, user_ids, content_filename, id2idx_rel_fname, id2idx_spat_fname,
-                   rel_adj_mat_fname, spat_adj_mat_fname, rel_technique, spat_technique, we_dim):
-    dataset_dir = join(preprocess_job_id, "dataset")
-    models_dir = join(train_job_id, "models")
-    adj_mat_rel_path = join(dataset_dir, rel_adj_mat_fname)
-    adj_mat_spat_path = join(dataset_dir, spat_adj_mat_fname)
-    id2idx_rel_path = join(dataset_dir, id2idx_rel_fname)
-    id2idx_spat_path = join(dataset_dir, id2idx_spat_fname)
-
-    df = pd.read_csv(join(dataset_dir, content_filename))
-    w2v_model = load_from_pickle(join(models_dir, "w2v.pkl"))
-    dang_ae = load_model(join(models_dir, "autoencoderdang_{}.h5".format(we_dim)))
-    safe_ae = load_model(join(models_dir, "autoencodersafe_{}.h5".format(we_dim)))
-    mod_dir_rel = join(models_dir, "node_embeddings", "rel", rel_technique)
-    mod_dir_spat = join(models_dir, "node_embeddings", "spat", spat_technique)
-    tree_rel = load_decision_tree(join(mod_dir_rel, "dtree.h5"))
-    tree_spat = load_decision_tree(join(mod_dir_spat, "dtree.h5"))
-
-    n2v_rel, n2v_spat, pca_rel, pca_spat, ae_rel, ae_spat, adj_mat_rel, id2idx_rel, adj_mat_spat, id2idx_spat = get_ne_models(
-        rel_technique=rel_technique, spat_technique=spat_technique, adj_mat_rel_path=adj_mat_rel_path, id2idx_rel_path=id2idx_rel_path,
-        adj_mat_spat_path=adj_mat_spat_path, id2idx_spat_path=id2idx_spat_path, mod_dir_rel=mod_dir_rel, mod_dir_spat=mod_dir_spat)
-
-    mlp = load_from_pickle(join(models_dir, "mlp.pkl"))
-    out = {}
-    for id in user_ids:
-        if id not in df['id'].tolist():
-            out[id] = "not found"
-        else:
-            pred = predict_user(user=df[df.id==id].reset_index(), w2v_model=w2v_model, dang_ae=dang_ae, safe_ae=safe_ae, n2v_rel=n2v_rel,
-                                n2v_spat=n2v_spat, mlp=mlp, tree_rel=tree_rel, tree_spat=tree_spat, df=df, rel_node_emb_technique=rel_technique,
-                                spat_node_emb_technique=spat_technique, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, pca_rel=pca_rel,
-                                pca_spat=pca_spat, ae_rel=ae_rel, ae_spat=ae_spat, adj_matrix_rel=adj_mat_rel, adj_matrix_spat=adj_mat_spat)
-            out[id] = pred
-    return out
-
-
-# THESE FUNCTIONS ARE NOT USED IN THE API #
 def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_technique_rel, ne_technique_spat, tree_rel,
          tree_spat, w2v_model, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None, consider_rel=True,
          consider_spat=True, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None,
@@ -420,22 +312,21 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
             with torch.no_grad():
                 graph = graph.to(mod_rel.device)
                 sage_rel_embs = mod_rel(graph, inference=True).detach().numpy()
-        social_part = get_relational_preds(technique=ne_technique_rel, df=df_train, tree=tree_rel,
-                                           node_embs=sage_rel_embs,
-                                           id2idx=id2idx_rel, n2v=mod_rel, cmi=conf_missing_info, pmi=pred_missing_info)
-        test_set[:, 3], test_set[:, 4] = social_part[:, 0], social_part[:, 1]
+            social_part = get_relational_preds(technique=ne_technique_rel, df=df_train, tree=tree_rel,
+                                               node_embs=sage_rel_embs, id2idx=id2idx_rel, n2v=mod_rel,
+                                               cmi=conf_missing_info, pmi=pred_missing_info)
+            test_set[:, 3], test_set[:, 4] = social_part[:, 0], social_part[:, 1]
     if consider_spat:
         if ne_technique_spat == "graphsage":
             mapper, inv_map_sp = create_mappers(posts_embs_dict)
             graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict, edg_dir=spat_net_path, df=df)
             with torch.no_grad():
-                graph = graph.to(mod_rel.device)
-                sage_spat_embs = mod_rel(graph).to("cpu").detach().numpy()
-            spatial_part = get_graph_based_predictions(df, pmi=pred_missing_info, cmi=conf_missing_info, tree=tree_spat,
-                                                       ne_technique=ne_technique_spat, test_set=test_set, mode="spat",
-                                                       model=mod_spat, adj_mat=adj_matrix_spat, pca=pca_spat, ae=ae_spat,
-                                                       id2idx=id2idx_spat, inv_mapper=inv_map_sp, node_embs=sage_spat_embs)
-            test_set[:, 3], test_set[:, 4] = spatial_part[:, 0], spatial_part[:, 1]
+                graph = graph.to(mod_spat.device)
+                sage_spat_embs = mod_spat(graph, inference=True).detach().numpy()
+            spatial_part = get_relational_preds(technique=ne_technique_spat, df=df_train, tree=tree_spat,
+                                                node_embs=sage_spat_embs, id2idx=id2idx_spat, n2v=mod_spat,
+                                                cmi=conf_missing_info, pmi=pred_missing_info)
+            test_set[:, 5], test_set[:, 6] = spatial_part[:, 0], spatial_part[:, 1]
 
     print(mlp.test(test_set, np.array(df['label'])))
     d = "uj"
@@ -468,9 +359,6 @@ def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set,
         i1, i2, weighted = 5, 6, True
 
     if ne_technique == "graphsage":
-        if not inv_mapper:
-            MissingMapperException
-
         for index, row in test_df.iterrows():
             id = row.id
             dtree_input = node_embs[inv_mapper[id]]
