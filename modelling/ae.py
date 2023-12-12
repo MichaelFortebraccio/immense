@@ -1,19 +1,13 @@
 import torch.nn
-from keras.layers import Dense, Input
-from keras import Model
-from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from torch.utils.data import TensorDataset, DataLoader
-from keras.models import load_model
 from torch.nn import Sequential, Linear, ReLU, MSELoss
 from torch.optim import Adam
 from utils import save_to_pickle
 import numpy as np
-import tensorflow as tf
 from os.path import exists
 
 seed = 123
 np.random.seed(seed)
-tf.random.set_seed(seed)
 
 
 class AE(torch.nn.Module):
@@ -74,13 +68,13 @@ class AE(torch.nn.Module):
         return self(x)
 
 
-    def train_autoencoder_node(self, embedding_size):
-        """
+    """def train_autoencoder_node(self, embedding_size):
+        "
         Method that trains the autoencoder used for generating the node embeddings. Differently from the content
         autoencoder, here we train the model and then discard the decoder
         Args:
             embedding_size: Desired embedding dimension
-        """
+        "
         if exists(self._model_dir):
             return self.load_autoencoder()
         else:
@@ -110,7 +104,4 @@ class AE(torch.nn.Module):
                             validation_split=0.2, callbacks=[early_stopping, lr_reducer])
             encoder = Model(input_features, encoded)
             encoder.save(self._model_dir)
-            return encoder
-
-    def load_autoencoder(self):
-        return load_model(self._model_dir)
+            return encoder"""
