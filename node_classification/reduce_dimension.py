@@ -14,7 +14,7 @@ from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, train_df, adj_matrix_path=None,
                      batch_size=None, edge_path=None, epochs=None, features_dict=None, id2idx_path=None,
-                     n_of_walks=10, p=1, q=4, sizes=None, walk_length=10):
+                     n_of_walks=10, p=1, q=4, sizes=None, walk_length=10, training_weights=None):
     """
     This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
     training the decision tree.
@@ -37,7 +37,8 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
         :param q: (node2vec) n2v's hyperparameter q.
         :param sizes: (graphsage) Array containing the number of neighbors to sample for each node.
         :param walk_length: (node2vec) Length of the walks that the n2v model will do.
-
+        :param training_weights: tensor of shape (1, num_classes) containing the weights to give to each class while
+        training the graphsage model. If None, no weights will be used
     Returns:
         train_set: Array containing the node embeddings, which will be used for training the decision tree.
         train_set_labels: Labels of the training vectors.
@@ -86,7 +87,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
             best_loss = 9999
             for i in range(epochs):
-                loss = sage.train_sage(train_loader, optimizer=optimizer)
+                loss = sage.train_sage(train_loader, optimizer=optimizer, weights=training_weights)
                 val_loss = sage.test(valid_data)
                 if loss < best_loss:
                     best_loss = loss

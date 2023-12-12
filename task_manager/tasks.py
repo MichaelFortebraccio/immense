@@ -6,7 +6,7 @@ from dataset_scripts.dataset_class import Dataset, normalize_closeness
 from gensim.models import Word2Vec
 from modelling.sairus import train_w2v_model, learn_mlp
 from modelling.ae import AE
-from node_classification.decision_tree import train_decision_tree, load_decision_tree
+from node_classification.random_forest import train_random_forest, load_random_forest
 from node_classification.reduce_dimension import reduce_dimension
 from task_manager.worker import celery
 from utils import load_from_pickle, save_to_pickle
@@ -141,10 +141,10 @@ def train_task(self, job_id, word_embedding_size, window, w2v_epochs, rel_node_e
 
     ############### LEARN DECISION TREES ###############
     self.update_state(state="PROGRESS", meta={"status": "Learning decision trees..."})
-    train_decision_tree(train_set=train_set_rel, save_path=rel_tree_path, train_set_labels=train_set_labels_rel, name="relational")
-    train_decision_tree(train_set=train_set_spat, save_path=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
-    tree_rel = load_decision_tree(rel_tree_path)
-    tree_spat = load_decision_tree(spat_tree_path)
+    train_random_forest(train_set=train_set_rel, dst_dir=rel_tree_path, train_set_labels=train_set_labels_rel, name="relational")
+    train_random_forest(train_set=train_set_spat, dst_dir=spat_tree_path, train_set_labels=train_set_labels_spat, name="spatial")
+    tree_rel = load_random_forest(rel_tree_path)
+    tree_spat = load_random_forest(spat_tree_path)
 
     self.update_state(state="PROGRESS", meta={"status": "Learning mlp..."})
     if rel_node_emb_technique == "node2vec":
