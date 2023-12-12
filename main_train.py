@@ -1,4 +1,7 @@
 import argparse
+
+import torch
+
 from exceptions import *
 from modelling.sairus import train
 import numpy as np
@@ -37,11 +40,12 @@ def main_train(args=None):
     models_dir = join(dataset_dir, "models")
     field_id = "id"
     field_text = "text_cleaned"
-
+    consider_rel = True
+    consider_spat = False
+    competitor = True
+    # TODO TESTARE COMPETITOR
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
-    path_dang_ids = join(dataset_dir, "risky_ids.pkl")
-    path_safe_ids = join(dataset_dir, "safe_ids.pkl")
 
     textual_content_path = join(dataset_dir, "tweet_labeled_full.csv")
     train_path = join(dataset_dir, "train.csv")
@@ -51,8 +55,8 @@ def main_train(args=None):
     rel_adj_mat_path = spat_adj_mat_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    social_net_path = join(graph_dir, "social_network.edg")
-    spatial_net_path = join(graph_dir, "spatial_network.edg")
+    social_net_path = join(graph_dir, "social_net.edg")
+    spatial_net_path = join(graph_dir, "spatial_net.edg")
 
     # w2v parameters
     word_embedding_size = 512
@@ -95,6 +99,9 @@ def main_train(args=None):
         adj_list_from_df(test_df, spatial_net_path, join(graph_dir, "spatial_network_test.edg"), spatial=True)
     else:
         train_df = pd.read_csv(train_path)
+    nz = len(train_df[train_df.label==1])
+    pos_weight = len(train_df) / nz        #1/2284
+    neg_weight = len(train_df) / (2*(len(train_df) - nz))        # 1/30356
 
     if rel_technique.lower() in ["autoencoder", "pca", "none"]:
         if not rel_adj_mat_path:
@@ -111,9 +118,10 @@ def main_train(args=None):
           field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
           word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
           node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
-          node_emb_size_rel=rel_node_embedding_size, path_dang_ids=path_dang_ids, path_safe_ids=path_safe_ids,
+          node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
           eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
-          adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=True, consider_spat=False)
+          adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
+          consider_spat=consider_spat, competitor=competitor)
 
 
 if __name__ == "__main__":

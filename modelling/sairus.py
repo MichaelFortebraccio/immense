@@ -7,16 +7,17 @@ from modelling.ae import AE
 from modelling.mlp import MLP
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
-from node_classification.decision_tree import *
+from node_classification.random_forest import *
 from node_classification.graph_embeddings.sage import create_graph, create_mappers
-from node_classification.reduce_dimension import reduce_dimension
-from torch.nn import MSELoss
-from torch.optim import Adam
 from os import makedirs
 from os.path import exists, join
 from sklearn.model_selection import StratifiedKFold
+from node_classification.reduce_dimension import reduce_dimension
+from sklearn.metrics import classification_report
+from torch.nn import MSELoss
+from torch.optim import Adam
 from tqdm import tqdm
-from utils import load_from_pickle, save_to_pickle
+from utils import load_from_pickle, save_to_pickle, plot_confusion_matrix
 np.random.seed(123)
 
 
@@ -53,7 +54,7 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
 
 def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir, node_embs_rel, node_embs_spat,
               tec_rel, tec_spat, train_df, tree_rel, tree_spat, y_train, consider_rel=True, consider_spat=True,
-              n2v_rel=None, n2v_spat=None):
+              n2v_rel=None, n2v_spat=None, weights=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -106,7 +107,13 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
     #### STO TRAINANDO IL MODELLO 3%      ###
     #### CONSIDERANDO SOLO IL TESTO       ###
     #########################################
-    mlp = MLP(X_train=dataset, y_train=y_train, model_dir=model_dir)
+    name = "mlp"
+    if consider_rel:
+        name += "_rel"
+    if consider_spat:
+        name += "_spat"
+    name += ".pkl"
+    mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, name), weights=weights)
     optim = Adam(mlp.parameters(), lr=0.003, weight_decay=1e-4)
     mlp.train_mlp(optim)
 
@@ -114,7 +121,7 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
 def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi, pmi=None):
     dataset = torch.zeros(node_embs.shape[0], 2)
     if technique == "graphsage":
-        pr, conf = test_decision_tree(test_set=node_embs, cls=tree)
+        pr, conf = test_random_forest(test_set=node_embs, cls=tree)
         dataset[:, 0] = torch.tensor(pr, dtype=torch.float32)
         dataset[:, 1] = torch.tensor(conf, dtype=torch.float32)
     else:
@@ -123,7 +130,7 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
             if technique == "node2vec":
                 try:
                     dtree_input = np.expand_dims(n2v.wv[str(id)], axis=0)
-                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                    pr, conf = test_random_forest(test_set=dtree_input, cls=tree)
                 except KeyError:
                     if not pmi:
                         pmi = row['label']
@@ -132,7 +139,7 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
                 if id in id2idx.keys():
                     idx = id2idx[id]
                     dtree_input = np.expand_dims(node_embs[idx], axis=0)
-                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                    pr, conf = test_random_forest(test_set=dtree_input, cls=tree)
                 else:
                     if not pmi:
                         pmi = row['label']
@@ -145,10 +152,10 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
 
 
 def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
-          node_emb_size_rel, node_emb_size_spat, path_safe_ids, path_dang_ids, train_df, w2v_epochs, word_emb_size,
-          adj_matrix_path_rel=None, adj_matrix_path_spat=None, batch_size=None, consider_rel=True, consider_spat=True,
-          eps_nembs_rel=None, eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None,
-          path_spat=None):
+          node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, adj_matrix_path_rel=None,
+          adj_matrix_path_spat=None, batch_size=None, consider_rel=True, consider_spat=True, eps_nembs_rel=None,
+          eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None, path_spat=None, weights=None,
+          competitor=False):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
@@ -173,19 +180,17 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     :param path_spat: Path to the file stating the spatial relationships among the users
     :return: Nothing, the learned mlp will be saved in the file "mlp.h5" and put in the model directory
     """
-    #dang_posts_ids = list(train_df.loc[train_df['label'] == 1][field_name_id])
-    #safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
-    dang_posts_ids = load_from_pickle(path_dang_ids)
-    safe_posts_ids = load_from_pickle(path_safe_ids)
+    dang_posts_ids = list(train_df.loc[train_df['label'] == 1][field_name_id])
+    safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
                                       model_dir=model_dir, text_field_name=field_name_text, train_df=train_df)
 
-    embs = np.array(list(users_embs_dict.values()))
+    posts_embs = np.array(list(users_embs_dict.values()))
     keys = list(users_embs_dict.keys())
 
     dang_users_ar = np.array([users_embs_dict[k] for k in keys if k in dang_posts_ids])
     safe_users_ar = np.array([users_embs_dict[k] for k in keys if k in safe_posts_ids])
-    embs = torch.tensor(embs, dtype=torch.float32)
+    posts_embs = torch.tensor(posts_embs, dtype=torch.float32)
 
 
     ################# TRAIN AND LOAD SAFE AND DANGEROUS AUTOENCODER ####################
@@ -211,18 +216,19 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = join(model_dir_rel, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
-    spat_tree_path = join(model_dir_spat, "dtree_{}_{}.h5".format(node_emb_technique_rel, node_emb_size_rel))
+    rel_tree_path = join(model_dir_rel, "forest_{}.h5".format(node_emb_size_rel))
+    spat_tree_path = join(model_dir_spat, "forest_{}.h5".format(node_emb_size_rel))
 
     tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
     if consider_rel:
         x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
                                         id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
                                         train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
-                                        sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size)
+                                        sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size,
+                                        training_weights=weights)
         if not exists(rel_tree_path):
-            train_decision_tree(train_set=x_rel, save_path=rel_tree_path, train_set_labels=y_rel, name="rel")
-        tree_rel = load_decision_tree(rel_tree_path)
+            train_random_forest(train_set=x_rel, dst_dir=rel_tree_path, train_set_labels=y_rel, name="rel")
+        tree_rel = load_random_forest(rel_tree_path)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
@@ -231,8 +237,8 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                                           epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat, sizes=[2, 3],
                                           features_dict=users_embs_dict, batch_size=batch_size)
         if not exists(spat_tree_path):
-            train_decision_tree(train_set=x_spat, save_path=spat_tree_path, train_set_labels=y_spat, name="spat")
-        tree_spat = load_decision_tree(spat_tree_path)
+            train_random_forest(train_set=x_spat, dst_dir=spat_tree_path, train_set_labels=y_spat, name="spat")
+        tree_spat = load_random_forest(spat_tree_path)
 
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
     if node_emb_technique_rel == "node2vec":
@@ -245,11 +251,23 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         id2idx_spat = load_from_pickle(id2idx_path_spat)
 
     y_train = list(train_df['label'])
-    learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=embs, consider_rel=consider_rel,
-              consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
-              node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
-              tec_spat=node_emb_technique_spat, train_df=train_df, tree_rel=tree_rel, tree_spat=tree_spat,
-              y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat)
+    if not competitor:
+        learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=posts_embs, consider_rel=consider_rel,
+                  consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
+                  node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
+                  tec_spat=node_emb_technique_spat, train_df=train_df, tree_rel=tree_rel, tree_spat=tree_spat,
+                  y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat, weights=weights)
+    else:
+        train_set_forest = posts_embs
+        name = "forest"
+        if consider_rel:
+            train_set_forest = np.hstack((train_set_forest, x_rel))
+            name += "_rel"
+        if consider_spat:
+            train_set_forest = np.hstack((train_set_forest, x_spat))
+            name += "_spat"
+        train_random_forest(train_set=train_set_forest, dst_dir=join(model_dir, "competitors", name+".pkl"),
+                            train_set_labels=y_train, name=name)
 
 
 def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=None, ae=None):
@@ -277,7 +295,7 @@ def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=No
 def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_technique_rel, ne_technique_spat, tree_rel,
          tree_spat, w2v_model, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None, consider_rel=True,
          consider_spat=True, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None,
-         pca_spat=None, rel_net_path=None, spat_net_path=None):
+         pca_spat=None, rel_net_path=None, spat_net_path=None, cls_competitor=None):
     test_set = torch.zeros(len(df), 7)
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_text, id_field_name=field_id)
@@ -303,8 +321,6 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
     #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
 
-    sage_rel_embs = None
-    sage_spat_embs = None
     if consider_rel:
         if ne_technique_rel == "graphsage":
             mapper, inv_map_rel = create_mappers(posts_embs_dict)
@@ -328,8 +344,18 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
                                                 cmi=conf_missing_info, pmi=pred_missing_info)
             test_set[:, 5], test_set[:, 6] = spatial_part[:, 0], spatial_part[:, 1]
 
-    print(mlp.test(test_set, np.array(df['label'])))
-    d = "uj"
+    if not cls_competitor:
+        pred = mlp.test(test_set, np.array(df['label']))
+    else:
+        test_set_forest = posts_embs
+        if consider_rel:
+            test_set_forest = np.hstack((test_set_forest, sage_rel_embs))
+        if consider_spat:
+            test_set_forest = np.hstack((test_set_forest, sage_spat_embs))
+        pred, _ = test_random_forest(test_set=test_set_forest, cls=cls_competitor)
+    y_true = np.array(df['label'])
+    plot_confusion_matrix(y_true=y_true, y_pred=pred)
+    print(classification_report(y_true=y_true, y_pred=pred))
 
 
 def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None,
@@ -362,7 +388,7 @@ def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set,
         for index, row in test_df.iterrows():
             id = row.id
             dtree_input = node_embs[inv_mapper[id]]
-            pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+            pr, conf = test_random_forest(test_set=dtree_input, cls=tree)
             for index, row in tqdm(test_df.iterrows()):
                 id = row['id']
                 if id in id2idx.keys():
@@ -377,7 +403,7 @@ def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set,
                     raise MissingParamException(ne_technique, "model")
                 try:
                     dtree_input = np.expand_dims(model.wv[str(id)], axis=0)
-                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                    pr, conf = test_random_forest(test_set=dtree_input, cls=tree)
                 except KeyError:
                     pr, conf = pmi, cmi
             else:
@@ -386,7 +412,7 @@ def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set,
                 if id in id2idx.keys():
                     idx = id2idx[id]
                     dtree_input = get_testset_dtree(ne_technique, idx, adj_matrix=adj_mat, n2v=model, pca=pca, ae=ae)
-                    pr, conf = test_decision_tree(test_set=dtree_input, cls=tree)
+                    pr, conf = test_random_forest(test_set=dtree_input, cls=tree)
                 else:
                     pr, conf = pmi, cmi
             test_set[index, i1] = pr

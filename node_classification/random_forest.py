@@ -1,15 +1,17 @@
 import pickle
 from sklearn.ensemble import RandomForestClassifier
+from os.path import join
+from utils import save_to_pickle
 
 
-def train_decision_tree(train_set, save_path, train_set_labels, name):
-    print("Training {} decision tree".format(name))
-    cls = RandomForestClassifier(criterion="gini", max_depth=5)
+def train_random_forest(train_set, dst_dir, train_set_labels, name):
+    print("Training {} random forest".format(name))
+    cls = RandomForestClassifier(criterion="gini", max_depth=5, min_samples_split=10, n_estimators=10)
     cls.fit(train_set, train_set_labels)
-    pickle.dump(cls, open(save_path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
+    save_to_pickle(dst_dir, cls)
 
 
-def test_decision_tree(test_set, cls: RandomForestClassifier):
+def test_random_forest(test_set, cls: RandomForestClassifier):
     predictions = cls.predict(test_set)
     leaf_id = cls.apply(test_set)
     purities = []
@@ -18,10 +20,9 @@ def test_decision_tree(test_set, cls: RandomForestClassifier):
         for j in range(len(cls.estimators_)):
             purity += 1 - cls.estimators_[j].tree_.impurity[leaf_id[i][j]]
         purities.append(purity/len(cls.estimators_))
-    #purity = 1 - cls.tree_.impurity[leaf_id]
     return predictions, purities
 
 
-def load_decision_tree(path):
+def load_random_forest(path):
     print("Loading decision tree")
     return pickle.load(open(path, 'rb'))

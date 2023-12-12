@@ -4,7 +4,6 @@ import pickle
 import seaborn as sn
 from exceptions import AdjMatException, Id2IdxException
 from gensim.models import Word2Vec
-from keras.models import load_model
 from os.path import exists, join
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
@@ -62,7 +61,7 @@ def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_pa
         adj_mat = np.genfromtxt(adj_mat_path, delimiter=",")
         id2idx = load_from_pickle(id2idx_path)
         if technique == "autoencoder":
-            ae = load_model(join(mod_dir, "encoder_{}.h5".format(lab)))
+            ae = load_from_pickle(join(mod_dir, "encoder_{}.pkl".format(lab)))
         elif technique == "pca":
             pca = load_from_pickle(join(mod_dir, "pca_{}.pkl".format(lab)))
     return mod, pca, ae, adj_mat, id2idx
@@ -93,7 +92,8 @@ def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="
             if not spatial:
                 id1, id2 = l.split("\t")
             else:
-                id1, id2, weight, _ = l.split("\t")
+                spl = l.split("\t")
+                id1, id2, weight = spl[0], spl[1], spl[2]
                 if mode == "graphsage" and weight == 0.0:
                     continue
             id1 = int(id1.strip())
