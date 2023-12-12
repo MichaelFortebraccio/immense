@@ -98,7 +98,7 @@ class SAGE(torch.nn.Module):
             x = torch.log_softmax(x, dim=-1)
         return x
 
-    def train_sage(self, train_loader, optimizer):
+    def train_sage(self, train_loader, optimizer, weights):
         self.train()
         total_loss = 0
         # Train on batches
@@ -112,7 +112,7 @@ class SAGE(torch.nn.Module):
             link_pred = (out_src * out_dst).sum(-1)
             loss = F.binary_cross_entropy_with_logits(link_pred, batch.edge_label)
             """
-            loss = F.nll_loss(out, target=batch.y)
+            loss = F.nll_loss(out, target=batch.y, weight=weights)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
