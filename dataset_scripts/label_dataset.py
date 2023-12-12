@@ -96,29 +96,29 @@ def intersection(lst1, lst2):
     return list(set(lst1) & set(lst2))
 
 
-def label_based_on_relationships(df, path_to_rel="../dataset/graph/social_network.edg", factor=0.1):
-    """A user can be risky even if he doesn't post malicious content, but directly follow many users who do that. This
-    function marks as risky those users that fall in this category"""
+def label_based_on_relationships(df, path_to_rel="../dataset/big_dataset/graph/social_net.edg", factor=0.1):
+    """
+    A user can be risky even if he doesn't post malicious content, but directly follow many users who do that. This
+    function detects the users that fall in this category"""
     safe = df[df.label == 0]
     risky = df[df.label == 1]
-    safe_ids = [str(i) for i in safe.id.values]
-    risky_ids = [str(i) for i in risky.id.values]
+    safe_ids = [int(i) for i in safe.id.values]
+    risky_ids = [int(i) for i in risky.id.values]
     with open(path_to_rel, 'r') as f:
         fol_dict = {}
         for l in f.readlines():
             follower, followed = l.split("\t")
+            follower = int(follower.strip())
+            followed = int(followed.strip())
             if follower not in fol_dict.keys():
-                fol_dict[follower] = [followed.strip()]
+                fol_dict[follower] = [followed]
             else:
-                fol_dict[follower].append(followed.strip())
+                fol_dict[follower].append(followed)
     neg = []
     for k in fol_dict.keys():
         inters = intersection(risky_ids, fol_dict[k])
         if k in safe_ids and len(inters) > len(fol_dict[k])*factor:       # Segue almeno il 10% di utenti risky
             neg.append(int(k))
-
-    #df['label'].mask(df.id.isin(neg), 1, inplace=True)
-    #df.to_csv("dataset/tweets_labeled_09")
     return neg
 
 
@@ -247,10 +247,6 @@ def add_label(df, ratio, sim_array):
     # If sim(user_emb, negative_emb) > ratio, then user = risky else user = safe
     l = [0 if sim_array[i] < ratio else 1 for i in range(len(sim_array))]
     df['label'] = l
-    dang_ids = list(df[df['label'] == 1]['id'])
-    safe_ids = list(df[df['label'] == 0]['id'])
-    save_to_pickle("../dataset/big_dataset/risky_ids.pkl", dang_ids)
-    save_to_pickle("../dataset/big_dataset/safe_ids.pkl", safe_ids)
     return df
 
 
@@ -258,19 +254,22 @@ if __name__ == "__main__":
     dataset_dir = join("..", "dataset", "big_dataset")
 
     allowed_columns = ['id', 'text_cleaned', 'label']   # Used when deleting columns named 'Unnamed: 0' and so on
-    risky_ds = join(dataset_dir, "no_affiliations_preprocessed_nolow.csv")
-    to_label = join(dataset_dir, "unlabelled_dataset.csv")
-    path_to_rel = join(dataset_dir, "graph", "social_network.edg")
+    risky_df = join(dataset_dir, "evil_preprocessed.csv")   # csv containing the risky content used for labeling our dataset
+    # to_label = join(dataset_dir, "unlabelled_dataset.csv")
+    to_label = join(dataset_dir, "df_with_rel.csv")
+    path_to_rel = join(dataset_dir, "graph", "social_net.edg")
     model_path = "../evil/google_w2v.bin"
     sim2label_fname = "sim_to_label.pkl"
 
-    main_whole(risky_ds_path=risky_ds, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim2label_fname)
-
-    print("Adding label column to the dataset")
+    main_whole(risky_ds_path=risky_df, dataset_to_label_path=to_label, model_path=model_path, sim_fname=sim2label_fname)
     df = pd.read_csv(to_label)
+    print("Adding label column to the dataset")
+
+
+    #df = pd.read_csv("../dataset/big_dataset/ppp.csv")
     ar = load_from_pickle(sim2label_fname)
-    df = add_label(df, ratio=0.89, sim_array=ar)
-    factors = [0.2]
+    df = add_label(df, ratio=0.88, sim_array=ar)
+    factors = [0.1]
     for factor in factors:
         neg = label_based_on_relationships(df=df, factor=factor, path_to_rel=path_to_rel)
         neg_idxs = []
@@ -278,11 +277,11 @@ if __name__ == "__main__":
             if r.id in neg:
                 neg_idxs.append(index)
         df = df.drop(columns=[c for c in df.columns if c not in allowed_columns])
-        df.to_csv(join(dataset_dir, "dataset_labeled89_full.csv"))
+        df.to_csv(join(dataset_dir, "dataset_labeled88_full.csv"))
 
         ## THE REDUCED DATASET CONTAINS THE TOP 2% ELEMENTS WITH HIGHEST SIMILARITY, AS RISKY (=1) POINTS, AND THE BOTTOM 25% AS SAFE (=0) POINTS. THE REMAINING IS IGNORED
         sorted_indexes = ar.argsort()[::-1]
-        twoperc = int(np.ceil(len(ar)*2/100))
+        """twoperc = int(np.ceil(len(ar)*2/100))
         twperc = int(np.ceil(len(ar)*25/100))
         l1 = sorted_indexes[:twoperc].tolist()
         l2 = sorted_indexes[-twperc:].tolist()
@@ -290,3 +289,4 @@ if __name__ == "__main__":
         reduced_dataset = df.iloc[indexes]
         reduced_dataset = reduced_dataset.drop(columns=[c for c in reduced_dataset.columns if c not in allowed_columns])
         reduced_dataset.to_csv(join(dataset_dir, "tweets_labeled_089_{}_27perc.csv".format(int(factor * 100))))
+        """

@@ -25,10 +25,10 @@ df_proc = ds.preprocess_content(id_field_name=id_field, text_field_name=text_fie
 print("Preprocessing completed. Saving files...")
 df_proc = df_proc.dropna()
 df_proc.to_csv(os.path.join(dataset_dir, "unlabelled_dataset.csv"))
-"""print("Positions...")
+print("Positions...")
 ds.users_with_pos()
 for us in ds.users_with_position:
     us.position_mode()      # Set, for each user, the mode of the locations as its location
 dist = ds.calculate_all_closenesses()
 normalize_closeness(dist, os.path.join(dataset_dir, spat_edges_fname))
-ds.build_rel_network(os.path.join(dataset_dir, rel_edges_fname))"""
+ds.build_rel_network(os.path.join(dataset_dir, rel_edges_fname))
