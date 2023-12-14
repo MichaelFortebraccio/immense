@@ -1,6 +1,6 @@
 **
 !modelling/
-!node_classification/decision_tree.py
+!node_classification/random_forest.py
 !node_classification/reduce_dimension.py
 !node_classification/graph_embeddings/graph.py
 !node_classification/graph_embeddings/node2vec.py

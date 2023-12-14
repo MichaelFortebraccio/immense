@@ -43,7 +43,6 @@ def main_train(args=None):
     consider_rel = True
     consider_spat = False
     competitor = True
-    # TODO TESTARE COMPETITOR
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
 
