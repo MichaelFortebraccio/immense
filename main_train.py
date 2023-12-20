@@ -42,7 +42,7 @@ def main_train(args=None):
     field_text = "text_cleaned"
     consider_rel = True
     consider_spat = False
-    competitor = True
+    competitor = False
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
 
