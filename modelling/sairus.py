@@ -13,7 +13,7 @@ from os import makedirs
 from os.path import exists, join
 from sklearn.model_selection import StratifiedKFold
 from node_classification.reduce_dimension import reduce_dimension
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, accuracy_score
 from torch.nn import MSELoss
 from torch.optim import Adam
 from tqdm import tqdm
@@ -153,7 +153,7 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
 
 def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
           node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, adj_matrix_path_rel=None,
-          adj_matrix_path_spat=None, batch_size=None, consider_rel=True, consider_spat=True, eps_nembs_rel=None,
+          adj_matrix_path_spat=None, batch_size=None, consider_content=True, consider_rel=True, consider_spat=True, eps_nembs_rel=None,
           eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None, path_spat=None, weights=None,
           competitor=False):
     """
@@ -180,6 +180,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     :param path_spat: Path to the file stating the spatial relationships among the users
     :return: Nothing, the learned mlp will be saved in the file "mlp.h5" and put in the model directory
     """
+    y_train = list(train_df['label'])
     dang_posts_ids = list(train_df.loc[train_df['label'] == 1][field_name_id])
     safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
@@ -250,7 +251,6 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     elif node_emb_technique_spat != "graphsage":
         id2idx_spat = load_from_pickle(id2idx_path_spat)
 
-    y_train = list(train_df['label'])
     if not competitor:
         learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=posts_embs, consider_rel=consider_rel,
                   consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
@@ -260,12 +260,14 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     else:
         train_set_forest = posts_embs
         name = "forest"
+        if consider_content:
+            name += "_content_{}".format(word_emb_size)
         if consider_rel:
             train_set_forest = np.hstack((train_set_forest, x_rel))
-            name += "_rel"
+            name += "_rel_{}".format(node_emb_size_rel)
         if consider_spat:
             train_set_forest = np.hstack((train_set_forest, x_spat))
-            name += "_spat"
+            name += "_spat_{}".format(node_emb_size_rel)
         train_random_forest(train_set=train_set_forest, dst_dir=join(model_dir, "competitors", name+".pkl"),
                             train_set_labels=y_train, name=name)
 
@@ -356,6 +358,7 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
     y_true = np.array(df['label'])
     plot_confusion_matrix(y_true=y_true, y_pred=pred)
     print(classification_report(y_true=y_true, y_pred=pred))
+    print("Accuracy: {}".format(accuracy_score(y_true=y_true, y_pred=pred)))
 
 
 def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None,
