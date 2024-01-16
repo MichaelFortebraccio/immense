@@ -4,7 +4,6 @@ from torch.nn import Sequential, Linear, ReLU, MSELoss
 from torch.optim import Adam
 from utils import save_to_pickle
 import numpy as np
-from os.path import exists
 
 seed = 123
 np.random.seed(seed)
@@ -61,7 +60,6 @@ class AE(torch.nn.Module):
                 best_loss = total_loss
                 print("Found best model at epoch {}. Loss: {}".format(epoch, best_loss))
                 save_to_pickle(self.name, self)
-            #lr_reducer = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, verbose=0, mode='auto')
 
     def predict(self, x):
         self.eval()
