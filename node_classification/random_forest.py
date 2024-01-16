@@ -1,6 +1,5 @@
 import pickle
 from sklearn.ensemble import RandomForestClassifier
-from os.path import join
 from utils import save_to_pickle
 
 
