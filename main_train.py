@@ -41,8 +41,9 @@ def main_train(args=None):
     field_id = "id"
     field_text = "text_cleaned"
     consider_rel = True
-    consider_spat = True
-    competitor = False
+    consider_spat = False
+    consider_content = True
+    competitor = True
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
 
@@ -98,7 +99,7 @@ def main_train(args=None):
         adj_list_from_df(test_df, spatial_net_path, join(graph_dir, "spatial_network_test.edg"), spatial=True)
     else:
         train_df = pd.read_csv(train_path)
-    nz = len(train_df[train_df.label==1])
+    nz = len(train_df[train_df.label == 1])
     pos_weight = len(train_df) / nz        #1/2284
     neg_weight = len(train_df) / (2*(len(train_df) - nz))        # 1/30356
 
@@ -113,14 +114,25 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Id2IdxException(lab="spat")
 
-    train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
-          field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
-          word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
-          node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
-          node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
-          eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
-          adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
-          consider_spat=consider_spat, competitor=competitor)
+    competitor = True
+    consider_content = False
+    consider_rel = False
+    consider_spat = True
+
+    while not (consider_content and consider_rel and consider_spat):
+        train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
+              field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
+              word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
+              node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
+              node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
+              eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
+              adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
+              consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
+        consider_spat = not consider_spat
+        if not consider_spat:
+            consider_rel = not consider_rel
+            if not consider_rel:
+                consider_content = not consider_content
 
 
 if __name__ == "__main__":
