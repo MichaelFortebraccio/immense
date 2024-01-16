@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
 from torch_geometric.data import Data
-from torch_geometric.nn import SAGEConv, GraphConv
+from torch_geometric.nn import GraphConv, SAGEConv
 from tqdm import tqdm
 torch.manual_seed(42)
 
