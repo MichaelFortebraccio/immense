@@ -21,7 +21,3 @@ def test_random_forest(test_set, cls: RandomForestClassifier):
         purities.append(purity/len(cls.estimators_))
     return predictions, purities
 
-
-def load_random_forest(path):
-    print("Loading decision tree")
-    return pickle.load(open(path, 'rb'))

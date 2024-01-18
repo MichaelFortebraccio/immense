@@ -1,6 +1,5 @@
 import argparse
 from modelling.sairus import test
-from node_classification.random_forest import load_random_forest
 from os.path import join
 from utils import load_from_pickle, get_model
 import pandas as pd
@@ -20,7 +19,7 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    dataset_dir = join("dataset", "anthony")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join("dataset", "big_dataset", "models")
     id_field = "id"
@@ -39,61 +38,74 @@ def main_test(args=None):
     word_embedding_size = 512
     ne_dim_spat = ne_dim_rel = 256
 
-    train_df = pd.read_csv(join(dataset_dir, "train.csv"))
+    train_df = pd.read_csv("dataset/big_dataset/train.csv")
     test_df = pd.read_csv(join(dataset_dir, "test.csv"))
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
 
     dang_ae = load_from_pickle(join(models_dir, "autoencoderdang_{}.pkl".format(word_embedding_size)))
     safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_embedding_size)))
-    name = "mlp"
 
     consider_content = False
     consider_rel = False
-    consider_spat = True
-    competitor = True
+    consider_spat = False
+    competitor = False
 
     mod_rel = pca_rel = ae_rel = adj_mat_rel = id2idx_rel = mod_spat = pca_spat = ae_spat = adj_mat_spat = id2idx_spat = tree_rel = tree_spat = None
 
-    #if consider_rel:
-        #name += "_rel"
-    if competitor:
-        mod_dir_rel = join(mod_dir_rel, 'competitors')
-        mod_dir_spat = join(mod_dir_spat, 'competitors')
-    tree_rel = load_random_forest(join(mod_dir_rel, "forest_{}.h5".format(ne_dim_rel)))
     mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=technique_rel, mod_dir=mod_dir_rel,
                                                                   lab="rel", adj_mat_path=adj_mat_rel_path,
                                                                   id2idx_path=id2idx_rel_path, ne_dim=ne_dim_rel)
-    #if consider_spat:
-        #name += "_spat"
-    tree_spat = load_random_forest(join(mod_dir_spat, "forest_{}.h5".format(ne_dim_spat)))
-    mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=technique_spat, mod_dir=mod_dir_spat,
+    mod_spat, pca_spat, ae_spat, adj_mat_spat, id2idx_spat = get_model(technique=technique_spat,
+                                                                       mod_dir=mod_dir_spat,
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
-                                                                       id2idx_path=id2idx_spat_path, ne_dim=ne_dim_spat)
-    while not (consider_content and consider_rel and consider_spat):
-        cls_competitor = None
-        mlp = load_from_pickle(join(models_dir, name+".pkl"))
-        if competitor:
-            name = "forest"
-            if consider_content:
-                name += "_content_{}".format(word_embedding_size)
+                                                                       id2idx_path=id2idx_spat_path,
+                                                                       ne_dim=ne_dim_spat)
+    if not competitor:
+        tree_rel = load_from_pickle(join(mod_dir_rel, "forest_{}.h5".format(ne_dim_rel)))
+        tree_spat = load_from_pickle(join(mod_dir_spat, "forest_{}.h5".format(ne_dim_spat)))
+        while not (consider_rel and consider_spat):
+            name = "mlp"
+            consider_spat = not consider_spat
+            if not consider_spat:
+                consider_rel = not consider_rel
             if consider_rel:
-                name += "_rel_{}".format(ne_dim_rel)
+                name += "_rel"
             if consider_spat:
-                name += "_spat_{}".format(ne_dim_spat)
-            cls_competitor = load_from_pickle(join(models_dir, "competitors", name+".pkl"))
-            print("\n\n")
+                name += "_spat"
+            mlp = load_from_pickle(join(models_dir, name + ".pkl"))
             print(name.upper())
-        test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel,
-             tree_spat=tree_spat, mlp=mlp, ae_rel=ae_rel, ae_spat=ae_spat, ne_technique_rel=technique_rel,
-             ne_technique_spat=technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, adj_matrix_rel=adj_mat_rel,
-             adj_matrix_spat=adj_mat_spat, mod_rel=mod_rel, mod_spat=mod_spat, pca_rel=pca_rel, pca_spat=pca_spat,
-             rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field,
-             consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=cls_competitor)
-        consider_spat = not consider_spat
-        if not consider_spat:
-            consider_rel = not consider_rel
-            if not consider_rel:
-                consider_content = not consider_content
+            test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel,
+                 tree_spat=tree_spat, mlp=mlp, ne_technique_rel=technique_rel, ne_technique_spat=technique_spat,
+                 id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat,
+                 rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field,
+                 consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=None)
+            print("\n\n")
+    else:
+        mlp = None
+        while not (consider_content and consider_rel and consider_spat):
+            consider_spat = not consider_spat
+            if not consider_spat:
+                consider_rel = not consider_rel
+                if not consider_rel:
+                    consider_content = not consider_content
+            cls_competitor = None
+            if competitor:
+                name = "forest"
+                if consider_content:
+                    name += "_content_{}".format(word_embedding_size)
+                if consider_rel:
+                    name += "_rel_{}".format(ne_dim_rel)
+                if consider_spat:
+                    name += "_spat_{}".format(ne_dim_spat)
+                cls_competitor = load_from_pickle(join(models_dir, "competitors", name+".pkl"))
+                print(name.upper())
+            test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=tree_rel,
+                 tree_spat=tree_spat, mlp=mlp, ne_technique_rel=technique_rel, ne_technique_spat=technique_spat,
+                 id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat,
+                 rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field,
+                 consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=cls_competitor)
+            print("\n\n")
+
 
 
 if __name__ == "__main__":

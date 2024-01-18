@@ -114,12 +114,12 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Id2IdxException(lab="spat")
 
-    competitor = True
+    competitor = False
     consider_content = False
     consider_rel = False
     consider_spat = True
 
-    while not (consider_content and consider_rel and consider_spat):
+    """while not (consider_content and consider_rel and consider_spat):
         train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
               field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
               word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
@@ -132,7 +132,15 @@ def main_train(args=None):
         if not consider_spat:
             consider_rel = not consider_rel
             if not consider_rel:
-                consider_content = not consider_content
+                consider_content = not consider_content"""
+    train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
+          field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
+          word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
+          node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
+          node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
+          eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
+          adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
+          consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
 
 
 if __name__ == "__main__":

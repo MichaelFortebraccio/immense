@@ -229,7 +229,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                                         training_weights=weights)
         if not exists(rel_tree_path):
             train_random_forest(train_set=x_rel, dst_dir=rel_tree_path, train_set_labels=y_rel, name="rel")
-        tree_rel = load_random_forest(rel_tree_path)
+        tree_rel = load_from_pickle(rel_tree_path)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
@@ -239,7 +239,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                                           features_dict=users_embs_dict, batch_size=batch_size)
         if not exists(spat_tree_path):
             train_random_forest(train_set=x_spat, dst_dir=spat_tree_path, train_set_labels=y_spat, name="spat")
-        tree_spat = load_random_forest(spat_tree_path)
+        tree_spat = load_from_pickle(spat_tree_path)
 
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
     if node_emb_technique_rel == "node2vec":
@@ -295,12 +295,11 @@ def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=No
 
 
 def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_technique_rel, ne_technique_spat, tree_rel,
-         tree_spat, w2v_model, ae_rel=None, ae_spat=None, adj_matrix_rel=None, adj_matrix_spat=None, consider_rel=True,
-         consider_spat=True, id2idx_rel=None, id2idx_spat=None, mod_rel=None, mod_spat=None, pca_rel=None,
-         pca_spat=None, rel_net_path=None, spat_net_path=None, cls_competitor=None):
-    test_set = torch.zeros(len(df), 7)
+         tree_spat, w2v_model, consider_rel=True, consider_spat=True, id2idx_rel=None, id2idx_spat=None, mod_rel=None,
+         mod_spat=None, rel_net_path=None, spat_net_path=None, cls_competitor=None):
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_text, id_field_name=field_id)
+    test_set = torch.zeros(len(posts), 7)
     posts_embs_dict = w2v_model.text_to_vec(posts)
     posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float32)
     pred_dang = ae_dang.predict(posts_embs)
@@ -330,10 +329,11 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
             with torch.no_grad():
                 graph = graph.to(mod_rel.device)
                 sage_rel_embs = mod_rel(graph, inference=True).detach().numpy()
-            social_part = get_relational_preds(technique=ne_technique_rel, df=df_train, tree=tree_rel,
-                                               node_embs=sage_rel_embs, id2idx=id2idx_rel, n2v=mod_rel,
-                                               cmi=conf_missing_info, pmi=pred_missing_info)
-            test_set[:, 3], test_set[:, 4] = social_part[:, 0], social_part[:, 1]
+            if not cls_competitor:
+                social_part = get_relational_preds(technique=ne_technique_rel, df=df, tree=tree_rel,
+                                                   node_embs=sage_rel_embs, id2idx=id2idx_rel, n2v=mod_rel,
+                                                   cmi=conf_missing_info, pmi=pred_missing_info)
+                test_set[:, 3], test_set[:, 4] = social_part[:, 0], social_part[:, 1]
     if consider_spat:
         if ne_technique_spat == "graphsage":
             mapper, inv_map_sp = create_mappers(posts_embs_dict)
@@ -341,10 +341,11 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
             with torch.no_grad():
                 graph = graph.to(mod_spat.device)
                 sage_spat_embs = mod_spat(graph, inference=True).detach().numpy()
-            spatial_part = get_relational_preds(technique=ne_technique_spat, df=df_train, tree=tree_spat,
-                                                node_embs=sage_spat_embs, id2idx=id2idx_spat, n2v=mod_spat,
-                                                cmi=conf_missing_info, pmi=pred_missing_info)
-            test_set[:, 5], test_set[:, 6] = spatial_part[:, 0], spatial_part[:, 1]
+            if not cls_competitor:
+                spatial_part = get_relational_preds(technique=ne_technique_spat, df=df, tree=tree_spat,
+                                                    node_embs=sage_spat_embs, id2idx=id2idx_spat, n2v=mod_spat,
+                                                    cmi=conf_missing_info, pmi=pred_missing_info)
+                test_set[:, 5], test_set[:, 6] = spatial_part[:, 0], spatial_part[:, 1]
 
     if not cls_competitor:
         pred = mlp.test(test_set, np.array(df['label']))
