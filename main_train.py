@@ -35,17 +35,13 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = join("dataset", "big_dataset")
+    dataset_dir = join("dataset", "anthony")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join(dataset_dir, "models")
-    field_id = "id"
-    field_text = "text_cleaned"
-    consider_rel = True
-    consider_spat = False
-    consider_content = True
-    competitor = True
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
+    field_id = "id"
+    field_text = "text_cleaned"
 
     textual_content_path = join(dataset_dir, "tweet_labeled_full.csv")
     train_path = join(dataset_dir, "train.csv")
@@ -55,8 +51,8 @@ def main_train(args=None):
     rel_adj_mat_path = spat_adj_mat_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    social_net_path = join(graph_dir, "social_net.edg")
-    spatial_net_path = join(graph_dir, "spatial_net.edg")
+    social_net_path = join(graph_dir, "social_network_train.edg")
+    spatial_net_path = join(graph_dir, "spatial_network_train.edg")
 
     # w2v parameters
     word_embedding_size = 512
@@ -64,7 +60,7 @@ def main_train(args=None):
     # node emb parameters
     spat_node_embedding_size = rel_node_embedding_size = 256
     epochs_spat = epochs_rel = 10
-
+    epochs_spat = 50
     if not exists(dataset_dir):
         makedirs(dataset_dir)
     if not exists(models_dir):
@@ -100,8 +96,9 @@ def main_train(args=None):
     else:
         train_df = pd.read_csv(train_path)
     nz = len(train_df[train_df.label == 1])
-    pos_weight = len(train_df) / nz        #1/2284
-    neg_weight = len(train_df) / (2*(len(train_df) - nz))        # 1/30356
+    pos_weight = len(train_df) / nz
+    neg_weight = len(train_df) / (2*(len(train_df) - nz))
+    pos_weight = neg_weight = 1.0
 
     if rel_technique.lower() in ["autoencoder", "pca", "none"]:
         if not rel_adj_mat_path:
@@ -116,7 +113,7 @@ def main_train(args=None):
 
     competitor = False
     consider_content = False
-    consider_rel = False
+    consider_rel = True
     consider_spat = True
 
     """while not (consider_content and consider_rel and consider_spat):

@@ -12,7 +12,7 @@ from torch_geometric.loader import NeighborLoader
 from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 
-def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, train_df, adj_matrix_path=None,
+def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, train_df, we_dim, adj_matrix_path=None,
                      batch_size=None, edge_path=None, epochs=None, features_dict=None, id2idx_path=None,
                      n_of_walks=10, p=1, q=4, sizes=None, walk_length=10, training_weights=None):
     """
@@ -64,7 +64,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif emb_technique == "graphsage":
         weights_path = join(model_dir, "graphsage_{}.h5".format(node_embedding_size))
-        model_path = join(model_dir, "graphsage_{}.pkl".format(node_embedding_size))
+        model_path = join(model_dir, "graphsage_{}_{}.pkl".format(node_embedding_size, we_dim))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
         in_channels = len(features_dict[first_key])
@@ -77,7 +77,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
         mapper_train, inv_map_train = create_mappers(features_dict)
         graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path, df=train_df)
         split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
-                                  add_negative_train_samples=False, neg_sampling_ratio=1.0)
+                                  add_negative_train_samples=False, neg_sampling_ratio=1.0,)
         train_data, valid_data, _ = split(graph)
         sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
                     directed=directed)
@@ -88,7 +88,8 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             best_loss = 9999
             for i in range(epochs):
                 loss = sage.train_sage(train_loader, optimizer=optimizer, weights=training_weights)
-                val_loss = sage.test(valid_data)
+                #val_loss = sage.test()
+                val_loss=0
                 if loss < best_loss:
                     best_loss = loss
                     print("New best model found at epoch {}. Loss: {}, val_loss: {}".format(i, loss, val_loss))

@@ -37,7 +37,7 @@ def is_square(m):
     return m.shape[0] == m.shape[1]
 
 
-def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_path=None):
+def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_path=None, we_dim=None):
     """
     Depending on the node embedding technique, loads and returns the models needed for inference
     :param technique: either be 'node2vec', 'graphsage', 'autoencoder', 'pca', 'none'
@@ -52,7 +52,7 @@ def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_pa
     if technique == "node2vec":
         mod = Word2Vec.load(join(mod_dir, "n2v.h5"))
     elif technique == "graphsage":
-        mod = load_from_pickle(join(mod_dir, "graphsage_{}.pkl".format(ne_dim)))
+        mod = load_from_pickle(join(mod_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim)))
     elif technique in ["autoencoder", "pca", "none"]:
         if not adj_mat_path:
             raise AdjMatException(lab)

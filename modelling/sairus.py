@@ -114,7 +114,7 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
         name += "_spat"
     name += ".pkl"
     mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, name), weights=weights)
-    optim = Adam(mlp.parameters(), lr=0.003, weight_decay=1e-4)
+    optim = Adam(mlp.parameters(), lr=0.004, weight_decay=1e-4)
     mlp.train_mlp(optim)
 
 
@@ -153,9 +153,9 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
 
 def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
           node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, adj_matrix_path_rel=None,
-          adj_matrix_path_spat=None, batch_size=None, consider_content=True, consider_rel=True, consider_spat=True, eps_nembs_rel=None,
-          eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None, path_spat=None, weights=None,
-          competitor=False):
+          adj_matrix_path_spat=None, batch_size=None, consider_content=True, consider_rel=True, consider_spat=True,
+          eps_nembs_rel=None, eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None,
+          path_spat=None, weights=None, competitor=False):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
@@ -217,8 +217,8 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         makedirs(model_dir_spat, exist_ok=False)
     except OSError:
         pass
-    rel_tree_path = join(model_dir_rel, "forest_{}.h5".format(node_emb_size_rel))
-    spat_tree_path = join(model_dir_spat, "forest_{}.h5".format(node_emb_size_rel))
+    rel_forest_path = join(model_dir_rel, "forest_{}_{}.h5".format(node_emb_size_rel, word_emb_size))
+    spat_forest_path = join(model_dir_spat, "forest_{}_{}.h5".format(node_emb_size_rel, word_emb_size))
 
     tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
     if consider_rel:
@@ -226,20 +226,20 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                                         id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
                                         train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
                                         sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size,
-                                        training_weights=weights)
-        if not exists(rel_tree_path):
-            train_random_forest(train_set=x_rel, dst_dir=rel_tree_path, train_set_labels=y_rel, name="rel")
-        tree_rel = load_from_pickle(rel_tree_path)
+                                        training_weights=weights, we_dim=word_emb_size)
+        if not exists(rel_forest_path):
+            train_random_forest(train_set=x_rel, dst_dir=rel_forest_path, train_set_labels=y_rel, name="rel")
+        tree_rel = load_from_pickle(rel_forest_path)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
-                                          lab="spat", id2idx_path=id2idx_path_spat,
+                                          lab="spat", id2idx_path=id2idx_path_spat, we_dim=word_emb_size,
                                           node_embedding_size=node_emb_size_spat, train_df=train_df,
-                                          epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat, sizes=[2, 3],
+                                          epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat, sizes=[3, 5],
                                           features_dict=users_embs_dict, batch_size=batch_size)
-        if not exists(spat_tree_path):
-            train_random_forest(train_set=x_spat, dst_dir=spat_tree_path, train_set_labels=y_spat, name="spat")
-        tree_spat = load_from_pickle(spat_tree_path)
+        if not exists(spat_forest_path):
+            train_random_forest(train_set=x_spat, dst_dir=spat_forest_path, train_set_labels=y_spat, name="spat")
+        tree_spat = load_from_pickle(spat_forest_path)
 
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
     if node_emb_technique_rel == "node2vec":
@@ -319,7 +319,6 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
     # At test time, if we meet an instance that doesn't have information about relationships or closeness, we will
     # replace the decision tree prediction with the most frequent label in the training set
     pred_missing_info = df_train['label'].value_counts().argmax()
-    #conf_missing_info = max(train_df['label'].value_counts()) / len(train_df)  # ratio
     conf_missing_info = 0.5
 
     if consider_rel:

@@ -9,7 +9,7 @@ from utils import save_to_pickle
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, X_train, y_train, model_path, batch_size=128, epochs=100, weights=None):
+    def __init__(self, X_train, y_train, model_path, batch_size=64, epochs=50, weights=None):
         super(MLP, self).__init__()
         self.X_train = X_train
         self.weights = weights
