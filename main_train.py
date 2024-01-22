@@ -35,9 +35,9 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = join("dataset", "anthony")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
-    models_dir = join(dataset_dir, "models")
+    models_dir = join(dataset_dir, "models")    # , "only_spatial"
     path_rel = join(graph_dir, "social_network_train.edg")
     path_spat = join(graph_dir, "spatial_network_train.edg")
     field_id = "id"
@@ -55,12 +55,12 @@ def main_train(args=None):
     spatial_net_path = join(graph_dir, "spatial_network_train.edg")
 
     # w2v parameters
-    word_embedding_size = 512
+    word_embedding_size = 256
     w2v_epochs = 15
     # node emb parameters
-    spat_node_embedding_size = rel_node_embedding_size = 256
-    epochs_spat = epochs_rel = 10
-    epochs_spat = 50
+    spat_node_embedding_size = rel_node_embedding_size = 128
+    epochs_spat = epochs_rel = 25
+
     if not exists(dataset_dir):
         makedirs(dataset_dir)
     if not exists(models_dir):
@@ -98,7 +98,6 @@ def main_train(args=None):
     nz = len(train_df[train_df.label == 1])
     pos_weight = len(train_df) / nz
     neg_weight = len(train_df) / (2*(len(train_df) - nz))
-    pos_weight = neg_weight = 1.0
 
     if rel_technique.lower() in ["autoencoder", "pca", "none"]:
         if not rel_adj_mat_path:
@@ -111,12 +110,28 @@ def main_train(args=None):
         if not id2idx_spat_path:
             raise Id2IdxException(lab="spat")
 
-    competitor = False
+    competitor = True
     consider_content = False
-    consider_rel = True
-    consider_spat = True
+    consider_rel = False
+    consider_spat = False
 
-    """while not (consider_content and consider_rel and consider_spat):
+    if competitor:
+        while not (consider_content and consider_rel and consider_spat):
+            consider_spat = not consider_spat
+            if not consider_spat:
+                consider_rel = not consider_rel
+                if not consider_rel:
+                    consider_content = not consider_content
+            print("CONTENT: {} REL: {} SPAT: {}".format(consider_content, consider_rel, consider_spat))
+            train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
+                  field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
+                  word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
+                  node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
+                  node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
+                  eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
+                  adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
+                  consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
+    else:
         train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
               field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
               word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
@@ -125,19 +140,6 @@ def main_train(args=None):
               eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
               adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
               consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
-        consider_spat = not consider_spat
-        if not consider_spat:
-            consider_rel = not consider_rel
-            if not consider_rel:
-                consider_content = not consider_content"""
-    train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
-          field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
-          word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
-          node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
-          node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
-          eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
-          adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
-          consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
 
 
 if __name__ == "__main__":

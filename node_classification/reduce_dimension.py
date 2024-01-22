@@ -12,7 +12,7 @@ from torch_geometric.loader import NeighborLoader
 from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 
-def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, train_df, we_dim, adj_matrix_path=None,
+def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_dim, adj_matrix_path=None,
                      batch_size=None, edge_path=None, epochs=None, features_dict=None, id2idx_path=None,
                      n_of_walks=10, p=1, q=4, sizes=None, walk_length=10, training_weights=None):
     """
@@ -23,7 +23,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
         (uses the whole adjacency matrix rows as feature vectors)
         :param lab: Label, can be either "spat" or "rel".
         :param model_dir: Directory where the models will be saved.
-        :param node_embedding_size: Dimension of the embeddings to create.
+        :param ne_dim: Dimension of the embeddings to create.
         :param train_df: Dataframe with the training data. The IDs will be used.
         :param adj_matrix_path: (pca, autoencoder, none) Adjacency matrix.
         :param batch_size: (graphsage) Batch size to use during training.
@@ -54,7 +54,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             weighted = True
             directed = False
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
-                               walk_length=walk_length, embedding_size=node_embedding_size, p=p, q=q,
+                               walk_length=walk_length, embedding_size=ne_dim, p=p, q=q,
                                epochs=epochs, model_path=model_path).learn_n2v_embeddings()
         embeddings_pca(n2v, "node2vec", dst_dir=model_dir)
         mod = n2v.wv
@@ -63,8 +63,8 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
             train_set.append(mod[str(i)])
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif emb_technique == "graphsage":
-        weights_path = join(model_dir, "graphsage_{}.h5".format(node_embedding_size))
-        model_path = join(model_dir, "graphsage_{}_{}.pkl".format(node_embedding_size, we_dim))
+        weights_path = join(model_dir, "graphsage_{}.h5".format(ne_dim))
+        model_path = join(model_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
         in_channels = len(features_dict[first_key])
@@ -79,11 +79,12 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
         split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
                                   add_negative_train_samples=False, neg_sampling_ratio=1.0,)
         train_data, valid_data, _ = split(graph)
-        sage = SAGE(in_dim=in_channels, hidden_dim=node_embedding_size, num_layers=len(sizes), weighted=weighted,
+        sage = SAGE(in_dim=in_channels, hidden_dim=ne_dim, num_layers=len(sizes), weighted=weighted,
                     directed=directed)
         sage = sage.to(device)
         train_loader = NeighborLoader(train_data, num_neighbors=sizes, batch_size=batch_size)
         if not exists(model_path):
+            print("Training {} node embedding model\n".format(lab))
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
             best_loss = 9999
             for i in range(epochs):
@@ -112,7 +113,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
         if emb_technique == "pca":
             if not exists("{}/pca_{}.pkl".format(model_dir, lab)):
                 print("Learning PCA")
-                pca = PCA(n_components=node_embedding_size)
+                pca = PCA(n_components=ne_dim)
                 pca.fit(adj_matrix)
                 with open("{}/pca_{}.pkl".format(model_dir, lab), 'wb') as f:
                     pickle.dump(pca, f)
@@ -121,7 +122,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, node_embedding_size, tr
                     pca = pickle.load(f)
             train_set = pca.transform(adj_matrix)
         elif emb_technique == "autoencoder":
-            ae = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=epochs, batch_size=128, lr=0.05).train_autoencoder_node(node_embedding_size)
+            ae = AE(X_train=adj_matrix, name="encoder_{}".format(lab), model_dir=model_dir, epochs=epochs, batch_size=128, lr=0.05).train_autoencoder_node(ne_dim)
             train_set = ae.predict(adj_matrix)
         elif emb_technique == "none":
             train_set = adj_matrix

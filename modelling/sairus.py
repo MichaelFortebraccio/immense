@@ -13,7 +13,7 @@ from os import makedirs
 from os.path import exists, join
 from sklearn.model_selection import StratifiedKFold
 from node_classification.reduce_dimension import reduce_dimension
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report
 from torch.nn import MSELoss
 from torch.optim import Adam
 from tqdm import tqdm
@@ -223,20 +223,20 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
     if consider_rel:
         x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
-                                        id2idx_path=id2idx_path_rel, node_embedding_size=node_emb_size_rel,
-                                        train_df=train_df, epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel,
-                                        sizes=[2, 3], features_dict=users_embs_dict, batch_size=batch_size,
-                                        training_weights=weights, we_dim=word_emb_size)
+                                        id2idx_path=id2idx_path_rel, ne_dim=node_emb_size_rel, train_df=train_df,
+                                        epochs=eps_nembs_rel, adj_matrix_path=adj_matrix_path_rel, sizes=[2, 3],
+                                        features_dict=users_embs_dict, batch_size=batch_size, training_weights=weights,
+                                        we_dim=word_emb_size)
         if not exists(rel_forest_path):
             train_random_forest(train_set=x_rel, dst_dir=rel_forest_path, train_set_labels=y_rel, name="rel")
         tree_rel = load_from_pickle(rel_forest_path)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
-                                          lab="spat", id2idx_path=id2idx_path_spat, we_dim=word_emb_size,
-                                          node_embedding_size=node_emb_size_spat, train_df=train_df,
-                                          epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat, sizes=[3, 5],
-                                          features_dict=users_embs_dict, batch_size=batch_size)
+                                          lab="spat", id2idx_path=id2idx_path_spat, ne_dim=node_emb_size_spat,
+                                          train_df=train_df, epochs=eps_nembs_spat, adj_matrix_path=adj_matrix_path_spat,
+                                          sizes=[3, 5], features_dict=users_embs_dict, batch_size=batch_size,
+                                          training_weights=weights, we_dim=word_emb_size)
         if not exists(spat_forest_path):
             train_random_forest(train_set=x_spat, dst_dir=spat_forest_path, train_set_labels=y_spat, name="spat")
         tree_spat = load_from_pickle(spat_forest_path)
@@ -358,7 +358,6 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
     y_true = np.array(df['label'])
     plot_confusion_matrix(y_true=y_true, y_pred=pred)
     print(classification_report(y_true=y_true, y_pred=pred))
-    print("Accuracy: {}".format(accuracy_score(y_true=y_true, y_pred=pred)))
 
 
 def get_graph_based_predictions(test_df, pmi, cmi, ne_technique, tree, test_set, mode, model=None, adj_mat=None,

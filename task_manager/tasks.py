@@ -131,12 +131,12 @@ def train_task(self, job_id, word_embedding_size, window, w2v_epochs, rel_node_e
     self.update_state(state="PROGRESS", meta={"status": "Learning relational embeddings."})
     train_set_rel, train_set_labels_rel = reduce_dimension(rel_node_emb_technique, model_dir=model_dir_rel, edge_path=rel_edges_path,
                                                            n_of_walks=n_of_walks_rel, walk_length=walk_length_rel, lab="rel", epochs=rel_ae_epochs,
-                                                           node_embedding_size=rel_node_emb_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
+                                                           ne_dim=rel_node_emb_size, p=p_rel, q=q_rel, id2idx_path=id2idx_rel_path,
                                                            n2v_epochs=n2v_epochs_rel, train_df=train_df, adj_matrix_path=rel_adj_mat_path)
 
     train_set_spat, train_set_labels_spat = reduce_dimension(spat_node_emb_technique, model_dir=model_dir_spat, edge_path=spat_edges_path,
                                                              n_of_walks=n_of_walks_spat, walk_length=walk_length_spat, epochs=spat_ae_epochs,
-                                                             node_embedding_size=spat_node_emb_size, p=p_spat, q=q_spat, lab="spat",
+                                                             ne_dim=spat_node_emb_size, p=p_spat, q=q_spat, lab="spat",
                                                              n2v_epochs=n2v_epochs_spat, train_df=train_df, adj_matrix_path=spat_adj_mat_path, id2idx_path=id2idx_spat_path)
 
     ############### LEARN DECISION TREES ###############
