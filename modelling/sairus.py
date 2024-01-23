@@ -113,6 +113,7 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
     if consider_spat:
         name += "_spat"
     name += ".pkl"
+    print(name)
     mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, name), weights=weights)
     optim = Adam(mlp.parameters(), lr=0.004, weight_decay=1e-4)
     mlp.train_mlp(optim)
@@ -152,7 +153,7 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
 
 
 def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
-          node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, adj_matrix_path_rel=None,
+          node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, users_embs_dict, adj_matrix_path_rel=None,
           adj_matrix_path_spat=None, batch_size=None, consider_content=True, consider_rel=True, consider_spat=True,
           eps_nembs_rel=None, eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None,
           path_spat=None, weights=None, competitor=False):
@@ -183,8 +184,8 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     y_train = list(train_df['label'])
     dang_posts_ids = list(train_df.loc[train_df['label'] == 1][field_name_id])
     safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
-    users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
-                                      model_dir=model_dir, text_field_name=field_name_text, train_df=train_df)
+    """users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
+                                      model_dir=model_dir, text_field_name=field_name_text, train_df=train_df)"""
 
     posts_embs = np.array(list(users_embs_dict.values()))
     keys = list(users_embs_dict.keys())
@@ -252,6 +253,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         id2idx_spat = load_from_pickle(id2idx_path_spat)
 
     if not competitor:
+        print("Learning MLP...\n")
         learn_mlp(ae_dang=dang_ae, ae_safe=safe_ae, content_embs=posts_embs, consider_rel=consider_rel,
                   consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
                   node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
