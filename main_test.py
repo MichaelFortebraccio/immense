@@ -46,7 +46,7 @@ def main_test(args=None):
     dang_ae = load_from_pickle(join(models_dir, "autoencoderdang_{}.pkl".format(word_embedding_size)))
     safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_embedding_size)))
 
-    competitor = True
+    competitor = False
     consider_content = False
     consider_rel = False
     consider_spat = False
