@@ -63,7 +63,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
             train_set.append(mod[str(i)])
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif emb_technique == "graphsage":
-        weights_path = join(model_dir, "graphsage_{}.h5".format(ne_dim))
+        weights_path = join(model_dir, "graphsage_{}_{}.h5".format(ne_dim, we_dim))
         model_path = join(model_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
@@ -90,7 +90,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
             for i in range(epochs):
                 loss = sage.train_sage(train_loader, optimizer=optimizer, weights=training_weights)
                 #val_loss = sage.test()
-                val_loss=0
+                val_loss = 0
                 if loss < best_loss:
                     best_loss = loss
                     print("New best model found at epoch {}. Loss: {}, val_loss: {}".format(i, loss, val_loss))

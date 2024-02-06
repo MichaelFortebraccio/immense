@@ -200,7 +200,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_emb_size))
 
     if not exists(dang_ae_name):
-        dang_ae = AE(X_train=dang_users_ar, epochs=100, batch_size=32, lr=0.002, name=dang_ae_name)
+        dang_ae = AE(X_train=dang_users_ar, epochs=150, batch_size=32, lr=0.002, name=dang_ae_name)
         dang_ae.train_autoencoder_content()
     else:
         dang_ae = load_from_pickle(dang_ae_name)

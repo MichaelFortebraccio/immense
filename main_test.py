@@ -19,14 +19,14 @@ def main_test(args=None):
     rel_ne_dim = args.rel_ne_size"""
 
     # For testing purposes
-    dataset_dir = join("dataset", "anthony")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
-    models_dir = join("dataset", "big_dataset", "models")   # , "only_spatial"
+    models_dir = join("dataset", "anthony", "models")   # , "only_spatial"
     id_field = "id"
     text_field = "text_cleaned"
 
-    train_df = pd.read_csv(join("dataset", "big_dataset", "train.csv"))
-    test_df = pd.read_csv(join(dataset_dir, "tweets.csv"))
+    train_df = pd.read_csv(join("dataset", "anthony", "train.csv"))
+    test_df = pd.read_csv(join(dataset_dir, "tweets.csv"))     # tweets_only_withpos.csv
 
     mod_dir_rel = join(models_dir, "node_embeddings", "rel")
     mod_dir_spat = join(models_dir, "node_embeddings", "spat")
@@ -35,11 +35,11 @@ def main_test(args=None):
     adj_mat_spat_path = adj_mat_rel_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    rel_net_path = join(graph_dir, "social_network.edg")   # "social_net_both_spatial.edg"
-    spat_net_path = join(graph_dir, "spatial_network.edg")      # spatial_net_nonzero.edg
+    rel_net_path = join(graph_dir, "social_network.edg")   # "social_network_both_spatial.edg"
+    spat_net_path = join(graph_dir, "spatial_network.edg")      # spatial_network_nonzero.edg
 
-    word_embedding_size = 256
-    ne_dim_spat = ne_dim_rel = 128
+    word_embedding_size = 512
+    ne_dim_spat = ne_dim_rel = 256
 
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
 
@@ -65,10 +65,8 @@ def main_test(args=None):
     if not competitor:
         forest_rel = load_from_pickle(join(mod_dir_rel, "forest_{}_{}.h5".format(ne_dim_rel, word_embedding_size)))
         forest_spat = load_from_pickle(join(mod_dir_spat, "forest_{}_{}.h5".format(ne_dim_spat, word_embedding_size)))
-        while not (consider_rel and consider_spat):
-            consider_spat = not consider_spat
-            if not consider_spat:
-                consider_rel = not consider_rel
+        stop = False
+        while not stop:   # not (consider_rel and consider_spat)
             name = "mlp"
             if consider_rel:
                 name += "_rel"
@@ -81,6 +79,13 @@ def main_test(args=None):
                  id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat,
                  rel_net_path=rel_net_path, spat_net_path=spat_net_path, field_text=text_field, field_id=id_field,
                  consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=None)
+            if consider_rel and consider_spat:
+                stop = True
+            else:
+                consider_spat = not consider_spat
+                if not consider_spat:
+                    consider_rel = not consider_rel
+
     else:
         mlp = None
         while not (consider_content and consider_rel and consider_spat):

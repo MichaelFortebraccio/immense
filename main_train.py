@@ -35,27 +35,25 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = join("dataset", "big_dataset")
+    dataset_dir = join("dataset", "anthony")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join(dataset_dir, "models")    # , "only_spatial"
-    path_rel = join(graph_dir, "social_network_train.edg")
-    path_spat = join(graph_dir, "spatial_network_train.edg")
+    path_rel = join(graph_dir, "social_network.edg")
+    path_spat = join(graph_dir, "spatial_network.edg")
     field_id = "id"
     field_text = "text_cleaned"
 
-    textual_content_path = join(dataset_dir, "tweet_labeled_full.csv")
-    train_path = join(dataset_dir, "train.csv")
+    textual_content_path = join(dataset_dir, "tweets.csv")
+    train_path = join(dataset_dir, "tweets.csv")
     test_path = join(dataset_dir, "test.csv")
 
     rel_technique = spat_technique = "graphsage"
     rel_adj_mat_path = spat_adj_mat_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
-    social_net_path = join(graph_dir, "social_network_train.edg")
-    spatial_net_path = join(graph_dir, "spatial_network_train.edg")
 
     # w2v parameters
-    word_embedding_size = 256
+    word_embedding_size = 512
     w2v_epochs = 15
     # node emb parameters
     spat_node_embedding_size = rel_node_embedding_size = 128
@@ -89,10 +87,10 @@ def main_train(args=None):
         test_df = test_df.drop(columns=[col for col in test_df.columns if col not in cols])
         train_df.to_csv(train_path)
         test_df.to_csv(test_path)
-        adj_list_from_df(train_df, social_net_path, join(graph_dir, "social_network_train.edg"))
-        adj_list_from_df(test_df, social_net_path, join(graph_dir, "social_network_test.edg"))
-        adj_list_from_df(train_df, spatial_net_path, join(graph_dir, "spatial_network_train.edg"), spatial=True)
-        adj_list_from_df(test_df, spatial_net_path, join(graph_dir, "spatial_network_test.edg"), spatial=True)
+        adj_list_from_df(train_df, path_rel, join(graph_dir, "social_network_train.edg"))
+        adj_list_from_df(test_df, path_rel, join(graph_dir, "social_network_test.edg"))
+        adj_list_from_df(train_df, path_spat, join(graph_dir, "spatial_network_train.edg"), spatial=True)
+        adj_list_from_df(test_df, path_spat, join(graph_dir, "spatial_network_test.edg"), spatial=True)
     else:
         train_df = pd.read_csv(train_path)
     nz = len(train_df[train_df.label == 1])
@@ -114,7 +112,9 @@ def main_train(args=None):
     consider_content = False
     consider_rel = False
     consider_spat = False
-
+    users_embs_dict = train_w2v_model(embedding_size=word_embedding_size, epochs=w2v_epochs, id_field_name=field_id,
+                                      model_dir=models_dir, text_field_name=field_text, train_df=train_df)
+    stop = False
     if competitor:
         while not (consider_content and consider_rel and consider_spat):
             consider_spat = not consider_spat
@@ -130,14 +130,10 @@ def main_train(args=None):
                   node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
                   eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
                   adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
-                  consider_spat=consider_spat, consider_content=consider_content, competitor=competitor)
+                  consider_spat=consider_spat, consider_content=consider_content, competitor=competitor,
+                  users_embs_dict=users_embs_dict)
     else:
-        users_embs_dict = train_w2v_model(embedding_size=word_embedding_size, epochs=w2v_epochs, id_field_name=field_id,
-                                          model_dir=models_dir, text_field_name=field_text, train_df=train_df)
-        while not (consider_rel and consider_spat):
-            consider_spat = not consider_spat
-            if not consider_spat:
-                consider_rel = not consider_rel
+        while not stop:     # not (consider_rel and consider_spat)
             print("REL: {} SPAT: {}".format(consider_rel, consider_spat))
             train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
                   field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
@@ -148,6 +144,12 @@ def main_train(args=None):
                   adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
                   consider_spat=consider_spat, consider_content=consider_content, competitor=competitor,
                   users_embs_dict=users_embs_dict)
+            if consider_rel and consider_spat:
+                stop = True
+            else:
+                consider_spat = not consider_spat
+                if not consider_spat:
+                    consider_rel = not consider_rel
 
 
 if __name__ == "__main__":
