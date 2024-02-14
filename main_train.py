@@ -35,7 +35,7 @@ def main_train(args=None):
     spat_autoenc_epochs = args.spat_ae_epochs
     models_dir = args.models_dir
     dataset_dir = args.dataset_dir"""
-    dataset_dir = join("dataset", "anthony")
+    dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join(dataset_dir, "models")    # , "only_spatial"
     path_rel = join(graph_dir, "social_network.edg")
@@ -56,7 +56,8 @@ def main_train(args=None):
     word_embedding_size = 512
     w2v_epochs = 15
     # node emb parameters
-    spat_node_embedding_size = rel_node_embedding_size = 128
+    ne_dim_spat = 256
+    ne_dim_rel = 128
     epochs_spat = epochs_rel = 25
 
     if not exists(dataset_dir):
@@ -138,12 +139,11 @@ def main_train(args=None):
             train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
                   field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
                   word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
-                  node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
-                  node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
-                  eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
-                  adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
-                  consider_spat=consider_spat, consider_content=consider_content, competitor=competitor,
-                  users_embs_dict=users_embs_dict)
+                  node_emb_technique_rel=rel_technique, node_emb_size_spat=ne_dim_spat, node_emb_size_rel=ne_dim_rel,
+                  weights=torch.tensor([neg_weight, pos_weight]), eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
+                  adj_matrix_path_spat=spat_adj_mat_path, adj_matrix_path_rel=rel_adj_mat_path,
+                  id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel, consider_spat=consider_spat,
+                  consider_content=consider_content, competitor=competitor, users_embs_dict=users_embs_dict)
             if consider_rel and consider_spat:
                 stop = True
             else:

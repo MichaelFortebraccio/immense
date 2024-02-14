@@ -53,8 +53,8 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
 
 
 def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir, node_embs_rel, node_embs_spat,
-              tec_rel, tec_spat, train_df, tree_rel, tree_spat, y_train, consider_rel=True, consider_spat=True,
-              n2v_rel=None, n2v_spat=None, weights=None):
+              tec_rel, tec_spat, train_df, tree_rel, tree_spat, y_train, we_dim, rel_dim, spat_dim, consider_rel=True,
+              consider_spat=True, n2v_rel=None, n2v_spat=None, weights=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -107,11 +107,11 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
     #### STO TRAINANDO IL MODELLO 3%      ###
     #### CONSIDERANDO SOLO IL TESTO       ###
     #########################################
-    name = "mlp"
+    name = "mlp_{}".format(we_dim)
     if consider_rel:
-        name += "_rel"
+        name += "_rel_{}".format(rel_dim)
     if consider_spat:
-        name += "_spat"
+        name += "_spat_{}".format(spat_dim)
     name += ".pkl"
     print(name)
     mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, name), weights=weights)
@@ -219,9 +219,9 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     except OSError:
         pass
     rel_forest_path = join(model_dir_rel, "forest_{}_{}.h5".format(node_emb_size_rel, word_emb_size))
-    spat_forest_path = join(model_dir_spat, "forest_{}_{}.h5".format(node_emb_size_rel, word_emb_size))
+    spat_forest_path = join(model_dir_spat, "forest_{}_{}.h5".format(node_emb_size_spat, word_emb_size))
 
-    tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_spat = id2idx_rel = None
+    tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_rel = id2idx_spat = None
     if consider_rel:
         x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
                                         id2idx_path=id2idx_path_rel, ne_dim=node_emb_size_rel, train_df=train_df,
@@ -258,7 +258,8 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
                   consider_spat=consider_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, model_dir=model_dir,
                   node_embs_rel=x_rel, node_embs_spat=x_spat, tec_rel=node_emb_technique_rel,
                   tec_spat=node_emb_technique_spat, train_df=train_df, tree_rel=tree_rel, tree_spat=tree_spat,
-                  y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat, weights=weights)
+                  y_train=y_train, n2v_rel=n2v_rel, n2v_spat=n2v_spat, weights=weights, we_dim=word_emb_size,
+                  rel_dim=node_emb_size_rel, spat_dim=node_emb_size_spat)
     else:
         train_set_forest = posts_embs
         name = "forest"
@@ -269,7 +270,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
             name += "_rel_{}".format(node_emb_size_rel)
         if consider_spat:
             train_set_forest = np.hstack((train_set_forest, x_spat))
-            name += "_spat_{}".format(node_emb_size_rel)
+            name += "_spat_{}".format(node_emb_size_spat)
         train_random_forest(train_set=train_set_forest, dst_dir=join(model_dir, "competitors", name+".pkl"),
                             train_set_labels=y_train, name=name)
 

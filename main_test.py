@@ -18,14 +18,13 @@ def main_test(args=None):
     spat_ne_dim = args.spat_ne_size
     rel_ne_dim = args.rel_ne_size"""
 
-    # For testing purposes
-    dataset_dir = join("dataset", "big_dataset")
+    dataset_dir = join("dataset", "anthony")
     graph_dir = join(dataset_dir, "graph")
-    models_dir = join("dataset", "anthony", "models")   # , "only_spatial"
+    models_dir = join("dataset", "big_dataset", "models")   # , "only_spatial"
     id_field = "id"
     text_field = "text_cleaned"
 
-    train_df = pd.read_csv(join("dataset", "anthony", "train.csv"))
+    train_df = pd.read_csv(join("dataset", "big_dataset", "tweets.csv"))
     test_df = pd.read_csv(join(dataset_dir, "tweets.csv"))     # tweets_only_withpos.csv
 
     mod_dir_rel = join(models_dir, "node_embeddings", "rel")
@@ -39,7 +38,8 @@ def main_test(args=None):
     spat_net_path = join(graph_dir, "spatial_network.edg")      # spatial_network_nonzero.edg
 
     word_embedding_size = 512
-    ne_dim_spat = ne_dim_rel = 256
+    ne_dim_rel = 128
+    ne_dim_spat = 256
 
     w2v_model = load_from_pickle(join(models_dir, "w2v_{}.pkl".format(word_embedding_size)))
 
@@ -67,11 +67,11 @@ def main_test(args=None):
         forest_spat = load_from_pickle(join(mod_dir_spat, "forest_{}_{}.h5".format(ne_dim_spat, word_embedding_size)))
         stop = False
         while not stop:   # not (consider_rel and consider_spat)
-            name = "mlp"
+            name = "mlp_{}".format(word_embedding_size)
             if consider_rel:
-                name += "_rel"
+                name += "_rel_{}".format(ne_dim_rel)
             if consider_spat:
-                name += "_spat"
+                name += "_spat_{}".format(ne_dim_spat)
             mlp = load_from_pickle(join(models_dir, name + ".pkl"))
             print(name.upper())
             test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=forest_rel,
