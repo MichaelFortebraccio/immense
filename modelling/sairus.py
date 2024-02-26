@@ -184,8 +184,6 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     y_train = list(train_df['label'])
     dang_posts_ids = list(train_df.loc[train_df['label'] == 1][field_name_id])
     safe_posts_ids = list(train_df.loc[train_df['label'] == 0][field_name_id])
-    """users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_name_id,
-                                      model_dir=model_dir, text_field_name=field_name_text, train_df=train_df)"""
 
     posts_embs = np.array(list(users_embs_dict.values()))
     keys = list(users_embs_dict.keys())

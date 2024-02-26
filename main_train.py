@@ -38,13 +38,13 @@ def main_train(args=None):
     dataset_dir = join("dataset", "big_dataset")
     graph_dir = join(dataset_dir, "graph")
     models_dir = join(dataset_dir, "models")    # , "only_spatial"
-    path_rel = join(graph_dir, "social_network.edg")
-    path_spat = join(graph_dir, "spatial_network.edg")
+    path_rel = join(graph_dir, "social_network_reindexed.edg")
+    path_spat = join(graph_dir, "spatial_network_reindexed.edg")
     field_id = "id"
     field_text = "text_cleaned"
 
-    textual_content_path = join(dataset_dir, "tweets.csv")
-    train_path = join(dataset_dir, "tweets.csv")
+    textual_content_path = join(dataset_dir, "tweets_reindexed_preprocessed.csv")
+    train_path = join(dataset_dir, "tweets_reindexed_preprocessed.csv")
     test_path = join(dataset_dir, "test.csv")
 
     rel_technique = spat_technique = "graphsage"
@@ -53,10 +53,10 @@ def main_train(args=None):
     id2idx_spat_path = join(models_dir, "id2idx_spat.pkl")
 
     # w2v parameters
-    word_embedding_size = 512
+    word_embedding_size = 128
     w2v_epochs = 15
     # node emb parameters
-    ne_dim_spat = 256
+    ne_dim_spat = 128
     ne_dim_rel = 128
     epochs_spat = epochs_rel = 25
 
@@ -115,7 +115,7 @@ def main_train(args=None):
     consider_spat = False
     users_embs_dict = train_w2v_model(embedding_size=word_embedding_size, epochs=w2v_epochs, id_field_name=field_id,
                                       model_dir=models_dir, text_field_name=field_text, train_df=train_df)
-    stop = False
+
     if competitor:
         while not (consider_content and consider_rel and consider_spat):
             consider_spat = not consider_spat
@@ -127,14 +127,18 @@ def main_train(args=None):
             train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
                   field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
                   word_emb_size=word_embedding_size, node_emb_technique_spat=spat_technique,
-                  node_emb_technique_rel=rel_technique, node_emb_size_spat=spat_node_embedding_size,
-                  node_emb_size_rel=rel_node_embedding_size, weights=torch.tensor([neg_weight, pos_weight]),
-                  eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, adj_matrix_path_spat=spat_adj_mat_path,
-                  adj_matrix_path_rel=rel_adj_mat_path, id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel,
-                  consider_spat=consider_spat, consider_content=consider_content, competitor=competitor,
-                  users_embs_dict=users_embs_dict)
+                  node_emb_technique_rel=rel_technique, node_emb_size_spat=ne_dim_spat, node_emb_size_rel=ne_dim_rel,
+                  weights=torch.tensor([neg_weight, pos_weight]), eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
+                  adj_matrix_path_spat=spat_adj_mat_path, adj_matrix_path_rel=rel_adj_mat_path,
+                  id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel, consider_spat=consider_spat,
+                  consider_content=consider_content, competitor=competitor, users_embs_dict=users_embs_dict)
     else:
-        while not stop:     # not (consider_rel and consider_spat)
+        while not (consider_rel and consider_spat):
+            consider_rel = not consider_rel
+            if not consider_rel:
+                consider_spat = not consider_spat
+                if not consider_spat:
+                    consider_content = not consider_content
             print("REL: {} SPAT: {}".format(consider_rel, consider_spat))
             train(train_df=train_df, model_dir=models_dir, w2v_epochs=w2v_epochs, batch_size=64, field_name_id=field_id,
                   field_name_text=field_text, id2idx_path_spat=id2idx_spat_path, path_rel=path_rel, path_spat=path_spat,
@@ -144,12 +148,7 @@ def main_train(args=None):
                   adj_matrix_path_spat=spat_adj_mat_path, adj_matrix_path_rel=rel_adj_mat_path,
                   id2idx_path_rel=id2idx_rel_path, consider_rel=consider_rel, consider_spat=consider_spat,
                   consider_content=consider_content, competitor=competitor, users_embs_dict=users_embs_dict)
-            if consider_rel and consider_spat:
-                stop = True
-            else:
-                consider_spat = not consider_spat
-                if not consider_spat:
-                    consider_rel = not consider_rel
+            break
 
 
 if __name__ == "__main__":
