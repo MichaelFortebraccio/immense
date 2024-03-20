@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pandas as pd
 import torch
@@ -37,12 +39,15 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
     """
     tok = TextPreprocessing()
     posts_content = tok.token_list(text_field_name=text_field_name, df=train_df)
+    import time
     name = "w2v_{}.pkl".format(embedding_size)
     if not exists(join(model_dir, name)):
+        start_emb = time.time()
         print("Training word2vec model")
         w2v_model = WordEmb(posts_content, embedding_size=embedding_size, window=10, epochs=epochs, model_dir=model_dir)
         w2v_model.train_w2v()
         save_to_pickle(join(model_dir, name), w2v_model)
+        print("Elapsed time for training w2v: {}".format(time.time() - start_emb))
     else:
         print("Loading word2vec model")
         w2v_model = load_from_pickle(join(model_dir, name))
@@ -120,7 +125,7 @@ def learn_mlp(ae_dang, ae_safe, content_embs, id2idx_rel, id2idx_spat, model_dir
 
 
 def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi, pmi=None):
-    dataset = torch.zeros(node_embs.shape[0], 2)
+    dataset = torch.zeros(np.array(node_embs).shape[0], 2)
     if technique == "graphsage":
         pr, conf = test_random_forest(test_set=node_embs, cls=tree)
         dataset[:, 0] = torch.tensor(pr, dtype=torch.float32)
@@ -145,15 +150,13 @@ def get_relational_preds(technique, df, tree, node_embs, id2idx: dict, n2v, cmi,
                     if not pmi:
                         pmi = row['label']
                     pr, conf = pmi, cmi
-            dataset[index, 3] = pr
-            dataset[index, 4] = conf
-            dataset[index, 5] = pr
-            dataset[index, 6] = conf
+            dataset[index, 0] = torch.tensor(pr, dtype=torch.float64)
+            dataset[index, 1] = torch.tensor(conf, dtype=torch.float64)
     return dataset
 
 
-def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
-          node_emb_size_rel, node_emb_size_spat, train_df, w2v_epochs, word_emb_size, users_embs_dict, adj_matrix_path_rel=None,
+def train(field_name_id, model_dir, node_emb_technique_rel: str, node_emb_technique_spat: str,
+          node_emb_size_rel, node_emb_size_spat, train_df, word_emb_size, users_embs_dict, adj_matrix_path_rel=None,
           adj_matrix_path_spat=None, batch_size=None, consider_content=True, consider_rel=True, consider_spat=True,
           eps_nembs_rel=None, eps_nembs_spat=None, id2idx_path_rel=None, id2idx_path_spat=None, path_rel=None,
           path_spat=None, weights=None, competitor=False):
@@ -220,6 +223,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
     spat_forest_path = join(model_dir_spat, "forest_{}_{}.h5".format(node_emb_size_spat, word_emb_size))
 
     tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_rel = id2idx_spat = None
+    now = time.time()
     if consider_rel:
         x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
                                         id2idx_path=id2idx_path_rel, ne_dim=node_emb_size_rel, train_df=train_df,
@@ -229,6 +233,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         if not exists(rel_forest_path):
             train_random_forest(train_set=x_rel, dst_dir=rel_forest_path, train_set_labels=y_rel, name="rel")
         tree_rel = load_from_pickle(rel_forest_path)
+    print(time.time()-now)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
@@ -239,7 +244,7 @@ def train(field_name_id, field_name_text, model_dir, node_emb_technique_rel: str
         if not exists(spat_forest_path):
             train_random_forest(train_set=x_spat, dst_dir=spat_forest_path, train_set_labels=y_spat, name="spat")
         tree_spat = load_from_pickle(spat_forest_path)
-
+    print(time.time() - now)
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
     if node_emb_technique_rel == "node2vec":
         n2v_rel = Word2Vec.load(join(model_dir_rel, "n2v.h5"))
