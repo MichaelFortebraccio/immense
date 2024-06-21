@@ -1,5 +1,3 @@
-import time
-
 import numpy as np
 import pandas as pd
 import torch
@@ -223,7 +221,6 @@ def train(field_name_id, model_dir, node_emb_technique_rel: str, node_emb_techni
     spat_forest_path = join(model_dir_spat, "forest_{}_{}.h5".format(node_emb_size_spat, word_emb_size))
 
     tree_rel = tree_spat = x_rel = x_spat = n2v_rel = n2v_spat = id2idx_rel = id2idx_spat = None
-    now = time.time()
     if consider_rel:
         x_rel, y_rel = reduce_dimension(node_emb_technique_rel, model_dir=model_dir_rel, edge_path=path_rel, lab="rel",
                                         id2idx_path=id2idx_path_rel, ne_dim=node_emb_size_rel, train_df=train_df,
@@ -233,7 +230,6 @@ def train(field_name_id, model_dir, node_emb_technique_rel: str, node_emb_techni
         if not exists(rel_forest_path):
             train_random_forest(train_set=x_rel, dst_dir=rel_forest_path, train_set_labels=y_rel, name="rel")
         tree_rel = load_from_pickle(rel_forest_path)
-    print(time.time()-now)
 
     if consider_spat:
         x_spat, y_spat = reduce_dimension(node_emb_technique_spat, model_dir=model_dir_spat, edge_path=path_spat,
@@ -244,7 +240,6 @@ def train(field_name_id, model_dir, node_emb_technique_rel: str, node_emb_techni
         if not exists(spat_forest_path):
             train_random_forest(train_set=x_spat, dst_dir=spat_forest_path, train_set_labels=y_spat, name="spat")
         tree_spat = load_from_pickle(spat_forest_path)
-    print(time.time() - now)
     # WE CAN NOW OBTAIN THE TRAINING SET FOR THE MLP
     if node_emb_technique_rel == "node2vec":
         n2v_rel = Word2Vec.load(join(model_dir_rel, "n2v.h5"))
