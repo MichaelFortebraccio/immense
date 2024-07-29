@@ -13,35 +13,28 @@ np.random.seed(seed)
 if __name__ == "__main__":
     with open("parameters.yaml", 'r') as params_file:
         params = yaml.safe_load(params_file)
-        dataset_params = params["dataset_params"]
+        dataset_general_params = params["dataset_general_params"]
+        train_dataset_params = params["train_dataset_params"]
         model_params = params["model_params"]
-    dataset_dir = dataset_params["dir_dataset"]
-    graph_dir = dataset_params["dir_graph"]
-    models_dir = dataset_params["dir_models"]
-    df_name = dataset_params["df_name"]
-    field_id = dataset_params["field_id"]
-    field_text = dataset_params["field_text"]
-    field_label = dataset_params["field_label"]
-    social_net_name = dataset_params["social_net_name"]
-    spatial_net_name = dataset_params["spatial_net_name"]
-    dir = dataset_params["dir"]
+    field_id = dataset_general_params["field_id"]
+    field_text = dataset_general_params["field_text"]
+    field_label = dataset_general_params["field_label"]
+    train_df = dataset_general_params["train_df"]
+    path_rel = train_dataset_params["social_net_name"]
+    path_spat = train_dataset_params["spatial_net_name"]
 
+    models_dir = model_params["dir_models"]
     epochs_rel = model_params["epochs_rel"]
-    epochs_spat = model_params["epochs_spat"] #25
+    epochs_spat = model_params["epochs_spat"]
     mlp_batch_size = int(model_params["mlp_batch_size"])
     mlp_lr = float(model_params["mlp_lr"])
-    ne_dim_rel = int(model_params["ne_dim_rel"])      #128
-    ne_dim_spat = int(model_params["ne_dim_spat"])    #128
+    ne_dim_rel = int(model_params["ne_dim_rel"])
+    ne_dim_spat = int(model_params["ne_dim_spat"])
     ne_technique_rel = model_params["ne_technique_rel"]
     ne_technique_spat = model_params["ne_technique_spat"]
     w2v_path = model_params["w2v_path"]
     word_emb_size = int(model_params["word_emb_size"])
     w2v_epochs = int(model_params["w2v_epochs"])
-
-    path_rel = join(graph_dir, social_net_name)
-    path_spat = join(graph_dir, spatial_net_name)
-
-    train_path = join(dataset_dir, df_name) #tweets.csv
 
     rel_adj_mat_path = spat_adj_mat_path = None
     id2idx_rel_path = join(models_dir, "id2idx_rel.pkl")
@@ -49,7 +42,7 @@ if __name__ == "__main__":
 
     if not exists(models_dir):
         makedirs(models_dir)
-    train_df = pd.read_csv(train_path)
+    train_df = pd.read_csv(train_df)
     nz = len(train_df[train_df.label == 1])
     pos_weight = len(train_df) / nz
     neg_weight = len(train_df) / (2*(len(train_df) - nz))
