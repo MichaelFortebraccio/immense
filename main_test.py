@@ -116,7 +116,6 @@ def main_test(args=None):
                     consider_rel = not consider_rel
 
 
-
 if __name__ == "__main__":
     """parser = argparse.ArgumentParser()
     parser.add_argument("--spat_technique", type=str, choices=['node2vec', 'none', 'autoencoder', 'pca'], required=True, help="Technique adopted for learning spatial node embeddings")
@@ -136,5 +135,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main_test(args)"""
     main_test()
-
-#TODO PRENDERE IL DATASET MIO, ISOLARE GLI UTENTI CHE HANNO LA POSIZIONE E TESTARE SU QUESTO IL MODELLO APPRESO SUL DATASET ANTHONY. RIFARE I TEST RIADDESTRANDO IL MODELLO E CONSIDERANDO I PESI ALLE CLASSI
