@@ -7,10 +7,16 @@ dataset_general_params:
 train_dataset_params:
   train_social_net: "dataset/big_dataset/graph/social_network_train.edg"
   train_spatial_net: "dataset/big_dataset/graph/spatial_network_train.edg"
+  consider_content: True
+  consider_rel: True
+  consider_spat: True
 test_dataset_params:
   test_df: "dataset/anthony/tweets.csv"
   test_social_net: "dataset/anthony/graph/social_network.edg"
   test_spatial_net: "dataset/anthony/graph/spatial_network.edg"
+  consider_content: True
+  consider_rel: True
+  consider_spat: True
 
 model_params:
   dir_models: "dataset/big_dataset/models"

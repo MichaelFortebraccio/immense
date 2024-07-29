@@ -19,6 +19,9 @@ def main_test(args=None):
     test_df = test_dataset_params["test_df"]
     path_rel = test_dataset_params["test_social_net"]
     path_spat = test_dataset_params["test_spatial_net"]
+    consider_content = test_dataset_params["consider_content"]
+    consider_rel = test_dataset_params["consider_rel"]
+    consider_spat = test_dataset_params["consider_spat"]
 
     models_dir = model_params["dir_models"]
     ne_dim_rel = int(model_params["ne_dim_rel"])
@@ -42,12 +45,7 @@ def main_test(args=None):
     safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_emb_size)))
 
     competitor = False
-    consider_content = False
-    consider_rel = False
-    consider_spat = False
-
     mod_rel = pca_rel = ae_rel = adj_mat_rel = id2idx_rel = mod_spat = pca_spat = ae_spat = adj_mat_spat = id2idx_spat = forest_rel = forest_spat = None
-
     mod_rel, pca_rel, ae_rel, adj_mat_rel, id2idx_rel = get_model(technique=ne_technique_rel, mod_dir=mod_dir_rel,
                                                                   lab="rel", adj_mat_path=adj_mat_rel_path,
                                                                   id2idx_path=id2idx_rel_path, ne_dim=ne_dim_rel,
@@ -57,7 +55,22 @@ def main_test(args=None):
                                                                        lab="spat", adj_mat_path=adj_mat_spat_path,
                                                                        id2idx_path=id2idx_spat_path,
                                                                        ne_dim=ne_dim_spat, we_dim=word_emb_size)
-    if competitor:
+    if not competitor:
+        forest_rel = load_from_pickle(join(mod_dir_rel, "forest_{}_{}.h5".format(ne_dim_rel, word_emb_size)))
+        forest_spat = load_from_pickle(join(mod_dir_spat, "forest_{}_{}.h5".format(ne_dim_spat, word_emb_size)))
+        name = "mlp_{}".format(word_emb_size)
+        if consider_rel:
+            name += "_rel_{}".format(ne_dim_rel)
+        if consider_spat:
+            name += "_spat_{}".format(ne_dim_spat)
+        mlp = load_from_pickle(join(models_dir, name + ".pkl"))
+        print(name.upper())
+        test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=forest_rel,
+             tree_spat=forest_spat, mlp=mlp, ne_technique_rel=ne_technique_rel, ne_technique_spat=ne_technique_spat,
+             id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat, rel_net_path=path_rel,
+             spat_net_path=path_spat, field_text=field_text, field_id=field_id, field_label=field_label,
+             consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=None)
+    else:
         mlp = None
         while not (consider_rel and consider_spat):
             consider_rel = not consider_rel
@@ -84,31 +97,6 @@ def main_test(args=None):
                  cls_competitor=cls_competitor, mlp=mlp)
             print("\n\n")
             break
-
-    else:
-        forest_rel = load_from_pickle(join(mod_dir_rel, "forest_{}_{}.h5".format(ne_dim_rel, word_emb_size)))
-        forest_spat = load_from_pickle(join(mod_dir_spat, "forest_{}_{}.h5".format(ne_dim_spat, word_emb_size)))
-        stop = False
-        while not stop:  # not (consider_rel and consider_spat)
-            name = "mlp_{}".format(word_emb_size)
-            if consider_rel:
-                name += "_rel_{}".format(ne_dim_rel)
-            if consider_spat:
-                name += "_spat_{}".format(ne_dim_spat)
-            mlp = load_from_pickle(join(models_dir, name + ".pkl"))
-            print(name.upper())
-            test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae,
-                 tree_rel=forest_rel, tree_spat=forest_spat, mlp=mlp, ne_technique_rel=ne_technique_rel,
-                 ne_technique_spat=ne_technique_spat, id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel,
-                 mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_text=field_text,
-                 field_id=field_id, field_label=field_label, consider_rel=consider_rel, consider_spat=consider_spat,
-                 cls_competitor=None)
-            if consider_rel and consider_spat:
-                stop = True
-            else:
-                consider_spat = not consider_spat
-                if not consider_spat:
-                    consider_rel = not consider_rel
 
 
 if __name__ == "__main__":
