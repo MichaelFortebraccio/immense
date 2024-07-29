@@ -295,9 +295,9 @@ def get_testset_dtree(node_emb_technique, idx, adj_matrix=None, n2v=None, pca=No
     return test_set
 
 
-def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_technique_rel, ne_technique_spat, tree_rel,
-         tree_spat, w2v_model, consider_rel=True, consider_spat=True, id2idx_rel=None, id2idx_spat=None, mod_rel=None,
-         mod_spat=None, rel_net_path=None, spat_net_path=None, cls_competitor=None):
+def test(ae_dang, ae_safe, df, df_train, field_id, field_text, field_label, mlp: MLP, ne_technique_rel,
+         ne_technique_spat, tree_rel, tree_spat, w2v_model, consider_rel=True, consider_spat=True, id2idx_rel=None,
+         id2idx_spat=None, mod_rel=None, mod_spat=None, rel_net_path=None, spat_net_path=None, cls_competitor=None):
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_text, id_field_name=field_id)
     test_set = torch.zeros(len(posts), 7)
@@ -348,7 +348,7 @@ def test(ae_dang, ae_safe, df, df_train, field_id, field_text, mlp: MLP, ne_tech
                 test_set[:, 5], test_set[:, 6] = spatial_part[:, 0], spatial_part[:, 1]
 
     if not cls_competitor:
-        pred = mlp.test(test_set, np.array(df['label']))
+        pred = mlp.test(test_set, np.array(df[field_label]))
     else:
         test_set_forest = posts_embs
         if consider_rel:
