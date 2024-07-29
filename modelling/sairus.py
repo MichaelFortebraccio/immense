@@ -173,7 +173,7 @@ def train(field_name_id, model_dir, node_emb_technique_rel: str, node_emb_techni
     :param word_emb_size: Dimension of the word embeddings to create
     :param adj_matrix_path_rel: Path to the relational adj matrix (pca, none, autoencoder)
     :param adj_matrix_path_spat: Path to the spatial adj matrix (pca, none, autoencoder)
-    :param batch_size:
+    :param batch_size: Batch size for learning node embedding models
     :param eps_nembs_rel: Epochs for training the relational node embedding model
     :param eps_nembs_spat: Epochs for training the spatial node embedding model
     :param id2idx_path_rel: Path to the file containing the dictionary that matches the node IDs to their index in the relational adj matrix (graphsage, pca, autoencoder)
