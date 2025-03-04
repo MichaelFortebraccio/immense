@@ -14,7 +14,7 @@ from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_dim, adj_matrix_path=None,
                      batch_size=None, edge_path=None, epochs=None, features_dict=None, id2idx_path=None,
-                     n_of_walks=10, p=1, q=4, sizes=None, walk_length=10, training_weights=None):
+                     n_of_walks=10, p=1, q=4, sizes=None, walk_length=10, training_weights=None, retrain=False):
     """
     This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
     training the decision tree.
@@ -55,7 +55,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
             directed = False
         n2v = Node2VecEmbedder(path_to_edges=edge_path, weighted=weighted, directed=directed, n_of_walks=n_of_walks,
                                walk_length=walk_length, embedding_size=ne_dim, p=p, q=q,
-                               epochs=epochs, model_path=model_path).learn_n2v_embeddings()
+                               epochs=epochs, model_path=model_path).learn_n2v_embeddings(retrain=retrain)
         embeddings_pca(n2v, "node2vec", dst_dir=model_dir)
         mod = n2v.wv
         train_set_ids = [i for i in train_df['id'] if str(i) in mod.index_to_key]  # we use this cicle so to keep the order of the users as they appear in the df. The same applies for the next line
@@ -64,7 +64,6 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
             train_set_labels.append(train_df[train_df.id == i]['label'].values[0])
     elif emb_technique == "graphsage":
         weights_path = join(model_dir, "graphsage_{}_{}.h5".format(ne_dim, we_dim))
-        model_path = join(model_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         first_key = list(features_dict.keys())[0]
         in_channels = len(features_dict[first_key])
@@ -83,7 +82,7 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
                     directed=directed)
         sage = sage.to(device)
         train_loader = NeighborLoader(train_data, num_neighbors=sizes, batch_size=batch_size)
-        if not exists(model_path):
+        if not exists(weights_path) or retrain:
             print("Training {} node embedding model\n".format(lab))
             optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
             best_loss = 9999
@@ -98,9 +97,8 @@ def reduce_dimension(emb_technique: str, lab, model_dir, ne_dim, train_df, we_di
                 if i % 5 == 0:
                     print("Epoch {}: train loss {}, val loss: {}".format(i, loss, val_loss))
             sage.load_state_dict(torch.load(weights_path))
-            save_to_pickle(model_path, sage)
         else:
-            sage = load_from_pickle(model_path)
+            sage.load_state_dict(torch.load(weights_path))
         train_set = sage(graph, inference=True)
         train_set = train_set.detach().numpy()
         for k in features_dict:
