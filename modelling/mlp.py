@@ -1,8 +1,7 @@
-import numpy as np
 import torch
 from os.path import join
-from torch.nn import BCELoss, Linear, Softmax
-from torch.nn.functional import relu
+from torch.nn import Linear
+from torch.nn.functional import relu, nll_loss
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from utils import save_to_pickle
@@ -13,25 +12,22 @@ class MLP(torch.nn.Module):
         super(MLP, self).__init__()
         self.X_train = X_train
         self.weights = weights
-        y_train = np.eye(2, dtype='uint8')[y_train]
         self.y_train = torch.tensor(y_train, dtype=torch.float)
         self._model_path = join(model_path)
         self.batch_size = batch_size
         self.epochs = epochs
         self.input = Linear(in_features=7, out_features=3)
         self.output = Linear(in_features=3, out_features=2)
-        self.softmax = Softmax(dim=1)
 
     def forward(self, x):
         x = self.input(x)
         x = relu(x)
         out = self.output(x)
-        out = self.softmax(out)
+        out = torch.log_softmax(out, dim=-1)
         return out
 
     def train_mlp(self, optimizer):
         print("Training MLP...")
-        criterion = BCELoss(weight=self.weights)
         ds = TensorDataset(self.X_train, self.y_train)
         dl = DataLoader(ds, batch_size=self.batch_size, shuffle=True)
 
@@ -42,7 +38,8 @@ class MLP(torch.nn.Module):
 
             for batch_x, batch_y in tqdm(dl):
                 out = self(batch_x)
-                loss = criterion(out, batch_y)
+                loss = nll_loss(out, batch_y.long(), weight=self.weights)
+                #loss = criterion(out, batch_y)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
