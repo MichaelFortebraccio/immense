@@ -1,13 +1,10 @@
 import numpy as np
 import torch
 import time
-from exceptions import Id2IdxException, MissingParamException
-from gensim.models import Word2Vec
 from modelling.ae import AE
 from modelling.mlp import MLP
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
-from node_classification.random_forest import *
 from node_classification.graph_embeddings.sage import create_graph, create_mappers
 from os import makedirs
 from os.path import exists, join
@@ -15,7 +12,6 @@ from node_classification.reduce_dimension import reduce_dimension
 from sklearn.metrics import classification_report
 from torch.nn import MSELoss
 from torch.optim import Adam
-from tqdm import tqdm
 from utils import load_from_pickle, save_to_pickle, plot_confusion_matrix
 np.random.seed(123)
 
