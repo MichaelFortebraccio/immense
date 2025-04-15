@@ -32,7 +32,7 @@ class MLP(torch.nn.Module):
         dl = DataLoader(ds, batch_size=self.batch_size, shuffle=True)
 
         best_loss = 9999
-        for epoch in range(50):     #self.epochs
+        for epoch in range(self.epochs):
             self.train()
             total_loss = 0
 
@@ -52,7 +52,7 @@ class MLP(torch.nn.Module):
                 print("New best model found at epoch {}. Loss: {}".format(epoch, best_loss))
                 save_to_pickle(self._model_path, self)
 
-    def test(self, X_test, y_test):
+    def test(self, X_test):
         self.eval()
         preds = self(X_test)
         y_p = []
