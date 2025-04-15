@@ -40,7 +40,7 @@ def is_square(m):
 def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_path=None, we_dim=None):
     """
     Depending on the node embedding technique, loads and returns the models needed for inference
-    :param technique: either be 'node2vec', 'graphsage', 'autoencoder', 'pca', 'none'
+    :param technique: 'graphsage', 'autoencoder', 'pca', 'none'
     :param mod_dir: Directory containing the models
     :param lab: type of node embedding
     :param node_emb_dim: Node embedding dimension
@@ -48,23 +48,10 @@ def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_pa
     :param id2idx_path: path to the id2idx file (ignore it if rel_technique=='node2vec' or 'graphsage')
     :return:
     """
-    mod = pca = ae = adj_mat = id2idx = None
-    if technique == "node2vec":
-        mod = Word2Vec.load(join(mod_dir, "n2v.h5"))
-    elif technique == "graphsage":
+    if technique == "graphsage":
         mod = load_from_pickle(join(mod_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim)))
-    elif technique in ["autoencoder", "pca", "none"]:
-        if not adj_mat_path:
-            raise AdjMatException(lab)
-        if not id2idx_path:
-            raise Id2IdxException(lab)
-        adj_mat = np.genfromtxt(adj_mat_path, delimiter=",")
-        id2idx = load_from_pickle(id2idx_path)
-        if technique == "autoencoder":
-            ae = load_from_pickle(join(mod_dir, "encoder_{}.pkl".format(lab)))
-        elif technique == "pca":
-            pca = load_from_pickle(join(mod_dir, "pca_{}.pkl".format(lab)))
-    return mod, pca, ae, adj_mat, id2idx
+    return mod
+
 
 
 def embeddings_pca(emb_model, emb_technique, dst_dir):
