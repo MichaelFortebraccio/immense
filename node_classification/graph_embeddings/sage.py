@@ -22,7 +22,8 @@ def create_mappers(features_dict):
     return mapper, inv_map
 
 
-def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_field="label", edgelist=None, inference=False):
+def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id="id", field_name_label="label",
+                 edgelist=None, inference=False):
     """
     Function to create a graph starting from the features, the edge list, and the node labels.
     :param: df: Dataframe containing the users. It is used to retrieve the node labels
@@ -55,7 +56,7 @@ def create_graph(inv_map, weighted, features, edg_dir, df, id_field="id", label_
     edge_index = torch.tensor(edges, dtype=torch.long)
     if not inference:
         for k in features:
-            y.append(df[df[id_field] == k][label_field].values[0])
+            y.append(df[df[field_name_id] == k][field_name_label].values[0])
         y = torch.tensor(np.array(y), dtype=torch.long)
     else:
         y = None
@@ -106,12 +107,6 @@ class SAGE(torch.nn.Module):
             optimizer.zero_grad()
             batch = batch.to(self.device)
             out = self(batch)
-            """
-            out_src = out[batch.edge_label_index[0]]
-            out_dst = out[batch.edge_label_index[1]]
-            link_pred = (out_src * out_dst).sum(-1)
-            loss = F.binary_cross_entropy_with_logits(link_pred, batch.edge_label)
-            """
             loss = F.nll_loss(out, target=batch.y, weight=weights)
             loss.backward()
             optimizer.step()

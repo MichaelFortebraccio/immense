@@ -53,7 +53,7 @@ def main_test():
     test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=forest_rel,
          tree_spat=forest_spat, mlp=mlp, ne_technique_rel=ne_technique_rel, ne_technique_spat=ne_technique_spat,
          id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat, rel_net_path=path_rel,
-         spat_net_path=path_spat, field_text=field_text, field_id=field_id, field_label=field_label,
+         spat_net_path=path_spat, field_name_text=field_text, field_name_id=field_id, field_name_label=field_label,
          consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=None)
 
 
