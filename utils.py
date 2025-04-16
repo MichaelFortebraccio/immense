@@ -21,37 +21,8 @@ def load_from_pickle(name):
         return pickle.load(f)
 
 
-def prepare_for_decision_tree(df, mod: Word2Vec):
-    y = []
-    for k in mod.wv.key_to_index.keys():
-        try:
-            y.append(df.loc[df['id'] == int(k)]['label'].item())
-        except ValueError:
-            print(k)
-            continue
-    X_train, X_test, y_train, y_test = train_test_split(mod.wv.vectors, y, test_size=0.2, train_size=0.8)
-    return X_train, X_test, y_train, y_test
-
-
 def is_square(m):
     return m.shape[0] == m.shape[1]
-
-
-def get_model(technique, mod_dir, lab, ne_dim=None, adj_mat_path=None, id2idx_path=None, we_dim=None):
-    """
-    Depending on the node embedding technique, loads and returns the models needed for inference
-    :param technique: 'graphsage', 'autoencoder', 'pca', 'none'
-    :param mod_dir: Directory containing the models
-    :param lab: type of node embedding
-    :param node_emb_dim: Node embedding dimension
-    :param adj_mat_path: path to the adj matrix (ignore it if technique=='node2vec' or 'graphsage')
-    :param id2idx_path: path to the id2idx file (ignore it if rel_technique=='node2vec' or 'graphsage')
-    :return:
-    """
-    if technique == "graphsage":
-        mod = load_from_pickle(join(mod_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim)))
-    return mod
-
 
 
 def embeddings_pca(emb_model, emb_technique, dst_dir):
@@ -98,22 +69,6 @@ def adj_list_from_df(df, path_to_src_edg, path_to_dst_edg, spatial=False, mode="
                 f.write("{}\t{}\t{}\n".format(l[0], l[1], l[2]))
 
 
-
-########### UTILITY FUNCTIONS NOT USED IN THE API ###########
-def convert_ids(df):
-    """Use the matches file for converting the IDs"""
-    d = {}
-    with open("node_classification/graph_embeddings/stuff/closeness_matches", 'r') as f:
-        for l in f.readlines():
-            l = l.split("\t")
-            d[(l[0])] = str(l[1]).strip()
-    d2 = {}
-    for k in d.keys():
-        d2[int(k)] = d[k]
-    df['id'] = df['id'].replace(d2)
-    return df
-
-
 def correct_edg_format(fname):
     l = []
     with open(fname, 'r') as f:
@@ -134,24 +89,6 @@ def kfold(dim, splits):
     prog = int(dim/splits)
     folds_idx = np.arange(start=0, stop=dim, step=prog)
     return folds_idx
-
-
-def plot_confusion_matrix(y_true, y_pred):
-    mat = confusion_matrix(y_true=y_true, y_pred=y_pred)
-    plt.figure(figsize=(6, 4))
-    ax = plt.subplot()
-    sn.heatmap(mat, annot=True, cmap="CMRmap", linewidths=0.5, cbar=False, fmt="d", ax=ax)
-    #'Accent', 'Accent_r', 'Blues', 'Blues_r', 'BrBG', 'BrBG_r', 'BuGn', 'BuGn_r', 'BuPu', 'BuPu_r', 'CMRmap', 'CMRmap_r', 'Dark2', 'Dark2_r', 'GnBu', 'GnBu_r', 'Greens', 'Greens_r', 'Greys', 'Greys_r', 'OrRd', 'OrRd_r', 'Oranges', 'Oranges_r', 'PRGn', 'PRGn_r', 'Paired', 'Paired_r', 'Pastel1', 'Pastel1_r', 'Pastel2', 'Pastel2_r', 'PiYG', 'PiYG_r', 'PuBu', 'PuBuGn', 'PuBuGn_r', 'PuBu_r', 'PuOr', 'PuOr_r', 'PuRd', 'PuRd_r', 'Purples', 'Purples_r', 'RdBu', 'RdBu_r', 'RdGy', 'RdGy_r', 'RdPu', 'RdPu_r', 'RdYlBu', 'RdYlBu_r', 'RdYlGn', 'RdYlGn_r', 'Reds', 'Reds_r', 'Set1', 'Set1_r', 'Set2', 'Set2_r', 'Set3', 'Set3_r', 'Spectral', 'Spectral_r', 'Wistia', 'Wistia_r', 'YlGn', 'YlGnBu', 'YlGnBu_r', 'YlGn_r', 'YlOrBr', 'YlOrBr_r', 'YlOrRd', 'YlOrRd_r', 'afmhot', 'afmhot_r', 'autumn', 'autumn_r', 'binary', 'binary_r', 'bone', 'bone_r', 'brg', 'brg_r', 'bwr', 'bwr_r', 'cividis', 'cividis_r', 'cool', 'cool_r', 'coolwarm', 'coolwarm_r', 'copper', 'copper_r', 'crest', 'crest_r', 'cubehelix', 'cubehelix_r', 'flag', 'flag_r', 'flare', 'flare_r', 'gist_earth', 'gist_earth_r', 'gist_gray', 'gist_gray_r', 'gist_heat', 'gist_heat_r', 'gist_ncar', 'gist_ncar_r', 'gist_rainbow', 'gist_rainbow_r', 'gist_stern', 'gist_stern_r', 'gist_yarg', 'gist_yarg_r', 'gnuplot', 'gnuplot2', 'gnuplot2_r', 'gnuplot_r', 'gray', 'gray_r', 'hot', 'hot_r', 'hsv', 'hsv_r', 'icefire', 'icefire_r', 'inferno', 'inferno_r', 'jet', 'jet_r', 'magma', 'magma_r', 'mako', 'mako_r', 'nipy_spectral', 'nipy_spectral_r', 'ocean', 'ocean_r', 'pink', 'pink_r', 'plasma', 'plasma_r', 'prism', 'prism_r', 'rainbow', 'rainbow_r', 'rocket', 'rocket_r', 'seismic', 'seismic_r', 'spring', 'spring_r', 'summer', 'summer_r', 'tab10', 'tab10_r', 'tab20', 'tab20_r', 'tab20b', 'tab20b_r', 'tab20c', 'tab20c_r', 'terrain', 'terrain_r', 'turbo', 'turbo_r', 'twilight', 'twilight_r', 'twilight_shifted', 'twilight_shifted_r', 'viridis', 'viridis_r', 'vlag', 'vlag_r', 'winter', 'winter_r'
-
-    ax.set_xlabel('Predicted labels')
-    ax.set_ylabel('True labels')
-    ax.set_title('Confusion Matrix')
-    ax.xaxis.set_ticklabels(['0', '1'])
-    ax.yaxis.set_ticklabels(['0', '1'])
-
-    bottom, top = ax.get_ylim()
-    ax.set_ylim(bottom + 0.5, top - 0.5)
-    plt.show()
 
 
 def create_id_mapping(path_to_edgelist, dst_path):

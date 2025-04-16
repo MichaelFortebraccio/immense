@@ -1,0 +1,9 @@
+content_path: "Twitter/tweets_per_user.json"
+rel_path: "Twitter/followers.json"
+field_name_id: "id"
+field_name_text: "text_cleaned"
+spat_edges_fname: "graph/spatial_network.edg"
+rel_edges_fname: "graph/social_network.edg"
+
+output_dataset_dir: "dataset/big_dataset"
+output_graph_dir: "dataset/graph"

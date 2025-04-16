@@ -1,16 +1,22 @@
 import json
 import os
+import yaml
 from dataset_class import Dataset, normalize_closeness
 
-content_path = os.path.join("..", "Twitter", "tweets_per_user.json")
-rel_path = os.path.join("..", "Twitter", "followers.json")
-dataset_dir = os.path.join("..", "dataset", "big_dataset")
-graph_dir = os.path.join(dataset_dir, "graph")
-spat_edges_fname = os.path.join("graph", "spatial_network.edg")
-rel_edges_fname = os.path.join("graph", "social_network.edg")
 
-id_field = "id"
-text_field = "text_cleaned"
+with open("../dataset_preprocessing.yaml", 'r') as params_file:
+    params = yaml.safe_load(params_file)
+
+content_path = params["content_path"]
+rel_path = params["rel_path"]
+field_name_id = params["field_name_id"]
+field_name_text = params["field_name_text"]
+spat_edges_fname = params["spat_edges_fname"]
+rel_edges_fname = params["rel_edges_fname"]
+dataset_dir = params["output_dataset_dir"]
+graph_dir = params["output_graph_dir"]
+id_field = params["field_name_id"]
+text_field = params["field_name_text"]
 
 with open(content_path, 'r') as f:
     d_content = json.load(f)
