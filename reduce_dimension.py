@@ -3,6 +3,7 @@ import torch
 import torch_geometric.transforms as T
 from modelling.sage import SAGE, create_mappers, create_graph
 from torch_geometric.loader import NeighborLoader
+from utils import save_to_pickle
 
 
 def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_path, epochs, features_dict, sizes,
@@ -35,6 +36,7 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
         prediction is the computed probability of the node to belong to each of the class
     """
     weights_path = join(model_dir, "graphsage_{}_{}.h5".format(ne_dim, we_dim))
+    model_path = join(model_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     first_key = list(features_dict.keys())[0]
     in_channels = len(features_dict[first_key])
@@ -52,7 +54,7 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
     sage = SAGE(in_dim=in_channels, hidden_dim=ne_dim, num_layers=len(sizes), weighted=weighted, directed=directed)
     sage = sage.to(device)
     train_loader = NeighborLoader(train_data, num_neighbors=sizes, batch_size=batch_size)
-    if not exists(weights_path) or retrain:
+    if not exists(model_path) or retrain:
         print("Training {} node embedding model\n".format(lab))
         optimizer = torch.optim.Adam(lr=.01, params=sage.parameters(), weight_decay=1e-4)
         best_loss = 9999
@@ -66,6 +68,7 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
             if i % 5 == 0:
                 print("Epoch {}: train loss {}, val loss: {}".format(i, loss, val_loss))
         sage.load_state_dict(torch.load(weights_path))
+        save_to_pickle(model_path, sage)
     else:
         sage.load_state_dict(torch.load(weights_path))
     predictions = sage(graph, inference=True)

@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from exceptions import *
 from modelling.sairus import train, train_w2v_model
 from os.path import exists, join
 from os import makedirs
@@ -55,9 +54,10 @@ if __name__ == "__main__":
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_id,
                                       model_dir=models_dir, text_field_name=field_text, train_df=train_df)
 
-    #(True, False, False)
-    confs = [(True, False, True), (True, True, False), (True, True, True), (False, False, True),
+
+    confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), (False, False, True),
              (False, True, False), (False, True, True)]
+    confs = [(True, True, True)]
     for conf in confs:
         consider_content, consider_rel, consider_spat = conf[0], conf[1], conf[2]
         print("CONTENT: {} REL: {} SPAT: {}".format(consider_content, consider_rel, consider_spat))

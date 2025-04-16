@@ -1,6 +1,6 @@
 from modelling.sairus import test
 from os.path import join
-from utils import load_from_pickle, get_model
+from utils import load_from_pickle
 import pandas as pd
 import yaml
 
@@ -39,23 +39,23 @@ def main_test():
     mod_rel = load_from_pickle(join(mod_dir_rel, "graphsage_{}_{}.pkl".format(ne_dim_rel, word_emb_size)))
     mod_spat = load_from_pickle(join(mod_dir_spat, "graphsage_{}_{}.pkl".format(ne_dim_spat, word_emb_size)))
 
-    confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), (False, False, True),
+    """confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), (False, False, True),
              (False, True, False), (False, True, True)]
     for conf in confs:
-        consider_content, consider_rel, consider_spat = conf[0], conf[1], conf[2]
-        mlp_name = "mlp_{}".format(word_emb_size)
-        if consider_content:
-            mlp_name += "_content_".format(word_emb_size)
-        if consider_rel:
-            mlp_name += "_rel_{}".format(ne_dim_rel)
-        if consider_spat:
-            mlp_name += "_spat_{}".format(ne_dim_spat)
-        mlp = load_from_pickle(join(models_dir, mlp_name + ".pkl"))
-        print(mlp_name.upper())
-        test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
-             mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
-             field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
-             consider_rel=consider_rel, consider_spat=consider_spat)
+        consider_content, consider_rel, consider_spat = conf[0], conf[1], conf[2]"""
+    mlp_name = "mlp"
+    if consider_content:
+        mlp_name += "_content_{}".format(word_emb_size)
+    if consider_rel:
+        mlp_name += "_rel_{}".format(ne_dim_rel)
+    if consider_spat:
+        mlp_name += "_spat_{}".format(ne_dim_spat)
+    mlp = load_from_pickle(join(models_dir, mlp_name + ".pkl"))
+    print(mlp_name.upper())
+    test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
+         mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
+         field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
+         consider_rel=consider_rel, consider_spat=consider_spat)
 
 
 if __name__ == "__main__":
