@@ -12,7 +12,6 @@ def main_test():
         test_dataset_params = params["test_dataset_params"]
         model_params = params["model_params"]
 
-    train_df = dataset_general_params["train_df"]
     field_id = dataset_general_params["field_id"]
     field_text = dataset_general_params["field_text"]
     field_label = dataset_general_params["field_label"]
@@ -26,15 +25,12 @@ def main_test():
     models_dir = model_params["dir_models"]
     ne_dim_rel = int(model_params["ne_dim_rel"])
     ne_dim_spat = int(model_params["ne_dim_spat"])
-    ne_technique_rel = model_params["ne_technique_rel"]
-    ne_technique_spat = model_params["ne_technique_spat"]
-    w2v_path = model_params["w2v_path"]
     word_emb_size = int(model_params["word_emb_size"])
 
-    mod_dir_rel = join(models_dir, "rel")
-    mod_dir_spat = join(models_dir, "spat")
+    w2v_path = join(models_dir, "w2v_{}.pkl".format(word_emb_size))
+    mod_dir_rel = join(models_dir, "node_embeddings", "rel")
+    mod_dir_spat = join(models_dir, "node_embeddings", "spat")
 
-    train_df = pd.read_csv(train_df)
     test_df = pd.read_csv(test_df)
     w2v_model = load_from_pickle(w2v_path)
 
@@ -43,18 +39,23 @@ def main_test():
     mod_rel = load_from_pickle(join(mod_dir_rel, "graphsage_{}_{}.pkl".format(ne_dim_rel, word_emb_size)))
     mod_spat = load_from_pickle(join(mod_dir_spat, "graphsage_{}_{}.pkl".format(ne_dim_spat, word_emb_size)))
 
-    name = "mlp_{}".format(word_emb_size)
-    if consider_rel:
-        name += "_rel_{}".format(ne_dim_rel)
-    if consider_spat:
-        name += "_spat_{}".format(ne_dim_spat)
-    mlp = load_from_pickle(join(models_dir, name + ".pkl"))
-    print(name.upper())
-    test(df_train=train_df, df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, tree_rel=forest_rel,
-         tree_spat=forest_spat, mlp=mlp, ne_technique_rel=ne_technique_rel, ne_technique_spat=ne_technique_spat,
-         id2idx_rel=id2idx_rel, id2idx_spat=id2idx_spat, mod_rel=mod_rel, mod_spat=mod_spat, rel_net_path=path_rel,
-         spat_net_path=path_spat, field_name_text=field_text, field_name_id=field_id, field_name_label=field_label,
-         consider_rel=consider_rel, consider_spat=consider_spat, cls_competitor=None)
+    confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), (False, False, True),
+             (False, True, False), (False, True, True)]
+    for conf in confs:
+        consider_content, consider_rel, consider_spat = conf[0], conf[1], conf[2]
+        mlp_name = "mlp_{}".format(word_emb_size)
+        if consider_content:
+            mlp_name += "_content_".format(word_emb_size)
+        if consider_rel:
+            mlp_name += "_rel_{}".format(ne_dim_rel)
+        if consider_spat:
+            mlp_name += "_spat_{}".format(ne_dim_spat)
+        mlp = load_from_pickle(join(models_dir, mlp_name + ".pkl"))
+        print(mlp_name.upper())
+        test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
+             mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
+             field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
+             consider_rel=consider_rel, consider_spat=consider_spat)
 
 
 if __name__ == "__main__":
