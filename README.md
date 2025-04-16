@@ -1,61 +1,63 @@
 # Introduction
-Code for **SAIRUS**, the multimodal classifier for risky users on social media. Currently, it has been used only with 
-Twitter data. It is a REST API service. <br>
-## Docker
-The system can be used through docker. It is very important that you set the HDFS_HOST and HDFS_PORT parameters in 
-docker-compose.yml. Run the following commands for starting the containers:
-<br>
-``` docker compose build ```<br>
-``` docker compose up ```
+Code for **IMMENSE**, the multimodal classifier for risky users on social media. Currently, it has been used only with 
+Twitter data. <br>
 
-Some logs will be displayed, containing the IP address of the API (the second one):
-![](img/img.png)
-## Without docker
-If you don't want to use Docker, you will first need to install the dependencies listed in ```requirements.txt```, then
-manually install celery and redis, which are the services used for managing the jobs. By running the file [run_redis.sh](run_redis.sh), 
-it will first check if redis is installed. If not, it will download it and then run it. Celery needs to be manually installed.
-<br>Then run the command 
-<br>
-```celery -A task_manager/worker.celery worker --loglevel=info``` <br>
-Then, the API can be started with the command <br>
-```python api.py```
-<br>
-In this case, the API will run at the IP http://127.0.0.1
-
-## Using the API
-Once you have the API IP, you can send requests to it. Find some examples in [examples](examples).
-Depending on the techniques that you want to use, some parameters are required and some others are not. The system requires hdfs links to
-some files. Refer to the next paragraph for more information about how the files should be structured.<br>
-Once a request is sent, the Job ID will be shown. It can be used for getting information about the status of the training task,
-via the ```task_status``` endpoint. Once the training is finished, use the ```predict``` endpoint in order to get predictions. If one or more user IDs
-are specified, the model will classify those users. Since the node embedding model is transductive, it can only provide predictions for users that 
-it already knows (meaning that it appears in the adjacency matrix or in the edge lists).
+# Usage
+You first need to install the dependencies listed in ```requirements.txt```. The file ```parameters.yaml``` contains the
+parameters that have to be set according to your dataset and the way you want to run the experiments.
 
 ## Files format
+The system is multimodal, meaning that it analyzes three different dimensions, respectively the **content**, the **social
+relationships** and **spatial relationships**. However, this is not mandatory, and if you don't want to analyze all of 
+them you can set to false the fields ```consider_content``` , ```consider_rel``` or ```consider_spat```.
+
+Keep in mind that the dataframe described in the next section always has to be provided, because all the three dimensions
+use, in a way or the other, the content. Moreover, it contains the training labels.
 ### Content
-The link to the file with the textual content (ie the posts) is always required. The content must be stored into a ```.csv``` file that has at least the following three columns (the order is not important):
+The content must be stored into a ```.csv``` file that has at least the following three columns (the order is not important):
 * **id**: The user ID
 * **text_cleaned**: This column will contain, for each user, the concatenation of the textual content he/she posted. Therefore, every user is represented by a separate row; 
 * **label**: This column tells whether the user associated to it is risky (label=1) or safe (label=0).
+The column names used here are indicative, if they are different, just set their names in the [parameters.yaml](parameters.yaml) file, at the fields ```field_id, field_text, field_label```
 
 ### Relationships
-Depending on the node embedding technique, different files must be provided. 
-#### Node2Vec
-If the technique adopted if node2vec, then the user must
-provide the links to a file containing an edge list. If n2v is going to be used for learning relational embeddings, created from the graph
-of users relationships, then the file provided will be named ```social_network.edg```. For each edge, the file must contain a row made
-of two values, which are the IDs of the nodes being connected by the edge. Remember that the social relationships are directed, 
-therefore if two users have a mutual relationship, they are connected by two edges with opposite direction. If node2vec is going
-to be used also for learning embeddings of the spatial users relationships, then the user will have to provide a link to a file named 
-```spatial_network.edg``` with a similar structure as the one previously described. The differences are that, in this case, the 
-relationships are undirected and weighted with the normalized distance between two nodes. Therefore, for each edge there is a row 
-containing three values: the two node IDs, and the distance that separates them.
+The graph containing the social or spatial relationships have to be provided in the form of a file containing the edgelist.
+The systems expects files containing one row per each edge, and the row will contain the IDs of the users involved in the relation.
+In the case of the spatial network, the row will also contain a third value, indicating the closeness among the users. The function
+to calculate the closeness among two users starting from their distance is called ```normalize_closeness``` and is
+contained in the file  [dataset_class.py](dataset_scripts/dataset_class.py). The values in the rows have to be separated by a separator, 
+that you can indicate in the ```parameters.yaml``` file. In the same way you indicate the filenames of the social and spatial networks, 
+both for the training and testing. Here's an example of how the social network file should be structured. Suppose you have a tiny social network
+with four users: ```user1, user2, user3, user4```. The following edgelist (using "\t" as separator):
+```
+user1\tuser2
+user1\tuser3
+user3\tuser1
+user2\tuser4
+```
+Means that ```user1``` follows ```user2``` and ```user3```, that ```user3``` follows ```user1``` and ```user2```
+follows ```user4```. Note how the relation is not symmetric. The spatial network, instead should look like this:
+```
+user1\tuser2\t0.5
+user1\tuser3\t0.62
+user1\tuser4\t0.3
+user2\tuser3\t0
+user2\tuser4\0
+user3\tuser4\0.1
+```
+Indicating the spatial closeness among each pair of users. Higher values indicate that the users are closer. This relation is 
+symmetric.
 
-#### Autoencoder / PCA / None
-These techniques work on the adjacency matrix of user relationships. **Autoencoder** takes the rows of the matrix and feeds them
-to an autoencoder which reduces the dimensionality. **PCA** performs Principal Component Analysis on the matrix in order to reduce the row
-dimensionality. **None** directly uses the rows of the matrix, without performing any dimensionality reduction. These techniques require the user
-to provide links to a .csv file containing the adjacency matrix, and an additional link to a .pkl file containing a dictionary having
-as keys the user IDs, taken from the ```.csv``` file with the content, and as values the index of the matrix row corresponding to that user.
+## Training and testing
+The ```parameters.yaml``` file contains four sections:
+
+* ```dataset_general_params```: for providing general parameters about the train and test dataset
+* ```train_dataset_params```: parameters specific to the training dataset
+* ```test_dataset_params```: parameters specific to the training dataset
+* ```model_params```: parameters for the model to learn
+
+Once the parameter file is completed, you can train the models by running [main_train.py](main_train.py)
+and, after the training is completed, test it running [main_test.py](main_test.py). The test will plot a confusion matrix and
+print the classification report.
 
 
