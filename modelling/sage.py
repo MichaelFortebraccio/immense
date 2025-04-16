@@ -22,7 +22,7 @@ def create_mappers(features_dict):
     return mapper, inv_map
 
 
-def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id="id", field_name_label="label",
+def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id, field_name_label, separator,
                  edgelist=None, inference=False):
     """
     Function to create a graph starting from the features, the edge list, and the node labels.
@@ -31,6 +31,7 @@ def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id="id", f
     :param: label_field: Name of the label field in the dataframe. Default 'label'
     :param: edgelist: List of edges. If set to none, the function will create it. It is not set to none only when
             providing prediction for a specific set of users
+    :param separator: Separator used in the edgelist file
     """
     inv_mapper_list = list(inv_map.keys())
     feats = []
@@ -44,7 +45,7 @@ def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id="id", f
         weights = []
         with open(edg_dir, 'r') as f:
             for l in f.readlines():
-                split = l.split("\t")
+                split = l.split(separator)
                 e1, e2 = split[0].strip(), split[1].strip()
                 if len(split) == 3:
                     e3 = split[2].strip()
