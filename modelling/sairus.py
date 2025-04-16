@@ -5,7 +5,7 @@ from modelling.ae import AE
 from modelling.mlp import MLP
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
-from node_classification.graph_embeddings.sage import create_graph, create_mappers
+from modelling.sage import create_graph, create_mappers
 from os import makedirs
 from os.path import exists, join
 from node_classification.reduce_dimension import reduce_dimension

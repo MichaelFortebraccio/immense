@@ -1,15 +1,8 @@
-import numpy as np
 from os.path import join, exists
-import pickle
 import torch
-from tqdm import tqdm
 import torch_geometric.transforms as T
-from modelling.ae import AE
-from node_classification.graph_embeddings.node2vec import Node2VecEmbedder
-from node_classification.graph_embeddings.sage import SAGE, create_mappers, create_graph
-from sklearn.decomposition import PCA
+from modelling.sage import SAGE, create_mappers, create_graph
 from torch_geometric.loader import NeighborLoader
-from utils import is_square, embeddings_pca, load_from_pickle, save_to_pickle
 
 
 def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_path, epochs, features_dict, sizes,
