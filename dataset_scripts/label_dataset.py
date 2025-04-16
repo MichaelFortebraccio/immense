@@ -66,21 +66,21 @@ def text_to_vec(mod: KeyedVectors, posts):
 
 def text_to_vec_w2v(mod: Word2Vec, posts):
     """
-    Obtain a vector from a textual content. This function is needed even if it already exists in the WordEmb class, because
-    this function works using a pretrained word embedding model while the other works on list
+    Obtain a vector from a textual content. This function is needed even if it already exists in the WordEmb class,
+    because this function works using a pretrained word embedding model while the other works on list
+    :param mod: Gensim word2vec model trained on the dataset
+    :param posts: List of posts
     """
     list_tot = []
-    a = 0
     wv = mod.wv
-    for tw in posts:
+    for post in posts:
         list_temp = []
-        if tw:
-            for t in tw:
+        if post:
+            for t in post:
                 try:
                     learned_embedding = wv[t]
                     list_temp.append(learned_embedding)
                 except KeyError:
-                    a += 1
                     list_temp.append(np.zeros(shape=(300,)))
         else:
             continue
@@ -89,7 +89,7 @@ def text_to_vec_w2v(mod: Word2Vec, posts):
             list_temp = np.sum(list_temp, axis=0)
             list_tot.append(list_temp)
     list_tot = np.asarray(list_tot)
-    return list_tot, a
+    return list_tot
 
 
 def intersection(lst1, lst2):
@@ -99,7 +99,11 @@ def intersection(lst1, lst2):
 def label_based_on_relationships(df, path_to_rel="../dataset/big_dataset/graph/social_net.edg", factor=0.1):
     """
     A user can be risky even if he doesn't post malicious content, but directly follow many users who do that. This
-    function detects the users that fall in this category"""
+    function detects the users that fall in this category
+    :param df: dataframe containing the users and their associated content
+    :param path_to_rel: Path to the edge list depicting the social network
+    :param factor: If the ratio of risky users followed by a safe user is > factor, then the user is relabeled as risky
+    """
     safe = df[df.label == 0]
     risky = df[df.label == 1]
     safe_ids = [int(i) for i in safe.id.values]
@@ -166,52 +170,9 @@ def plot_sim(values: list, type="cosine"):
     plt.show()
 
 
-def main_kfold(dataset_negative_path, dataset_to_label_path, model_path, n, splits):
-    # effettua kfold sul set di tweet malevoli
-    df_negative = pd.read_csv(dataset_negative_path)
-    df_to_label = pd.read_csv(dataset_to_label_path)        # Dataframe that has to be labeled
-    #df_evil = df_evil.sample(frac=1).reset_index()  # Shuffle
-
-    tok = TextPreprocessing()
-    posts_content_negative = tok.token_dict(df_negative["text"].values.tolist())
-    posts_content_to_label = tok.token_dict(df_to_label["text"].values.tolist())
-    model_negative = KeyedVectors.load_word2vec_format(model_path, binary=True)
-    ### UNCOMMENT THE NEXT TWO LINES FOR USING THE LEARNED WWV MODEL
-    #model_negative = load_from_pickle("w2v_model_300.pkl")
-    #model_negative = model_negative.model
-
-    folds_idx = kfold(len(df_negative), splits)
-    sim_to_label = np.zeros(len(posts_content_to_label))
-    l_to_label = np.zeros(shape=(1, len(posts_content_to_label)))
-    for i in range(len(folds_idx)-1):
-        # The rows going from cur_idx to next_idx will be used as test fold
-        cur_idx = folds_idx[i]
-        next_idx = folds_idx[i+1]
-        train_tl = posts_content_negative[:cur_idx] + posts_content_negative[next_idx:]     # Token list of the posts that will be used as reference for measuring how risky a post is
-        test_tl = posts_content_negative[cur_idx:next_idx]      # Token list of the posts that are known to be negative and that will be compared to those in train_tl
-
-        t2v_negative, _ = text_to_vec(posts=train_tl, mod=model_negative)  # Vettore contenente un embedding per ogni tweet risky, ottenuto sommando gli embedding delle parole
-        l_negative = np.zeros(shape=(1, len(test_tl)))
-        sim_evil = np.zeros(len(test_tl))
-        t2v_to_label, a = text_to_vec(posts=posts_content_to_label, mod=model_negative)
-        print(a)
-        t2v_test_negative, _ = text_to_vec(posts=test_tl, mod=model_negative)
-        for j in tqdm(range(t2v_to_label.shape[0])):
-            sim = cosine_similarity(t2v_negative, t2v_to_label[j, :])
-            sim_to_label[j] = np.nanmax(sim)
-        for j in range(t2v_test_negative.shape[0]):
-            sim = cosine_similarity(t2v_negative, t2v_test_negative[j, :])
-            sim_evil[j] = np.nanmax(sim)
-        l_negative[0, :] = sim_evil
-        l_to_label[0, :] = sim_to_label
-        save_to_pickle("sim_2l.pkl", l_to_label)
-        save_to_pickle("sim_neg.pkl", l_negative)
-        plot_values([l_to_label, l_negative], type="cosine", l=n)
-
-
 def main_whole(risky_ds_path, dataset_to_label_path, model_path, sim_fname):
     """
-    consider the whole set of malicious tweets instead of doing k-fold
+    label your dataset
     :param risky_ds_path: Path to the dataset containing posts that are known to be risky
     :param dataset_to_label_path: Path to the dataset that has to be labeled
     :param model_path: Path to the word embedding model
