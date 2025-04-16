@@ -10,13 +10,15 @@ train_dataset_params:
   consider_content: True
   consider_rel: True
   consider_spat: True
+  separator: "\t"
 test_dataset_params:
-  test_df: "dataset/anthony/tweets.csv"
-  test_social_net: "dataset/anthony/graph/social_network.edg"
-  test_spatial_net: "dataset/anthony/graph/spatial_network.edg"
+  test_df: "dataset/big_dataset/test.csv"
+  test_social_net: "dataset/big_dataset/graph/social_network_test.edg"
+  test_spatial_net: "dataset/big_dataset/graph/spatial_network_test.edg"
   consider_content: True
   consider_rel: True
   consider_spat: True
+  separator: "\t"
 
 model_params:
   dir_models: "dataset/test"
@@ -24,9 +26,7 @@ model_params:
   epochs_spat: 25
   mlp_batch_size: 64
   mlp_lr: 3e-1
-  ne_dim_rel: 256
-  ne_dim_spat: 128
-  ne_technique_rel: "graphsage"
-  ne_technique_spat: "graphsage"
+  ne_dim_rel: 128
+  ne_dim_spat: 256
   word_emb_size: 128
   w2v_epochs: 15
