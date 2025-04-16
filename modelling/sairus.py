@@ -86,14 +86,14 @@ def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_lr=.004, ae_dan
         dataset[:, 1] = torch.tensor(prediction_loss_safe, dtype=torch.float32)
         dataset[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
-    if rel_preds:
+    if rel_preds is not None:
         safe_rel_probs = torch.tensor(rel_preds[:, 0], dtype=torch.float32)
         risky_rel_probs = torch.tensor(rel_preds[:, 1], dtype=torch.float32)
         dataset[:, 3], dataset[:, 4] = safe_rel_probs, risky_rel_probs
-    if spat_preds:
-        safe_spat_probs = torch.tensor(rel_preds[:, 0], dtype=torch.float32)
-        risky_spat_probs = torch.tensor(rel_preds[:, 1], dtype=torch.float32)
-        dataset[:, 5], dataset[:, 6] = safe_spat_probs[:, 0], risky_spat_probs[:, 1]
+    if spat_preds is not None:
+        safe_spat_probs = torch.tensor(spat_preds[:, 0], dtype=torch.float32)
+        risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
+        dataset[:, 5], dataset[:, 6] = safe_spat_probs, risky_spat_probs
 
     mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, mlp_name), weights=weights)
     optim = Adam(mlp.parameters(), lr=mlp_lr, weight_decay=1e-4)
