@@ -107,9 +107,9 @@ def get_relational_preds(df, node_embs=None):
     return dataset
 
 
-def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, users_embs_dict, batch_size=None,
-          consider_content=True, consider_rel=True, consider_spat=True, ne_dim_rel=None, ne_dim_spat=None,
-          eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None, weights=None):
+def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, users_embs_dict, separator,
+          gnn_batch_size=None, consider_content=True, consider_rel=True, consider_spat=True, ne_dim_rel=None,
+          ne_dim_spat=None, eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None, weights=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
@@ -121,14 +121,13 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     :param train_df: Dataframe with the posts used for the MLP training
     :param word_emb_size: Dimension of the word embeddings to create
     :param users_embs_dict: Dictionary having as keys the user IDs and as values their associated word embedding vector
-    :param batch_size: Batch size for learning node embedding models
+    :param separator: Separator used in the edgelist
+    :param gnn_batch_size: Batch size for learning node embedding models
     :param consider_content: Whether to use the module for the semantic content analysis
     :param consider_rel: Whether to use the module for the analysis of social relationships
     :param consider_spat: Whether to use the module for the analysis of spatial relationships
     :param eps_nembs_rel: Epochs for training the relational node embedding model. Can be None if consider_rel=False
     :param eps_nembs_spat: Epochs for training the spatial node embedding model. Can be None if consider_spat=False
-    :param id2idx_path_rel: Path to the file containing the dictionary that matches the node IDs to their index in the relational adj matrix
-    :param id2idx_path_spat: Path to the file containing the dictionary that matches the node IDs to their index in the spatial adj matrix
     :param path_rel: Path to the file stating the social relationships among the users. Can be None if consider_rel=False
     :param path_spat: Path to the file stating the spatial relationships among the users. Can be None if consider_spat=False
     :param weights: Tensor containing the weights to use during training to compensate for data imbalance
@@ -180,14 +179,16 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
         mlp_name += "_rel_{}".format(ne_dim_rel)
         x_rel = reduce_dimension(model_dir=model_dir_rel, edge_path=path_rel, lab="rel", ne_dim=ne_dim_rel,
                                  train_df=train_df, epochs=eps_nembs_rel, sizes=[2, 3],
-                                 features_dict=users_embs_dict, batch_size=batch_size, training_weights=weights,
-                                 we_dim=word_emb_size, retrain=retrain)
+                                 features_dict=users_embs_dict, batch_size=gnn_batch_size, training_weights=weights,
+                                 we_dim=word_emb_size, retrain=retrain, separator=separator,
+                                 field_name_id=field_name_id, field_name_label=field_name_label)
     if consider_spat:
         mlp_name += "_spat_{}".format(ne_dim_spat)
         x_spat = reduce_dimension(model_dir=model_dir_spat, edge_path=path_spat, lab="spat", ne_dim=ne_dim_spat,
                                   train_df=train_df, epochs=eps_nembs_spat, sizes=[3, 5],
-                                  features_dict=users_embs_dict, batch_size=batch_size,
-                                  training_weights=weights, we_dim=word_emb_size, retrain=retrain)
+                                  features_dict=users_embs_dict, batch_size=gnn_batch_size,
+                                  training_weights=weights, we_dim=word_emb_size, retrain=retrain, separator=separator,
+                                  field_name_id=field_name_id, field_name_label=field_name_label)
 
     mlp_name += ".pkl"
     print("Learning MLP...\n")
@@ -197,7 +198,7 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
 
 def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model, consider_content,
          consider_rel, consider_spat, ae_dang=None, ae_safe=None, mod_rel=None, mod_spat=None, rel_net_path=None,
-         spat_net_path=None):
+         spat_net_path=None, separator="\t"):
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_name_text, id_field_name=field_name_id)
     test_set = torch.zeros(len(posts), 7)
@@ -220,7 +221,8 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
 
     if consider_rel:
         mapper, inv_map_rel = create_mappers(posts_embs_dict)
-        graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df)
+        graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df,
+                             separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_rel.device)
             rel_preds = mod_rel(graph, inference=True).detach().numpy()
@@ -229,7 +231,8 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
         test_set[:, 3], test_set[:, 4] = safe_rel_probs, risky_rel_probs
     if consider_spat:
         mapper, inv_map_sp = create_mappers(posts_embs_dict)
-        graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict, edg_dir=spat_net_path, df=df)
+        graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict, edg_dir=spat_net_path, df=df,
+                             separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_spat.device)
             spat_preds = mod_spat(graph, inference=False).detach().numpy()
