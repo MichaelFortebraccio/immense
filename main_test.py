@@ -21,6 +21,7 @@ def main_test():
     consider_content = test_dataset_params["consider_content"]
     consider_rel = test_dataset_params["consider_rel"]
     consider_spat = test_dataset_params["consider_spat"]
+    separator = test_dataset_params["separator"]
 
     models_dir = model_params["dir_models"]
     ne_dim_rel = int(model_params["ne_dim_rel"])
@@ -55,7 +56,7 @@ def main_test():
     test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
          mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
          field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
-         consider_rel=consider_rel, consider_spat=consider_spat)
+         consider_rel=consider_rel, consider_spat=consider_spat, separator=separator)
 
 
 if __name__ == "__main__":
