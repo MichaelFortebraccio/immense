@@ -8,7 +8,7 @@ from modelling.word_embedding import WordEmb
 from modelling.sage import create_graph, create_mappers
 from os import makedirs
 from os.path import exists, join
-from node_classification.reduce_dimension import reduce_dimension
+from reduce_dimension import reduce_dimension
 from sklearn.metrics import classification_report
 from torch.nn import MSELoss
 from torch.optim import Adam
