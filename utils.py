@@ -2,12 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import seaborn as sn
-from exceptions import AdjMatException, Id2IdxException
-from gensim.models import Word2Vec
-from os.path import exists, join
+from os.path import join
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 
