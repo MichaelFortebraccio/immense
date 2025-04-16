@@ -7,7 +7,7 @@ from utils import save_to_pickle
 
 
 def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_path, epochs, features_dict, sizes,
-                     training_weights, retrain=False):
+                     training_weights, separator, field_name_id, field_name_label, retrain=False):
     """
     This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
     training the decision tree.
@@ -47,7 +47,8 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
         directed = False
 
     mapper_train, inv_map_train = create_mappers(features_dict)
-    graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path, df=train_df)
+    graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path,
+                         df=train_df, separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
     split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
                               add_negative_train_samples=False, neg_sampling_ratio=1.0)
     train_data, valid_data, _ = split(graph)
