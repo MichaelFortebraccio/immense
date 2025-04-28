@@ -49,11 +49,15 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
     mapper_train, inv_map_train = create_mappers(features_dict)
     graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path,
                          df=train_df, separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
+    graph = graph.to(device)
     split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
                               add_negative_train_samples=False, neg_sampling_ratio=1.0)
     train_data, valid_data, _ = split(graph)
     sage = SAGE(in_dim=in_channels, hidden_dim=ne_dim, num_layers=len(sizes), weighted=weighted, directed=directed)
     sage = sage.to(device)
+    if training_weights is not None:
+        training_weights = training_weights.to(device)
+
     train_loader = NeighborLoader(train_data, num_neighbors=sizes, batch_size=batch_size)
     if not exists(model_path) or retrain:
         print("Training {} node embedding model\n".format(lab))
@@ -72,7 +76,7 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
         save_to_pickle(model_path, sage)
     else:
         sage.load_state_dict(torch.load(weights_path))
-    predictions = sage(graph, inference=True)
+    predictions = sage(graph, inference=True).cpu()
     predictions = predictions.detach().numpy()
 
     return predictions

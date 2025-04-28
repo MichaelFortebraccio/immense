@@ -175,6 +175,8 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
 
     retrain = False
     x_rel = x_spat = None
+    if weights is not None:
+        weights = weights.to()
     if consider_rel:
         mlp_name += "_rel_{}".format(ne_dim_rel)
         x_rel = reduce_dimension(model_dir=model_dir_rel, edge_path=path_rel, lab="rel", ne_dim=ne_dim_rel,
@@ -225,7 +227,7 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
                              separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_rel.device)
-            rel_preds = mod_rel(graph, inference=True).detach().numpy()
+            rel_preds = mod_rel(graph, inference=True).cpu().detach().numpy()
         safe_rel_probs = torch.tensor(rel_preds[:, 0], dtype=torch.float32)
         risky_rel_probs = torch.tensor(rel_preds[:, 1], dtype=torch.float32)
         test_set[:, 3], test_set[:, 4] = safe_rel_probs, risky_rel_probs
@@ -235,7 +237,7 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
                              separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_spat.device)
-            spat_preds = mod_spat(graph, inference=False).detach().numpy()
+            spat_preds = mod_spat(graph, inference=False).cpu().detach().numpy()
         safe_spat_probs = torch.tensor(spat_preds[:, 0], dtype=torch.float32)
         risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
         test_set[:, 5], test_set[:, 6] = safe_spat_probs, risky_spat_probs

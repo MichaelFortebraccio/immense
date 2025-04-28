@@ -78,9 +78,9 @@ class SAGE(torch.nn.Module):
         self.weighted = weighted
         self.directed = directed
         if self.weighted:
-            self.convs.append(GraphConv(in_dim, hidden_dim, aggr="mean", normalize=True))
+            self.convs.append(GraphConv(in_dim, hidden_dim, aggr="mean"))
             for _ in range(num_layers-1):
-                self.convs.append(GraphConv(hidden_dim, hidden_dim, aggr="mean", normalize=True))
+                self.convs.append(GraphConv(hidden_dim, hidden_dim, aggr="mean"))
         else:
             self.convs.append(SAGEConv(in_dim, hidden_dim, aggr="mean", normalize=True))
             for _ in range(num_layers-1):
@@ -92,6 +92,7 @@ class SAGE(torch.nn.Module):
         for i in range(len(self.convs)):
             if self.weighted:
                 x = self.convs[i](x, batch.edge_index, batch.edge_weight)
+                x = F.normalize(x)
             else:
                 x = self.convs[i](x, batch.edge_index)
             x = F.relu(x)
