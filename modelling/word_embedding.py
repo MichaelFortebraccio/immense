@@ -1,7 +1,5 @@
 import numpy as np
 from gensim.models import Word2Vec
-from os.path import exists
-from utils import load_from_pickle, save_to_pickle
 
 seed = 123
 np.random.seed(seed)
