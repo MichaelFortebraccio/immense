@@ -1,27 +1,27 @@
 dataset_general_params:
-  dir_graph: "dataset/big_dataset/graph"
-  train_df: "dataset/big_dataset/train.csv"
+  dir_graph: "dataset/graph"
+  train_df: "dataset/train.csv"
   field_id: "id"
   field_text: "text_cleaned"
   field_label: "label"
 train_dataset_params:
-  train_social_net: "dataset/big_dataset/graph/social_network_train.edg"
-  train_spatial_net: "dataset/big_dataset/graph/spatial_network_train.edg"
+  train_social_net: "dataset/graph/social_network_train.edg"
+  train_spatial_net: "dataset/graph/spatial_network_train.edg"
   consider_content: True
   consider_rel: True
   consider_spat: True
   separator: "\t"
 test_dataset_params:
-  test_df: "dataset/big_dataset/test.csv"
-  test_social_net: "dataset/big_dataset/graph/social_network_test.edg"
-  test_spatial_net: "dataset/big_dataset/graph/spatial_network_test.edg"
+  test_df: "dataset/test.csv"
+  test_social_net: "dataset/graph/social_network_test.edg"
+  test_spatial_net: "dataset/graph/spatial_network_test.edg"
   consider_content: True
   consider_rel: True
   consider_spat: True
   separator: "\t"
 
 model_params:
-  dir_models: "dataset/test"
+  dir_models: "models"
   epochs_rel: 25
   epochs_spat: 25
   mlp_batch_size: 64
