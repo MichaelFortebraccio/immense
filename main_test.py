@@ -1,4 +1,4 @@
-from modelling.sairus import test
+from modelling.immense import test
 from os.path import join
 from utils import load_from_pickle
 import pandas as pd

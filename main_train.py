@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from modelling.sairus import train, train_w2v_model
+from modelling.immense import train, train_w2v_model
 from os.path import exists, join
 from os import makedirs
 seed = 123
