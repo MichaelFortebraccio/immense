@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+from kornia.losses import binary_focal_loss_with_logits
 from os.path import join
 from torch.nn import Linear
 from torch.nn.functional import relu, nll_loss
@@ -8,7 +10,7 @@ from utils import save_to_pickle
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, X_train, y_train, model_path, batch_size=64, epochs=50, weights=None):
+    def __init__(self, X_train, y_train, model_path, loss, batch_size=64, epochs=50, weights=None):
         super(MLP, self).__init__()
         self.X_train = X_train
         self.weights = weights
@@ -18,12 +20,14 @@ class MLP(torch.nn.Module):
         self.epochs = epochs
         self.input = Linear(in_features=7, out_features=3)
         self.output = Linear(in_features=3, out_features=2)
+        self.loss = loss
 
     def forward(self, x):
         x = self.input(x)
         x = relu(x)
         out = self.output(x)
-        out = torch.log_softmax(out, dim=-1)
+        if self.loss == "weighted":
+            out = torch.log_softmax(out, dim=-1)
         return out
 
     def train_mlp(self, optimizer):
@@ -38,8 +42,12 @@ class MLP(torch.nn.Module):
 
             for batch_x, batch_y in tqdm(dl):
                 out = self(batch_x)
-                loss = nll_loss(out, batch_y.long(), weight=self.weights)
-                #loss = criterion(out, batch_y)
+                if self.loss == "focal":
+                    t = [int(el) for el in batch_y]
+                    target = torch.tensor(np.eye(2, dtype='uint8')[t], dtype=torch.float)
+                    loss = binary_focal_loss_with_logits(out, target=target, reduction="mean")
+                elif self.loss == "weighted":
+                    loss = nll_loss(out, batch_y.long(), weight=self.weights)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -55,6 +63,8 @@ class MLP(torch.nn.Module):
     def test(self, X_test):
         self.eval()
         preds = self(X_test)
+        if self.loss == "focal":
+            preds = torch.log_softmax(preds, dim=-1)
         y_p = []
         for p in preds:
             if p[0] < p[1]:

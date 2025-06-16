@@ -33,18 +33,16 @@ if __name__ == "__main__":
     mlp_lr = float(model_params["mlp_lr"])
     ne_dim_rel = int(model_params["ne_dim_rel"])
     ne_dim_spat = int(model_params["ne_dim_spat"])
-
     word_emb_size = int(model_params["word_emb_size"])
     w2v_epochs = int(model_params["w2v_epochs"])
+    loss = model_params["loss"]
 
     w2v_path = join(models_dir, "w2v_{}.pkl".format(word_emb_size))
 
     if not exists(models_dir):
         makedirs(models_dir)
     train_df = pd.read_csv(train_df)
-    nz = len(train_df[train_df.label == 1])
-    pos_weight = len(train_df) / nz
-    neg_weight = len(train_df) / (2*(len(train_df) - nz))
+
 
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_id,
                                       model_dir=models_dir, text_field_name=field_text, train_df=train_df)
@@ -56,6 +54,6 @@ if __name__ == "__main__":
     print("CONTENT: {} REL: {} SPAT: {}".format(consider_content, consider_rel, consider_spat))
     train(train_df=train_df, model_dir=models_dir, gnn_batch_size=64, field_name_id=field_id,
           field_name_label=field_label, path_rel=path_rel, path_spat=path_spat, word_emb_size=word_emb_size,
-          ne_dim_spat=ne_dim_spat, ne_dim_rel=ne_dim_rel, weights=torch.tensor([neg_weight, pos_weight]),
-          eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel, consider_rel=consider_rel, separator=separator,
-          consider_spat=consider_spat, consider_content=consider_content, users_embs_dict=users_embs_dict)
+          ne_dim_spat=ne_dim_spat, ne_dim_rel=ne_dim_rel, eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
+          consider_rel=consider_rel, separator=separator, consider_spat=consider_spat,
+          consider_content=consider_content, users_embs_dict=users_embs_dict, loss=loss)

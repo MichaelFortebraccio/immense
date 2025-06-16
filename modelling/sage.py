@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+from kornia.losses import binary_focal_loss_with_logits
 from sklearn.metrics import roc_auc_score
 from torch_geometric.data import Data
 from torch_geometric.nn import GraphConv, SAGEConv
@@ -70,13 +71,14 @@ def create_graph(inv_map, weighted, features, edg_dir, df, field_name_id, field_
 
 
 class SAGE(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, num_layers, weighted, directed):
+    def __init__(self, in_dim, hidden_dim, num_layers, weighted, directed, loss):
         super(SAGE, self).__init__()
         self.device = torch.device(f'cuda' if torch.cuda.is_available() else 'cpu')
         self.convs = torch.nn.ModuleList()
         self.num_layers = num_layers
         self.weighted = weighted
         self.directed = directed
+        self.loss = loss
         if self.weighted:
             self.convs.append(GraphConv(in_dim, hidden_dim, aggr="mean"))
             for _ in range(num_layers-1):
@@ -96,20 +98,26 @@ class SAGE(torch.nn.Module):
             else:
                 x = self.convs[i](x, batch.edge_index)
             x = F.relu(x)
-        if not inference:
-            x = self.output(x, batch.edge_index)
+        x = self.output(x, batch.edge_index)
+        if self.loss != "focal":
+            x = torch.log_softmax(x, dim=-1)
+        if inference and self.loss == "focal":
             x = torch.log_softmax(x, dim=-1)
         return x
 
     def train_sage(self, train_loader, optimizer, weights):
         self.train()
         total_loss = 0
-        # Train on batches
+
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
             batch = batch.to(self.device)
             out = self(batch)
-            loss = F.nll_loss(out, target=batch.y, weight=weights)
+            if self.loss == "weighted":
+                loss = F.nll_loss(out, target=batch.y, weight=weights)
+            if self.loss == "focal":
+                target = torch.tensor(np.eye(2, dtype='uint8')[batch.y.cpu()], dtype=torch.float)
+                loss = binary_focal_loss_with_logits(out, target=target.to(self.device), reduction="mean")
             loss.backward()
             optimizer.step()
             total_loss += loss.item()

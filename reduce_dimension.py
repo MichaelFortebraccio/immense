@@ -1,13 +1,13 @@
-from os.path import join, exists
 import torch
 import torch_geometric.transforms as T
 from modelling.sage import SAGE, create_mappers, create_graph
+from os.path import join, exists
 from torch_geometric.loader import NeighborLoader
 from utils import save_to_pickle
 
 
 def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_path, epochs, features_dict, sizes,
-                     training_weights, separator, field_name_id, field_name_label, retrain=False):
+                     training_weights, separator, field_name_id, field_name_label, loss, retrain=False):
     """
     This function applies one of the node dimensionality reduction techniques and generate the feature vectors for
     training the decision tree.
@@ -30,13 +30,20 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
         embeddings of their posts.
         :param sizes: Array containing the number of neighbors to sample for each node.
         :param training_weights: tensor of shape (1, num_classes) containing the weights to give to each class while
-        training the graphsage model. If None, no weights will be used
+        training the graphsage model. If None, no weights will be used. Set this to None if loss==focal
+        :param loss: Training loss
     Returns:
         predictions (n, num_classes): Predictions made by the node embedding model for the nodes. For each node, its
         prediction is the computed probability of the node to belong to each of the class
     """
-    weights_path = join(model_dir, "graphsage_{}_{}.h5".format(ne_dim, we_dim))
-    model_path = join(model_dir, "graphsage_{}_{}.pkl".format(ne_dim, we_dim))
+    weights_path = join(model_dir, "graphsage_{}_{}".format(ne_dim, we_dim))
+    model_path = join(model_dir, "graphsage_{}_{}".format(ne_dim, we_dim))
+    if loss == "focal":
+        weights_path += "_focal"
+        model_path += "_focal"
+    weights_path += ".h5"
+    model_path += ".pkl"
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     first_key = list(features_dict.keys())[0]
     in_channels = len(features_dict[first_key])
@@ -53,7 +60,8 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
     split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
                               add_negative_train_samples=False, neg_sampling_ratio=1.0)
     train_data, valid_data, _ = split(graph)
-    sage = SAGE(in_dim=in_channels, hidden_dim=ne_dim, num_layers=len(sizes), weighted=weighted, directed=directed)
+    sage = SAGE(in_dim=in_channels, hidden_dim=ne_dim, num_layers=len(sizes), weighted=weighted, directed=directed,
+                loss=loss)
     sage = sage.to(device)
     if training_weights is not None:
         training_weights = training_weights.to(device)

@@ -27,6 +27,7 @@ def main_test():
     ne_dim_rel = int(model_params["ne_dim_rel"])
     ne_dim_spat = int(model_params["ne_dim_spat"])
     word_emb_size = int(model_params["word_emb_size"])
+    loss = model_params["loss"]
 
     w2v_path = join(models_dir, "w2v_{}.pkl".format(word_emb_size))
     mod_dir_rel = join(models_dir, "node_embeddings", "rel")
@@ -37,8 +38,9 @@ def main_test():
 
     dang_ae = load_from_pickle(join(models_dir, "autoencoderdang_{}.pkl".format(word_emb_size)))
     safe_ae = load_from_pickle(join(models_dir, "autoencodersafe_{}.pkl".format(word_emb_size)))
-    mod_rel = load_from_pickle(join(mod_dir_rel, "graphsage_{}_{}.pkl".format(ne_dim_rel, word_emb_size)))
-    mod_spat = load_from_pickle(join(mod_dir_spat, "graphsage_{}_{}.pkl".format(ne_dim_spat, word_emb_size)))
+    mod_rel = mod_spat = None
+
+
 
     """confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), (False, False, True),
              (False, True, False), (False, True, True)]
@@ -48,10 +50,21 @@ def main_test():
     if consider_content:
         mlp_name += "_content_{}".format(word_emb_size)
     if consider_rel:
+        mod_rel_name = "graphsage_{}_{}".format(ne_dim_rel, word_emb_size)
+        if loss == "focal":
+            mod_rel_name += "_focal"
+        mod_rel_name += ".pkl"
+        mod_rel = load_from_pickle(join(mod_dir_rel, mod_rel_name))
         mlp_name += "_rel_{}".format(ne_dim_rel)
     if consider_spat:
+        mod_spat_name = "graphsage_{}_{}".format(ne_dim_spat, word_emb_size)
+        if loss == "focal":
+            mod_spat_name += "_focal"
+        mod_spat_name += ".pkl"
+        mod_spat = load_from_pickle(join(mod_dir_spat, mod_spat_name))
         mlp_name += "_spat_{}".format(ne_dim_spat)
-    mlp = load_from_pickle(join(models_dir, mlp_name + ".pkl"))
+    mlp_name += "_{}.pkl".format(loss)
+    mlp = load_from_pickle(join(models_dir, mlp_name))
     print(mlp_name.upper())
     test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
          mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,

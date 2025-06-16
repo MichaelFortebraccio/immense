@@ -1,32 +1,34 @@
 dataset_general_params:
-  dir_graph: "dataset/graph"
-  train_df: "dataset/train.csv"
+  dir_graph: "dataset/big_dataset/graph"
+  train_df: "dataset/big_dataset/train.csv"
   field_id: "id"
   field_text: "text_cleaned"
   field_label: "label"
 train_dataset_params:
-  train_social_net: "dataset/graph/social_network_train.edg"
-  train_spatial_net: "dataset/graph/spatial_network_train.edg"
+  train_social_net: "dataset/big_dataset/graph/social_network_train.edg"
+  train_spatial_net: "dataset/big_dataset/graph/spatial_network_train.edg"
   consider_content: True
   consider_rel: True
   consider_spat: True
   separator: "\t"
 test_dataset_params:
-  test_df: "dataset/test.csv"
-  test_social_net: "dataset/graph/social_network_test.edg"
-  test_spatial_net: "dataset/graph/spatial_network_test.edg"
+  test_df: "dataset/big_dataset/test.csv"
+  test_social_net: "dataset/big_dataset/graph/social_network_test.edg"
+  test_spatial_net: "dataset/big_dataset/graph/spatial_network_test.edg"
   consider_content: True
   consider_rel: True
   consider_spat: True
   separator: "\t"
 
+
 model_params:
-  dir_models: "models"
+  dir_models: "dataset/big_dataset/models"
   epochs_rel: 25
   epochs_spat: 25
   mlp_batch_size: 64
-  mlp_lr: 3e-1
+  mlp_lr: 4e-1
   ne_dim_rel: 128
-  ne_dim_spat: 256
+  ne_dim_spat: 128
   word_emb_size: 128
   w2v_epochs: 15
+  loss: "weighted"

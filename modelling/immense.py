@@ -53,8 +53,8 @@ def train_w2v_model(embedding_size, epochs, id_field_name, model_dir, text_field
     return all_users_embeddings
 
 
-def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_lr=.004, ae_dang=None, ae_safe=None, rel_preds=None,
-                 spat_preds=None, weights=None):
+def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_loss, mlp_lr=.004, ae_dang=None, ae_safe=None,
+                 rel_preds=None, spat_preds=None, weights=None):
     """
     Train the MLP aimed at fusing the models
     Args:
@@ -75,12 +75,12 @@ def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_lr=.004, ae_dan
     if ae_dang and ae_safe:
         prediction_dang = ae_dang.predict(content_embs)
         prediction_safe = ae_safe.predict(content_embs)
-        loss = MSELoss()
+        mse_loss = MSELoss()
         prediction_loss_dang = []
         prediction_loss_safe = []
         for i in range(content_embs.shape[0]):
-            prediction_loss_dang.append(loss(content_embs[i], prediction_dang[i]))
-            prediction_loss_safe.append(loss(content_embs[i], prediction_safe[i]))
+            prediction_loss_dang.append(mse_loss(content_embs[i], prediction_dang[i]))
+            prediction_loss_safe.append(mse_loss(content_embs[i], prediction_safe[i]))
         labels = [1 if i < j else 0 for i, j in zip(prediction_loss_dang, prediction_loss_safe)]
         dataset[:, 0] = torch.tensor(prediction_loss_dang, dtype=torch.float32)
         dataset[:, 1] = torch.tensor(prediction_loss_safe, dtype=torch.float32)
@@ -95,7 +95,7 @@ def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_lr=.004, ae_dan
         risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
         dataset[:, 5], dataset[:, 6] = safe_spat_probs, risky_spat_probs
 
-    mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, mlp_name), weights=weights)
+    mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, mlp_name), weights=weights, loss=mlp_loss)
     optim = Adam(mlp.parameters(), lr=mlp_lr, weight_decay=1e-4)
     mlp.train_mlp(optim)
 
@@ -107,9 +107,9 @@ def get_relational_preds(df, node_embs=None):
     return dataset
 
 
-def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, users_embs_dict, separator,
+def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, users_embs_dict, separator, loss,
           gnn_batch_size=None, consider_content=True, consider_rel=True, consider_spat=True, ne_dim_rel=None,
-          ne_dim_spat=None, eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None, weights=None):
+          ne_dim_spat=None, eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
@@ -145,6 +145,14 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     safe_users_ar = np.array([users_embs_dict[k] for k in keys if k in safe_posts_ids])
     posts_embs = torch.tensor(posts_embs, dtype=torch.float32)
 
+    weights = None
+    if loss == "weighted":
+        nz = len(train_df[train_df.label == 1])
+        pos_weight = len(train_df) / nz
+        neg_weight = len(train_df) / (2 * (len(train_df) - nz))
+        weights = torch.tensor([neg_weight, pos_weight])
+        weights = weights.to()
+
     mlp_name = "mlp"
 
     safe_ae = risky_ae = None
@@ -175,12 +183,11 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
 
     retrain = False
     x_rel = x_spat = None
-    if weights is not None:
-        weights = weights.to()
+
     if consider_rel:
         mlp_name += "_rel_{}".format(ne_dim_rel)
         x_rel = reduce_dimension(model_dir=model_dir_rel, edge_path=path_rel, lab="rel", ne_dim=ne_dim_rel,
-                                 train_df=train_df, epochs=eps_nembs_rel, sizes=[2, 3],
+                                 train_df=train_df, epochs=eps_nembs_rel, sizes=[2, 3], loss=loss,
                                  features_dict=users_embs_dict, batch_size=gnn_batch_size, training_weights=weights,
                                  we_dim=word_emb_size, retrain=retrain, separator=separator,
                                  field_name_id=field_name_id, field_name_label=field_name_label)
@@ -190,12 +197,12 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
                                   train_df=train_df, epochs=eps_nembs_spat, sizes=[3, 5],
                                   features_dict=users_embs_dict, batch_size=gnn_batch_size,
                                   training_weights=weights, we_dim=word_emb_size, retrain=retrain, separator=separator,
-                                  field_name_id=field_name_id, field_name_label=field_name_label)
+                                  field_name_id=field_name_id, field_name_label=field_name_label, loss=loss)
 
-    mlp_name += ".pkl"
+    mlp_name += "_{}.pkl".format(loss)
     print("Learning MLP...\n")
     model_fusion(ae_dang=risky_ae, ae_safe=safe_ae, content_embs=posts_embs, model_dir=model_dir, rel_preds=x_rel,
-                 spat_preds=x_spat, y_train=y_train, weights=weights, mlp_name=mlp_name)
+                 spat_preds=x_spat, y_train=y_train, weights=weights, mlp_name=mlp_name, mlp_loss=loss)
 
 
 def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model, consider_content,
@@ -248,3 +255,11 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
     plot_confusion_matrix(y_true=y_true, y_pred=pred)
     print(classification_report(y_true=y_true, y_pred=pred))
 
+    """pred_rel = np.argmax(rel_preds, 1)
+    pred_spat = np.argmax(spat_preds, 1)
+    print("RELATIONAL")
+
+    print(classification_report(y_true=y_true, y_pred=pred_rel))
+    print("SPATIAL")
+    print(classification_report(y_true=y_true, y_pred=pred_spat))
+"""
