@@ -27,8 +27,8 @@ model_params:
   epochs_spat: 25
   mlp_batch_size: 64
   mlp_lr: 4e-1
-  ne_dim_rel: 128
-  ne_dim_spat: 128
-  word_emb_size: 128
+  ne_dim_rel: 512
+  ne_dim_spat: 512
+  word_emb_size: 512
   w2v_epochs: 15
   loss: "weighted"

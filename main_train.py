@@ -7,7 +7,7 @@ from os.path import exists, join
 from os import makedirs
 seed = 123
 np.random.seed(seed)
-
+import time
 
 if __name__ == "__main__":
     with open("parameters.yaml", 'r') as params_file:
@@ -52,8 +52,10 @@ if __name__ == "__main__":
     for conf in confs:
         consider_content, consider_rel, consider_spat = conf[0], conf[1], conf[2]"""
     print("CONTENT: {} REL: {} SPAT: {}".format(consider_content, consider_rel, consider_spat))
+    now = time.time()
     train(train_df=train_df, model_dir=models_dir, gnn_batch_size=64, field_name_id=field_id,
           field_name_label=field_label, path_rel=path_rel, path_spat=path_spat, word_emb_size=word_emb_size,
           ne_dim_spat=ne_dim_spat, ne_dim_rel=ne_dim_rel, eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
           consider_rel=consider_rel, separator=separator, consider_spat=consider_spat,
           consider_content=consider_content, users_embs_dict=users_embs_dict, loss=loss)
+    print("Elapsed time: {}".format(time.time()-now))

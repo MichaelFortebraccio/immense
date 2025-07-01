@@ -133,7 +133,7 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     :param weights: Tensor containing the weights to use during training to compensate for data imbalance
     :return: Nothing, the learned mlp will be saved in the file "mlp.h5" and put in the model directory
     """
-    retrain = False
+    retrain = True
     y_train = list(train_df[field_name_label])
     dang_posts_ids = list(train_df.loc[train_df[field_name_label] == 1][field_name_id])
     safe_posts_ids = list(train_df.loc[train_df[field_name_label] == 0][field_name_id])
@@ -181,7 +181,7 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     except OSError:
         pass
 
-    retrain = False
+    #retrain = False
     x_rel = x_spat = None
 
     if consider_rel:
