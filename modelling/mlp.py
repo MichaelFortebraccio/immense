@@ -1,11 +1,14 @@
-import torch
-import numpy as np
-from kornia.losses import binary_focal_loss_with_logits
 from os.path import join
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from kornia.losses import binary_focal_loss_with_logits
 from torch.nn import Linear
 from torch.nn.functional import relu, nll_loss
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
+
 from utils import save_to_pickle
 
 
@@ -60,16 +63,13 @@ class MLP(torch.nn.Module):
                 print("New best model found at epoch {}. Loss: {}".format(epoch, best_loss))
                 save_to_pickle(self._model_path, self)
 
-    def test(self, X_test):
+    def predict_proba(self, X_test):
         self.eval()
-        preds = self(X_test)
-        if self.loss == "focal":
-            preds = torch.log_softmax(preds, dim=-1)
-        y_p = []
-        for p in preds:
-            if p[0] < p[1]:
-                y_p.append(1)
-            else:
-                y_p.append(0)
-        return y_p
+        with torch.no_grad():
+            logits = self(torch.tensor(X_test, dtype=torch.float))
+            probs = F.softmax(logits, dim=-1)
+        return probs.numpy()
 
+    def test(self, X_test):
+        probs = self.predict_proba(X_test)
+        return np.argmax(probs, axis=-1)
