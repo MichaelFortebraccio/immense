@@ -1,17 +1,19 @@
-import numpy as np
-import torch
 import time
-from modelling.ae import AE
-from modelling.mlp import MLP
-from modelling.text_preprocessing import TextPreprocessing
-from modelling.word_embedding import WordEmb
-from modelling.sage import create_graph, create_mappers
 from os import makedirs
 from os.path import exists, join
-from reduce_dimension import reduce_dimension
+
+import numpy as np
+import torch
 from sklearn.metrics import classification_report
 from torch.nn import MSELoss
 from torch.optim import Adam
+
+from modelling.ae import AE
+from modelling.mlp import MLP
+from modelling.sage import create_graph, create_mappers
+from modelling.text_preprocessing import TextPreprocessing
+from modelling.word_embedding import WordEmb
+from reduce_dimension import reduce_dimension
 from utils import load_from_pickle, save_to_pickle, plot_confusion_matrix
 np.random.seed(123)
 
@@ -73,17 +75,17 @@ def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_loss, mlp_lr=.0
     dataset = torch.zeros((content_embs.shape[0], 7))
 
     if ae_dang and ae_safe:
-        prediction_dang = ae_dang.predict(content_embs)
         prediction_safe = ae_safe.predict(content_embs)
+        prediction_risky = ae_dang.predict(content_embs)
         mse_loss = MSELoss()
-        prediction_loss_dang = []
         prediction_loss_safe = []
+        prediction_loss_risky = []
         for i in range(content_embs.shape[0]):
-            prediction_loss_dang.append(mse_loss(content_embs[i], prediction_dang[i]))
             prediction_loss_safe.append(mse_loss(content_embs[i], prediction_safe[i]))
-        labels = [1 if i < j else 0 for i, j in zip(prediction_loss_dang, prediction_loss_safe)]
-        dataset[:, 0] = torch.tensor(prediction_loss_dang, dtype=torch.float32)
-        dataset[:, 1] = torch.tensor(prediction_loss_safe, dtype=torch.float32)
+            prediction_loss_risky.append(mse_loss(content_embs[i], prediction_risky[i]))
+        labels = [0 if i < j else 1 for i, j in zip(prediction_loss_safe, prediction_loss_risky)]
+        dataset[:, 0] = torch.tensor(prediction_loss_safe, dtype=torch.float32)
+        dataset[:, 1] = torch.tensor(prediction_loss_risky, dtype=torch.float32)
         dataset[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
     if rel_preds is not None:
@@ -94,8 +96,8 @@ def model_fusion(model_dir, y_train, content_embs, mlp_name, mlp_loss, mlp_lr=.0
         safe_spat_probs = torch.tensor(spat_preds[:, 0], dtype=torch.float32)
         risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
         dataset[:, 5], dataset[:, 6] = safe_spat_probs, risky_spat_probs
-
-    mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, mlp_name), weights=weights, loss=mlp_loss)
+    save_to_pickle("explainability/X_train_{}_{}.pkl".format(content_embs.shape[1], mlp_loss), dataset)
+    mlp = MLP(X_train=dataset, y_train=y_train, model_path=join(model_dir, "mlp", mlp_name), weights=weights, loss=mlp_loss)
     optim = Adam(mlp.parameters(), lr=mlp_lr, weight_decay=1e-4)
     mlp.train_mlp(optim)
 
@@ -109,7 +111,7 @@ def get_relational_preds(df, node_embs=None):
 
 def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, users_embs_dict, separator, loss,
           gnn_batch_size=None, consider_content=True, consider_rel=True, consider_spat=True, ne_dim_rel=None,
-          ne_dim_spat=None, eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None):
+          ne_dim_spat=None, eps_nembs_rel=None, eps_nembs_spat=None, path_rel=None, path_spat=None, retrain=False):
     """
     Builds and trains the independent modules that analyze content, social relationships and spatial relationships, and
     then fuses them with the MLP
@@ -133,7 +135,7 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     :param weights: Tensor containing the weights to use during training to compensate for data imbalance
     :return: Nothing, the learned mlp will be saved in the file "mlp.h5" and put in the model directory
     """
-    retrain = True
+    #retrain = True
     y_train = list(train_df[field_name_label])
     dang_posts_ids = list(train_df.loc[train_df[field_name_label] == 1][field_name_id])
     safe_posts_ids = list(train_df.loc[train_df[field_name_label] == 0][field_name_id])
@@ -158,8 +160,8 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     safe_ae = risky_ae = None
     if consider_content:
         mlp_name += "_content_{}".format(word_emb_size)
-        risky_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_emb_size))
         safe_ae_name = join(model_dir, "autoencodersafe_{}.pkl".format(word_emb_size))
+        risky_ae_name = join(model_dir, "autoencoderdang_{}.pkl".format(word_emb_size))
 
         if not exists(safe_ae_name) or retrain:
             safe_ae = AE(X_train=safe_users_ar, epochs=100, batch_size=64, lr=0.002, name=safe_ae_name)
@@ -181,7 +183,6 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
     except OSError:
         pass
 
-    #retrain = False
     x_rel = x_spat = None
 
     if consider_rel:
@@ -205,8 +206,8 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
                  spat_preds=x_spat, y_train=y_train, weights=weights, mlp_name=mlp_name, mlp_loss=loss)
 
 
-def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model, consider_content,
-         consider_rel, consider_spat, ae_dang=None, ae_safe=None, mod_rel=None, mod_spat=None, rel_net_path=None,
+def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model, consider_content, mlp_loss,
+         consider_rel, consider_spat, ae_risky=None, ae_safe=None, mod_rel=None, mod_spat=None, rel_net_path=None,
          spat_net_path=None, separator="\t"):
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_name_text, id_field_name=field_name_id)
@@ -214,18 +215,18 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
     posts_embs_dict = w2v_model.text_to_vec(posts)
     if consider_content:
         posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float32)
-        pred_dang = ae_dang.predict(posts_embs)
         pred_safe = ae_safe.predict(posts_embs)
+        pred_risky = ae_risky.predict(posts_embs)
         loss = MSELoss()
-        pred_loss_dang = []
         pred_loss_safe = []
+        pred_loss_risky = []
         for i in range(posts_embs.shape[0]):
-            pred_loss_dang.append(loss(posts_embs[i], pred_dang[i]))
             pred_loss_safe.append(loss(posts_embs[i], pred_safe[i]))
+            pred_loss_risky.append(loss(posts_embs[i], pred_risky[i]))
 
-        labels = [1 if i < j else 0 for i, j in zip(pred_loss_dang, pred_loss_safe)]
-        test_set[:, 0] = torch.tensor(pred_loss_dang, dtype=torch.float32)
-        test_set[:, 1] = torch.tensor(pred_loss_safe, dtype=torch.float32)
+        labels = [0 if i < j else 1 for i, j in zip(pred_loss_safe, pred_loss_risky)]
+        test_set[:, 0] = torch.tensor(pred_loss_safe, dtype=torch.float32)
+        test_set[:, 1] = torch.tensor(pred_loss_risky, dtype=torch.float32)
         test_set[:, 2] = torch.tensor(labels, dtype=torch.float32)
 
     if consider_rel:
@@ -248,7 +249,7 @@ def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_mod
         safe_spat_probs = torch.tensor(spat_preds[:, 0], dtype=torch.float32)
         risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
         test_set[:, 5], test_set[:, 6] = safe_spat_probs, risky_spat_probs
-
+    save_to_pickle("explainability/x_test_{}_{}.pkl".format(posts_embs.shape[1], mlp_loss), test_set)
     pred = mlp.test(test_set)
     y_true = np.array(df[field_name_label])
 
