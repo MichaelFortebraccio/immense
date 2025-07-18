@@ -6,6 +6,7 @@ from sklearn.metrics import roc_auc_score
 from torch_geometric.data import Data
 from torch_geometric.nn import GraphConv, SAGEConv
 from tqdm import tqdm
+
 torch.manual_seed(42)
 
 
@@ -89,7 +90,7 @@ class SAGE(torch.nn.Module):
                 self.convs.append(SAGEConv(hidden_dim, hidden_dim, aggr="mean", normalize=True))
         self.output = SAGEConv(hidden_dim, 2, aggr="mean", normalize=True)
 
-    def forward(self, batch, inference=False):
+    def forward(self, batch, inference=False, inference_for_embedding=False):
         x = batch.x
         for i in range(len(self.convs)):
             if self.weighted:
@@ -98,11 +99,15 @@ class SAGE(torch.nn.Module):
             else:
                 x = self.convs[i](x, batch.edge_index)
             x = F.relu(x)
+
+        if inference_for_embedding:
+            return x
         x = self.output(x, batch.edge_index)
         if self.loss != "focal":
             x = torch.log_softmax(x, dim=-1)
+
         if inference and self.loss == "focal":
-            x = torch.log_softmax(x, dim=-1)
+            x = F.log_softmax(x)
         return x
 
     def train_sage(self, train_loader, optimizer, weights):
