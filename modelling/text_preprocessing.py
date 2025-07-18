@@ -1,7 +1,7 @@
+import string
 from nltk import word_tokenize
 from nltk.stem.porter import PorterStemmer
 from nltk.stem import WordNetLemmatizer
-import string
 
 
 class TextPreprocessing:
@@ -50,4 +50,3 @@ class TextPreprocessing:
         for idx in to_pop:
             tl.pop(idx)
         return tl
-
