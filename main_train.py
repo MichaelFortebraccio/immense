@@ -1,13 +1,13 @@
+import time
 import numpy as np
 import pandas as pd
-import torch
 import yaml
 from modelling.immense import train, train_w2v_model
-from os.path import exists, join
 from os import makedirs
-seed = 123
-np.random.seed(seed)
-import time
+from os.path import exists, join
+
+np.random.seed(123)
+
 
 if __name__ == "__main__":
     with open("parameters.yaml", 'r') as params_file:
@@ -25,6 +25,7 @@ if __name__ == "__main__":
     consider_rel = train_dataset_params["consider_rel"]
     consider_spat = train_dataset_params["consider_spat"]
     separator = train_dataset_params["separator"]
+    retrain = train_dataset_params["retrain"]
 
     models_dir = model_params["dir_models"]
     epochs_rel = model_params["epochs_rel"]
@@ -43,9 +44,9 @@ if __name__ == "__main__":
         makedirs(models_dir)
     train_df = pd.read_csv(train_df)
 
-
     users_embs_dict = train_w2v_model(embedding_size=word_emb_size, epochs=w2v_epochs, id_field_name=field_id,
                                       model_dir=models_dir, text_field_name=field_text, train_df=train_df)
+
 
     """confs = [(True, False, False), (True, False, True), (True, True, False), (True, True, True), 
                 (False, False, True), (False, True, False), (False, True, True)]
@@ -57,5 +58,5 @@ if __name__ == "__main__":
           field_name_label=field_label, path_rel=path_rel, path_spat=path_spat, word_emb_size=word_emb_size,
           ne_dim_spat=ne_dim_spat, ne_dim_rel=ne_dim_rel, eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
           consider_rel=consider_rel, separator=separator, consider_spat=consider_spat,
-          consider_content=consider_content, users_embs_dict=users_embs_dict, loss=loss)
+          consider_content=consider_content, users_embs_dict=users_embs_dict, loss=loss, retrain=retrain)
     print("Elapsed time: {}".format(time.time()-now))
