@@ -1,8 +1,10 @@
+from os.path import join, exists
+
 import torch
 import torch_geometric.transforms as T
-from modelling.sage import SAGE, create_mappers, create_graph
-from os.path import join, exists
 from torch_geometric.loader import NeighborLoader
+
+from modelling.sage import SAGE, create_mappers, create_graph
 from utils import save_to_pickle
 
 
@@ -36,11 +38,9 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
         predictions (n, num_classes): Predictions made by the node embedding model for the nodes. For each node, its
         prediction is the computed probability of the node to belong to each of the class
     """
-    weights_path = join(model_dir, "graphsage_{}_{}".format(ne_dim, we_dim))
-    model_path = join(model_dir, "graphsage_{}_{}".format(ne_dim, we_dim))
-    if loss == "focal":
-        weights_path += "_focal"
-        model_path += "_focal"
+    weights_path = join(model_dir, "graphsage_{}_{}_{}".format(ne_dim, we_dim, loss))
+    model_path = join(model_dir, "graphsage_{}_{}_{}".format(ne_dim, we_dim, loss))
+
     weights_path += ".h5"
     model_path += ".pkl"
 
@@ -56,6 +56,7 @@ def reduce_dimension(lab, model_dir, ne_dim, train_df, we_dim, batch_size, edge_
     mapper_train, inv_map_train = create_mappers(features_dict)
     graph = create_graph(inv_map=inv_map_train, weighted=weighted, features=features_dict, edg_dir=edge_path,
                          df=train_df, separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
+    save_to_pickle(f"graph_{lab}_{we_dim}.pkl", graph)
     graph = graph.to(device)
     split = T.RandomLinkSplit(num_val=0.1, num_test=0.0, is_undirected=not directed,
                               add_negative_train_samples=False, neg_sampling_ratio=1.0)
