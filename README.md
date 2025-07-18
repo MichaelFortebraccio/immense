@@ -5,6 +5,7 @@ Twitter data. <br>
 # Usage
 You first need to install the dependencies listed in ```requirements.txt```. The file ```parameters.yaml``` contains the
 parameters that have to be set according to your dataset and the way you want to run the experiments.
+The project was realized with **```python 3.8.6```**
 
 ## Files format
 The system is multimodal, meaning that it analyzes three different dimensions, respectively the **content**, the **social
