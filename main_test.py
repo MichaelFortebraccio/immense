@@ -1,11 +1,13 @@
+import time
+import pandas as pd
+import yaml
 from modelling.immense import test
 from os.path import join
 from utils import load_from_pickle
-import pandas as pd
-import yaml
 
 
 def main_test():
+    now = time.time()
     with open("parameters.yaml", 'r') as params_file:
         params = yaml.safe_load(params_file)
         dataset_general_params = params["dataset_general_params"]
@@ -50,26 +52,21 @@ def main_test():
     if consider_content:
         mlp_name += "_content_{}".format(word_emb_size)
     if consider_rel:
-        mod_rel_name = "graphsage_{}_{}".format(ne_dim_rel, word_emb_size)
-        if loss == "focal":
-            mod_rel_name += "_focal"
-        mod_rel_name += ".pkl"
+        mod_rel_name = f"graphsage_{ne_dim_rel}_{word_emb_size}_{loss}.pkl"
         mod_rel = load_from_pickle(join(mod_dir_rel, mod_rel_name))
         mlp_name += "_rel_{}".format(ne_dim_rel)
     if consider_spat:
-        mod_spat_name = "graphsage_{}_{}".format(ne_dim_spat, word_emb_size)
-        if loss == "focal":
-            mod_spat_name += "_focal"
-        mod_spat_name += ".pkl"
+        mod_spat_name = f"graphsage_{ne_dim_spat}_{word_emb_size}_{loss}.pkl"
         mod_spat = load_from_pickle(join(mod_dir_spat, mod_spat_name))
         mlp_name += "_spat_{}".format(ne_dim_spat)
     mlp_name += "_{}.pkl".format(loss)
-    mlp = load_from_pickle(join(models_dir, mlp_name))
+    mlp = load_from_pickle(join(models_dir, "mlp", mlp_name))
     print(mlp_name.upper())
-    test(df=test_df, w2v_model=w2v_model, ae_dang=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
+    test(df=test_df, w2v_model=w2v_model, ae_risky=dang_ae, ae_safe=safe_ae, mlp=mlp, mod_rel=mod_rel,
          mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
          field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
-         consider_rel=consider_rel, consider_spat=consider_spat, separator=separator)
+         consider_rel=consider_rel, consider_spat=consider_spat, separator=separator, mlp_loss=loss)
+    print(f"ELAPSED TIME: {time.time()-now}")
 
 
 if __name__ == "__main__":
