@@ -1,7 +1,8 @@
 import time
 import pandas as pd
 import yaml
-from modelling.immense import test
+from modelling.immense import test, export_shap_feature_scores_per_user
+from explanations import explain_user_interactive
 from os.path import join
 from utils import load_from_pickle
 
@@ -66,7 +67,16 @@ def main_test():
          mod_spat=mod_spat, rel_net_path=path_rel, spat_net_path=path_spat, field_name_text=field_text,
          field_name_id=field_id, field_name_label=field_label, consider_content=consider_content,
          consider_rel=consider_rel, consider_spat=consider_spat, separator=separator, mlp_loss=loss)
+    
     print(f"ELAPSED TIME: {time.time()-now}")
+
+    export_shap_feature_scores_per_user()
+
+    try:
+        if params.get("explanations", {}).get("enable_interactive", False):
+            explain_user_interactive(params)
+    except Exception as e:
+        print(f"[WARN] Spiegazione interattiva non eseguita: {e}")
 
 
 if __name__ == "__main__":

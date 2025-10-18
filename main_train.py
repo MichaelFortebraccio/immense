@@ -59,4 +59,5 @@ if __name__ == "__main__":
           ne_dim_spat=ne_dim_spat, ne_dim_rel=ne_dim_rel, eps_nembs_spat=epochs_spat, eps_nembs_rel=epochs_rel,
           consider_rel=consider_rel, separator=separator, consider_spat=consider_spat,
           consider_content=consider_content, users_embs_dict=users_embs_dict, loss=loss, retrain=retrain)
+    
     print("Elapsed time: {}".format(time.time()-now))

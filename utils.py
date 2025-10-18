@@ -2,15 +2,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import seaborn as sn
+import os
+from os import makedirs
 from os.path import join
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 from tqdm import tqdm
 
 
-def save_to_pickle(name, c):
+def save_to_pickle(name, obj):
+    dir_name = os.path.dirname(name)
+    # only if there is a directory to create
+    os.makedirs(dir_name, exist_ok=True)
+    
     with open(name, 'wb') as f:
-        pickle.dump(c, f)
+        pickle.dump(obj, f)
 
 
 def load_from_pickle(name):

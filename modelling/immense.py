@@ -1,8 +1,14 @@
+import os
 import time
 from os import makedirs
 from os.path import exists, join
+from datetime import datetime
+
 
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 import torch
 from sklearn.metrics import classification_report
 from torch.nn import MSELoss
@@ -13,8 +19,13 @@ from modelling.mlp import MLP
 from modelling.sage import create_graph, create_mappers
 from modelling.text_preprocessing import TextPreprocessing
 from modelling.word_embedding import WordEmb
+
 from reduce_dimension import reduce_dimension
 from utils import load_from_pickle, save_to_pickle, plot_confusion_matrix
+
+import shap
+
+
 np.random.seed(123)
 
 
@@ -206,61 +217,182 @@ def train(field_name_id, field_name_label, model_dir, train_df, word_emb_size, u
                  spat_preds=x_spat, y_train=y_train, weights=weights, mlp_name=mlp_name, mlp_loss=loss)
 
 
-def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model, consider_content, mlp_loss,
-         consider_rel, consider_spat, ae_risky=None, ae_safe=None, mod_rel=None, mod_spat=None, rel_net_path=None,
-         spat_net_path=None, separator="\t"):
+def test(df, field_name_id, field_name_text, field_name_label, mlp: MLP, w2v_model,
+         consider_content, mlp_loss, consider_rel, consider_spat,
+         ae_risky=None, ae_safe=None, mod_rel=None, mod_spat=None,
+         rel_net_path=None, spat_net_path=None, separator="\t"):
+    """
+    Build test features, run MLP, compute SHAP, save CSVs, and plot:
+      - dominant perspective per user (content/rel/spat)
+      - dominant feature per user (one bar per feature)
+    Also prints confusion matrix + classification report and saves SHAP with predictions.
+    """
+    # ---------- Build test_set (7 features) ----------
     tok = TextPreprocessing()
     posts = tok.token_dict(df, text_field_name=field_name_text, id_field_name=field_name_id)
+
     test_set = torch.zeros(len(posts), 7)
     posts_embs_dict = w2v_model.text_to_vec(posts)
+
     if consider_content:
         posts_embs = torch.tensor(list(posts_embs_dict.values()), dtype=torch.float32)
         pred_safe = ae_safe.predict(posts_embs)
         pred_risky = ae_risky.predict(posts_embs)
         loss = MSELoss()
-        pred_loss_safe = []
-        pred_loss_risky = []
+        pred_loss_safe, pred_loss_risky = [], []
         for i in range(posts_embs.shape[0]):
             pred_loss_safe.append(loss(posts_embs[i], pred_safe[i]))
             pred_loss_risky.append(loss(posts_embs[i], pred_risky[i]))
-
         labels = [0 if i < j else 1 for i, j in zip(pred_loss_safe, pred_loss_risky)]
-        test_set[:, 0] = torch.tensor(pred_loss_safe, dtype=torch.float32)
-        test_set[:, 1] = torch.tensor(pred_loss_risky, dtype=torch.float32)
-        test_set[:, 2] = torch.tensor(labels, dtype=torch.float32)
+        test_set[:, 0] = torch.tensor(pred_loss_safe, dtype=torch.float32)   # AE_safe_err
+        test_set[:, 1] = torch.tensor(pred_loss_risky, dtype=torch.float32)  # AE_risk_err
+        test_set[:, 2] = torch.tensor(labels, dtype=torch.float32)           # label_content (pseudo-label)
 
     if consider_rel:
         mapper, inv_map_rel = create_mappers(posts_embs_dict)
-        graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict, edg_dir=rel_net_path, df=df,
-                             separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
+        graph = create_graph(inv_map=inv_map_rel, weighted=False, features=posts_embs_dict,
+                             edg_dir=rel_net_path, df=df, separator=separator,
+                             field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_rel.device)
             rel_preds = mod_rel(graph, inference=True).cpu().detach().numpy()
         safe_rel_probs = torch.tensor(rel_preds[:, 0], dtype=torch.float32)
         risky_rel_probs = torch.tensor(rel_preds[:, 1], dtype=torch.float32)
-        test_set[:, 3], test_set[:, 4] = safe_rel_probs, risky_rel_probs
+        test_set[:, 3], test_set[:, 4] = safe_rel_probs, risky_rel_probs   # label_rel, conf_rel
+
     if consider_spat:
         mapper, inv_map_sp = create_mappers(posts_embs_dict)
-        graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict, edg_dir=spat_net_path, df=df,
-                             separator=separator, field_name_id=field_name_id, field_name_label=field_name_label)
+        graph = create_graph(inv_map=inv_map_sp, weighted=True, features=posts_embs_dict,
+                             edg_dir=spat_net_path, df=df, separator=separator,
+                             field_name_id=field_name_id, field_name_label=field_name_label)
         with torch.no_grad():
             graph = graph.to(mod_spat.device)
             spat_preds = mod_spat(graph, inference=False).cpu().detach().numpy()
         safe_spat_probs = torch.tensor(spat_preds[:, 0], dtype=torch.float32)
         risky_spat_probs = torch.tensor(spat_preds[:, 1], dtype=torch.float32)
-        test_set[:, 5], test_set[:, 6] = safe_spat_probs, risky_spat_probs
-    save_to_pickle("explainability/x_test_{}_{}.pkl".format(posts_embs.shape[1], mlp_loss), test_set)
-    pred = mlp.test(test_set)
+        test_set[:, 5], test_set[:, 6] = safe_spat_probs, risky_spat_probs  # label_spat, conf_spat
+
+    save_to_pickle(f"explainability/x_test_{posts_embs.shape[1]}_{mlp_loss}.pkl", test_set)
+
+    # ---------- SHAP setup ----------
+    X_test_np = test_set.detach().cpu().numpy()
+
+    def predict_proba(x):
+        """Return class probabilities from the MLP (expects log-probs)."""
+        x_tensor = torch.tensor(x, dtype=torch.float32)
+        with torch.no_grad():
+            preds = mlp(x_tensor)           # logits or log-probs (your model returns log-probs)
+            return torch.exp(preds).numpy() # convert log-probs -> probs
+
+    feature_names = [
+        "AE_safe_err", "AE_risk_err", "label_content",
+        "prob_safe_rel", "prob_risk_rel",
+        "prob_safe_spat", "prob_risk_spat",
+    ]
+
+    explainer = shap.Explainer(predict_proba, X_test_np, feature_names=feature_names)
+    shap_values = explainer(X_test_np)  # shape: (N_samples, 7, N_classes)
+
+    # Use class index 1 ("risky") for SHAP values table
+    df_shap = pd.DataFrame(shap_values.values[:, :, 1], columns=feature_names)
+    if field_name_id in df.columns:
+        df_shap["user_id"] = df[field_name_id].values
+
+    # ---------- Aggregate SHAP by perspective ----------
+    # Content perspective = {AE_safe_err, AE_risk_err, label_content}
+    df_shap["SHAP_content"] = df_shap[["AE_safe_err", "AE_risk_err", "label_content"]].abs().sum(axis=1)
+
+    # Relational perspective = {prob_safe_rel, prob_risk_rel}
+    df_shap["SHAP_rel"] = df_shap[["prob_safe_rel", "prob_risk_rel"]].abs().sum(axis=1)
+    
+    # Spatial perspective = {prob_safe_spat, prob_risk_spat}
+    df_shap["SHAP_spat"] = df_shap[["prob_safe_spat", "prob_risk_spat"]].abs().sum(axis=1)
+
+    # Dominant perspective per user
+    df_shap["dominant_perspective"] = df_shap[["SHAP_content", "SHAP_rel", "SHAP_spat"]].idxmax(axis=1)
+
+    # ---------- Save plots / CSV ----------
+    shap_dir = "shap"
+    os.makedirs(shap_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Distribution of dominant perspective
+    plot_path_persp = os.path.join(shap_dir, f"dominant_perspective_distribution_{timestamp}.png")
+    plt.figure(figsize=(5, 4))
+    df_shap["dominant_perspective"].value_counts().plot(kind="bar")
+    plt.title("Most influential perspective per user (test set)")
+    plt.ylabel("Users")
+    plt.tight_layout()
+    plt.savefig(plot_path_persp)
+    plt.close()
+
+    # Dominant single feature per user (largest |SHAP|)
+    abs_shap = df_shap[feature_names].abs().to_numpy()   # (N, 7)
+    winner_idx = abs_shap.argmax(axis=1)
+    feature_winner = pd.Series([feature_names[i] for i in winner_idx])
+    counts_by_feature = feature_winner.value_counts().reindex(feature_names, fill_value=0)
+
+    plot_path_feat = os.path.join(shap_dir, f"dominant_feature_distribution_{timestamp}.png")
+    plt.figure(figsize=(7, 4))
+    counts_by_feature.plot(kind="bar")
+    plt.title("Most influential feature per user (test set)")
+    plt.ylabel("Users")
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(plot_path_feat)
+    plt.close()
+
+    # ---------- Predictions & reports ----------
+    pred = mlp.test(test_set)  # predicted labels from the MLP
     y_true = np.array(df[field_name_label])
 
+    # Confusion matrix + classification report
     plot_confusion_matrix(y_true=y_true, y_pred=pred)
     print(classification_report(y_true=y_true, y_pred=pred))
 
-    """pred_rel = np.argmax(rel_preds, 1)
-    pred_spat = np.argmax(spat_preds, 1)
-    print("RELATIONAL")
+    # Attach labels/predictions to the SHAP table and save
+    df_shap["true_label"] = y_true
+    df_shap["predicted_label"] = pred
+    df_shap["correct"] = df_shap["true_label"] == df_shap["predicted_label"]
 
-    print(classification_report(y_true=y_true, y_pred=pred_rel))
-    print("SPATIAL")
-    print(classification_report(y_true=y_true, y_pred=pred_spat))
-"""
+    csv_path_full = os.path.join(shap_dir, f"shap_output_with_predictions_{timestamp}.csv")
+    df_shap.to_csv(csv_path_full, index=False)
+
+    print(f"\n✔️ Files saved in '{shap_dir}':")
+    print(f"- {os.path.basename(csv_path_full)} (SHAP + predictions)")
+    print(f"- {os.path.basename(plot_path_persp)} (dominant perspective plot)")
+    print(f"- {os.path.basename(plot_path_feat)} (dominant feature plot)")
+
+
+def export_shap_feature_scores_per_user(shap_dir="shap", field_name_id="user_id", class_index=1):
+    """
+    Load the most recent SHAP CSV saved by `test(...)` and return per-user SHAP scores.
+    Prints a preview and returns the DataFrame (no new files are created).
+    """
+    import os, glob, pandas as pd
+
+    shap_files = sorted(glob.glob(os.path.join(shap_dir, "shap_output_with_predictions_*.csv")))
+    if not shap_files:
+        print("❌ No SHAP files found.")
+        return
+
+    last_file = shap_files[-1]
+    print(f"📄 Loading latest SHAP file: {os.path.basename(last_file)}")
+    df_shap = pd.read_csv(last_file)
+
+    columns_to_keep = [
+        field_name_id,
+        "AE_safe_err", "AE_risk_err",
+        "label_content", "label_rel", "conf_rel",
+        "label_spat", "conf_spat",
+        "SHAP_content", "SHAP_rel", "SHAP_spat",
+        "dominant_perspective",
+        "true_label", "predicted_label", "correct"
+    ]
+    available_columns = [c for c in columns_to_keep if c in df_shap.columns]
+    df_result = df_shap[available_columns]
+
+    print("\n✅ SHAP scores for top 5 users (with predictions and labels):")
+    print(df_result.head())
+
+    return df_result
