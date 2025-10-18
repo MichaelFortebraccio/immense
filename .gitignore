@@ -1,3 +1,4 @@
 graph_spat_128.pkl
 graph_spat_128.pkl
 models/w2v_128.pkl
+*.pkl
